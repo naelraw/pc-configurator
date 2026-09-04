@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PC Configurator - Construisez votre PC</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            padding: 30px 20px;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+        
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1024px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        
+        .card:hover { transform: translateY(-5px); }
+        
+        .card h2 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+        }
+        
+        .section h3 {
+            font-size: 1.1em;
+            color: #555;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .component-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 10px;
+        }
+        
+        .component-btn {
+            padding: 12px;
+            background: #f5f5f5;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+            font-size: 0.9em;
+        }
+        
+        .component-btn:hover {
+            border-color: #667eea;
+            background: #f0f0ff;
+            transform: scale(1.02);
+        }
+        
+        .component-btn.selected {
+            border-color: #00d084;
+            background: #e8f8f5;
+            font-weight: bold;
+        }
+        
+        .component-btn .name {
+            font-weight: bold;
+            color: #333;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .component-btn .specs {
+            font-size: 0.8em;
+            color: #888;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .component-btn .price {
+            color: #00d084;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+        
+        /* Configuration actuelle */
+        .build-summary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+        }
+        
+        .build-summary h2 {
+            color: white;
+            border-color: rgba(255,255,255,0.3);
+            margin-bottom: 15px;
+        }
+        
+        .selected-items {
+            display: grid;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .selected-item {
+            background: rgba(255,255,255,0.15);
+            padding: 10px;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .selected-item .remove {
+            background: #ff6b6b;
+            border: none;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.3s;
+        }
+        
+        .selected-item .remove:hover { background: #ff5252; }
+        
+        .price-total {
+            font-size: 1.5em;
+            font-weight: bold;
+            border-top: 2px solid rgba(255,255,255,0.3);
+            padding-top: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #00d084;
+            color: white;
+        }
+        
+        .btn-primary:hover { background: #00c070; transform: scale(1.02); }
+        
+        .btn-secondary {
+            background: #ff6b6b;
+            color: white;
+        }
+        
+        .btn-secondary:hover { background: #ff5252; }
+        
+        .btn-ai {
+            background: #ffa500;
+            color: white;
+            grid-column: 1 / -1;
+            padding: 15px;
+            font-size: 1.1em;
+        }
+        
+        .btn-ai:hover { background: #ff9500; }
+        
+        /* AI Suggestions */
+        .ai-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .ai-section h2 {
+            color: #ffa500;
+            border-bottom: 3px solid #ffa500;
+        }
+        
+        .ai-prompt {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .ai-prompt input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+        }
+        
+        .ai-prompt button {
+            padding: 12px 20px;
+            background: #ffa500;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .ai-prompt button:hover { background: #ff9500; }
+        
+        #ai-message {
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-weight: bold;
+            text-align: center;
+            min-height: 20px;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .saved-builds {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .saved-builds h2 {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .builds-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .build-item {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .build-item:hover {
+            background: #f0f0ff;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+        
+        .build-item .name {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .build-item .date {
+            font-size: 0.85em;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        
+        .build-item .price {
+            color: #00d084;
+            font-weight: bold;
+        }
+        
+        .build-item .delete {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-top: 10px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🖥️ PC Configurator</h1>
+            <p>Construisez votre PC parfait avec notre assistant IA</p>
+        </header>
+
+        <div id="message" class="message"></div>
+
+        <!-- Configs sauvegardées -->
+        <div class="saved-builds">
+            <h2>📚 Vos configurations</h2>
+            <div class="builds-list" id="savedBuildsList"></div>
+        </div>
+
+        <!-- Principal -->
+        <div class="main-grid">
+            <!-- Gauche: Sélection composants -->
+            <div class="card">
+                <h2>⚙️ Composants disponibles</h2>
+                <div id="componentsContainer"></div>
+            </div>
+
+            <!-- Droite: Config actuelle + résumé -->
+            <div>
+                <div class="build-summary">
+                    <h2>Configuration actuelle</h2>
+                    <div class="selected-items" id="selectedItems"></div>
+                    <div class="price-total">
+                        Total: <span id="totalPrice">0€</span>
+                    </div>
+                    <div class="buttons">
+                        <button class="btn-primary" onclick="saveBuild()">💾 Sauvegarder</button>
+                        <button class="btn-secondary" onclick="clearBuild()">🗑️ Vider</button>
+                    </div>
+                </div>
+
+                <!-- IA -->
+                <div class="ai-section">
+                    <h2>✨ Assistant IA</h2>
+                    <p style="color: #666; margin-bottom: 15px;">Décrivez vos besoins et l'IA vous suggérera une configuration.</p>
+                    <div class="ai-prompt">
+                        <input type="text" id="aiPrompt" placeholder="Ex: Je veux un PC gaming pour la 4K à 60fps, budget 2000€...">
+                        <button onclick="askAI()">🚀 Suggérer</button>
+                    </div>
+                    <div id="ai-message"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let components = [];
+        let selectedComponents = {};
+        const categories = ['CPU', 'Carte mère', 'RAM', 'Stockage', 'GPU', 'Alimentation', 'Boîtier', 'Refroidissement CPU'];
+
+        // Charger composants
+        async function loadComponents() {
+            try {
+                const response = await fetch('/api/components');
+                const data = await response.json();
+                components = data.components || [];
+                renderCategories();
+                loadSavedBuilds();
+            } catch (error) {
+                showMessage('Erreur chargement composants', 'error');
+            }
+        }
+
+        // Afficher par catégorie
+        function renderCategories() {
+            const container = document.getElementById('componentsContainer');
+            container.innerHTML = '';
+            
+            categories.forEach(category => {
+                const items = components.filter(c => c.categorie === category);
+                if (items.length === 0) return;
+
+                const section = document.createElement('div');
+                section.className = 'section';
+                section.innerHTML = `<h3>${category}</h3>`;
+
+                const grid = document.createElement('div');
+                grid.className = 'component-grid';
+
+                items.forEach(item => {
+                    const specs = JSON.parse(item.specs_json || '{}');
+                    const specsText = Object.entries(specs)
+                        .slice(0, 2)
+                        .map(([k, v]) => `${k}: ${v}`)
+                        .join(', ');
+
+                    const btn = document.createElement('button');
+                    btn.className = `component-btn ${selectedComponents[category]?.id === item.id ? 'selected' : ''}`;
+                    btn.innerHTML = `
+                        <span class="name">${item.nom}</span>
+                        <span class="specs">${specsText}</span>
+                        <span class="price">${item.prix_indicatif}€</span>
+                    `;
+                    btn.onclick = () => selectComponent(category, item);
+                    grid.appendChild(btn);
+                });
+
+                section.appendChild(grid);
+                container.appendChild(section);
+            });
+
+            updateBuildPreview();
+        }
+
+        // Sélectionner un composant
+        function selectComponent(category, component) {
+            selectedComponents[category] = component;
+            renderCategories();
+        }
+
+        // Mettre à jour l'aperçu
+        function updateBuildPreview() {
+            const itemsDiv = document.getElementById('selectedItems');
+            itemsDiv.innerHTML = '';
+
+            Object.entries(selectedComponents).forEach(([category, comp]) => {
+                const item = document.createElement('div');
+                item.className = 'selected-item';
+                item.innerHTML = `
+                    <div>
+                        <strong>${category}</strong><br>
+                        <small>${comp.nom}</small>
+                    </div>
+                    <button class="remove" onclick="removeComponent('${category}')">✕</button>
+                `;
+                itemsDiv.appendChild(item);
+            });
+
+            const total = Object.values(selectedComponents)
+                .reduce((sum, comp) => sum + (comp.prix_indicatif || 0), 0);
+            document.getElementById('totalPrice').textContent = total.toFixed(2) + '€';
+        }
+
+        // Retirer un composant
+        function removeComponent(category) {
+            delete selectedComponents[category];
+            renderCategories();
+        }
+
+        // Sauvegarder config
+        async function saveBuild() {
+            const name = prompt('Nom de la configuration:');
+            if (!name) return;
+
+            const buildData = {
+                nom: name,
+                composants_json: JSON.stringify(selectedComponents),
+                user_id_optionnel: null
+            };
+
+            try {
+                const response = await fetch('/api/builds', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(buildData)
+                });
+                const data = await response.json();
+                showMessage(`✅ Config "${name}" sauvegardée!`, 'success');
+                loadSavedBuilds();
+            } catch (error) {
+                showMessage('Erreur sauvegarde', 'error');
+            }
+        }
+
+        // Charger configs sauvegardées
+        async function loadSavedBuilds() {
+            try {
+                const response = await fetch('/api/builds');
+                const data = await response.json();
+                const list = document.getElementById('savedBuildsList');
+                list.innerHTML = '';
+
+                (data.builds || []).forEach(build => {
+                    const comps = JSON.parse(build.composants_json || '{}');
+                    const total = Object.values(comps)
+                        .reduce((sum, c) => sum + (c.prix_indicatif || 0), 0);
+                    
+                    const item = document.createElement('div');
+                    item.className = 'build-item';
+                    item.innerHTML = `
+                        <div class="name">${build.nom}</div>
+                        <div class="date">${new Date(build.date).toLocaleDateString()}</div>
+                        <div class="price">${total.toFixed(2)}€</div>
+                        <button class="delete" onclick="deleteBuild(${build.id})">Supprimer</button>
+                    `;
+                    item.style.cursor = 'pointer';
+                    item.onclick = (e) => {
+                        if (e.target.classList.contains('delete')) return;
+                        selectedComponents = comps;
+                        renderCategories();
+                        showMessage(`Config "${build.nom}" chargée`, 'success');
+                    };
+                    list.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Erreur chargement configs:', error);
+            }
+        }
+
+        // Supprimer config
+        async function deleteBuild(id) {
+            if (!confirm('Supprimer cette config?')) return;
+            try {
+                await fetch(`/api/builds/${id}`, { method: 'DELETE' });
+                loadSavedBuilds();
+                showMessage('Config supprimée', 'success');
+            } catch (error) {
+                showMessage('Erreur suppression', 'error');
+            }
+        }
+
+        // Vider
+        function clearBuild() {
+            if (confirm('Vider la config actuelle?')) {
+                selectedComponents = {};
+                renderCategories();
+                showMessage('Config vidée', 'success');
+            }
+        }
+
+        // IA
+        async function askAI() {
+            const prompt = document.getElementById('aiPrompt').value.trim();
+            if (!prompt) {
+                showMessage('Décrivez vos besoins', 'error');
+                return;
+            }
+
+            const aiMsg = document.getElementById('ai-message');
+            aiMsg.innerHTML = '⏳ Génération en cours...';
+            aiMsg.style.color = '#ffa500';
+
+            try {
+                const response = await fetch('/suggest-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_prompt: prompt })
+                });
+
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    selectedComponents = data.suggested_build;
+                    renderCategories();
+                    updateBuildPreview();
+                    aiMsg.innerHTML = '✅ Configuration suggérée appliquée!';
+                    aiMsg.style.color = '#00d084';
+                } else {
+                    aiMsg.innerHTML = `❌ ${data.message}`;
+                    aiMsg.style.color = '#ff6b6b';
+                }
+            } catch (error) {
+                aiMsg.innerHTML = `❌ Erreur: ${error.message}`;
+                aiMsg.style.color = '#ff6b6b';
+            }
+        }
+
+        // Message temporaire
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = `message ${type}`;
+            setTimeout(() => { msg.className = 'message'; msg.textContent = ''; }, 3000);
+        }
+
+        // Démarrage
+        loadComponents();
+    </script>
+</body>
+</html>
