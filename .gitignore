@@ -3,6 +3,3 @@ venv/
 local_replica.db
 __pycache__/
 *.pyc
-.DS_Store
-*.egg-info/
-.vscode/

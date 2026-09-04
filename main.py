@@ -1,14 +1,13 @@
 import json
 import os
-from datetime import datetime
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from groq import Groq
 import libsql_client
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from compatibility import (
     check_alimentation,
     check_carte_mere_boitier,
@@ -17,7 +16,6 @@ from compatibility import (
     check_gpu_boitier,
     check_refroidissement,
     check_stockage,
-    verifier_compatibilite,
 )
 
 try:
@@ -36,23 +34,6 @@ if genai and GEMINI_API_KEY:
 
 class SuggestConfigRequest(BaseModel):
     user_input: str
-
-
-class BuildIn(BaseModel):
-    nom: str
-    composants: dict
-
-
-class CompatCheckIn(BaseModel):
-    cpu: dict | None = None
-    motherboard: dict | None = None
-    ram: dict | None = None
-    case: dict | None = None
-    psu: dict | None = None
-    gpu: dict | None = None
-    cooler: dict | None = None
-    storages: list = Field(default_factory=list)
-
 
 app = FastAPI()
 
@@ -186,82 +167,6 @@ def api_components():
     return {"components": grouped}
 
 
-@app.post("/check-compatibility")
-def check_compat(data: CompatCheckIn):
-    manquants = [
-        key
-        for key in ["cpu", "motherboard", "ram", "case", "psu", "cooler"]
-        if getattr(data, key) is None
-    ]
-    if manquants:
-        return {"status": "incomplete", "manquants": manquants}
-
-    erreurs = verifier_compatibilite(
-        data.cpu,
-        data.motherboard,
-        data.ram,
-        data.case,
-        data.psu,
-        data.gpu,
-        data.storages,
-        data.cooler,
-    )
-    return {"status": "ok" if not erreurs else "incompatible", "erreurs": erreurs}
-
-
-@app.post("/builds")
-def create_build(build: BuildIn):
-    cpu = build.composants.get("cpu")
-    carte_mere = build.composants.get("motherboard")
-    ram = build.composants.get("ram")
-    boitier = build.composants.get("case")
-    alimentation = build.composants.get("psu")
-    gpu = build.composants.get("gpu")
-    cooler = build.composants.get("cooler")
-    stockages = build.composants.get("storages", [])
-
-    if not all([cpu, carte_mere, ram, boitier, alimentation, cooler]):
-        raise HTTPException(status_code=400, detail="Composants obligatoires manquants.")
-
-    erreurs = verifier_compatibilite(
-        cpu, carte_mere, ram, boitier, alimentation, gpu, stockages, cooler
-    )
-    if erreurs:
-        raise HTTPException(status_code=400, detail={"erreurs": erreurs})
-
-    client = get_client()
-    try:
-        client.execute(
-            "INSERT INTO builds (nom, composants_json, date) VALUES (?, ?, ?)",
-            [build.nom, json.dumps(build.composants), datetime.utcnow().isoformat()],
-        )
-    finally:
-        client.close()
-
-    return {"status": "ok", "message": "Build sauvegardée."}
-
-
-@app.get("/builds")
-def list_builds():
-    client = get_client()
-    try:
-        result = client.execute(
-            "SELECT id, nom, composants_json, date FROM builds ORDER BY id DESC"
-        )
-        builds = [
-            {
-                "id": row[0],
-                "nom": row[1],
-                "composants": json.loads(row[2]),
-                "date": row[3],
-            }
-            for row in result.rows
-        ]
-        return {"status": "ok", "builds": builds}
-    finally:
-        client.close()
-
-
 @app.post("/suggest-config")
 def suggest_config(request: SuggestConfigRequest):
     """Route IA : suggère une config basée sur la description utilisateur"""
@@ -390,9 +295,3 @@ def test_db():
         return {"status": "ok", "count": len(rows), "components": rows}
     finally:
         client.close()
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,629 +1,588 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PC Configurator - Construisez votre PC</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            color: #333;
-        }
-        
-        .container { 
-            max-width: 1400px; 
-            margin: 0 auto; 
-            padding: 30px 20px;
-        }
-        
-        header {
-            text-align: center;
-            color: white;
-            margin-bottom: 40px;
-        }
-        
-        header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
-        }
-        
-        header p {
-            font-size: 1.1em;
-            opacity: 0.95;
-        }
-        
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-bottom: 30px;
-        }
-        
-        @media (max-width: 1024px) {
-            .main-grid { grid-template-columns: 1fr; }
-        }
-        
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: transform 0.3s;
-        }
-        
-        .card:hover { transform: translateY(-5px); }
-        
-        .card h2 {
-            font-size: 1.5em;
-            margin-bottom: 20px;
-            color: #667eea;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 10px;
-        }
-        
-        .section {
-            margin-bottom: 25px;
-        }
-        
-        .section h3 {
-            font-size: 1.1em;
-            color: #555;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .component-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 10px;
-        }
-        
-        .component-btn {
-            padding: 12px;
-            background: #f5f5f5;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: left;
-            font-size: 0.9em;
-        }
-        
-        .component-btn:hover {
-            border-color: #667eea;
-            background: #f0f0ff;
-            transform: scale(1.02);
-        }
-        
-        .component-btn.selected {
-            border-color: #00d084;
-            background: #e8f8f5;
-            font-weight: bold;
-        }
-        
-        .component-btn .name {
-            font-weight: bold;
-            color: #333;
-            display: block;
-            margin-bottom: 5px;
-        }
-        
-        .component-btn .specs {
-            font-size: 0.8em;
-            color: #888;
-            margin-bottom: 5px;
-            display: block;
-        }
-        
-        .component-btn .price {
-            color: #00d084;
-            font-weight: bold;
-            font-size: 0.95em;
-        }
-        
-        /* Configuration actuelle */
-        .build-summary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 12px;
-            padding: 25px;
-            margin-bottom: 20px;
-        }
-        
-        .build-summary h2 {
-            color: white;
-            border-color: rgba(255,255,255,0.3);
-            margin-bottom: 15px;
-        }
-        
-        .selected-items {
-            display: grid;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-        
-        .selected-item {
-            background: rgba(255,255,255,0.15);
-            padding: 10px;
-            border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .selected-item .remove {
-            background: #ff6b6b;
-            border: none;
-            color: white;
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: background 0.3s;
-        }
-        
-        .selected-item .remove:hover { background: #ff5252; }
-        
-        .price-total {
-            font-size: 1.5em;
-            font-weight: bold;
-            border-top: 2px solid rgba(255,255,255,0.3);
-            padding-top: 12px;
-            margin-bottom: 15px;
-        }
-        
-        .buttons {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        
-        button {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 6px;
-            font-size: 1em;
-            cursor: pointer;
-            font-weight: bold;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary {
-            background: #00d084;
-            color: white;
-        }
-        
-        .btn-primary:hover { background: #00c070; transform: scale(1.02); }
-        
-        .btn-secondary {
-            background: #ff6b6b;
-            color: white;
-        }
-        
-        .btn-secondary:hover { background: #ff5252; }
-        
-        .btn-ai {
-            background: #ffa500;
-            color: white;
-            grid-column: 1 / -1;
-            padding: 15px;
-            font-size: 1.1em;
-        }
-        
-        .btn-ai:hover { background: #ff9500; }
-        
-        /* AI Suggestions */
-        .ai-section {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-        
-        .ai-section h2 {
-            color: #ffa500;
-            border-bottom: 3px solid #ffa500;
-        }
-        
-        .ai-prompt {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .ai-prompt input {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #ddd;
-            border-radius: 6px;
-            font-size: 1em;
-        }
-        
-        .ai-prompt button {
-            padding: 12px 20px;
-            background: #ffa500;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        
-        .ai-prompt button:hover { background: #ff9500; }
-        
-        #ai-message {
-            padding: 15px;
-            border-radius: 6px;
-            margin-top: 15px;
-            font-weight: bold;
-            text-align: center;
-            min-height: 20px;
-        }
-        
-        .message {
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            text-align: center;
-            font-weight: bold;
-        }
-        
-        .message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .saved-builds {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 30px;
-        }
-        
-        .saved-builds h2 {
-            color: #667eea;
-            border-bottom: 3px solid #667eea;
-        }
-        
-        .builds-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-        
-        .build-item {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 6px;
-            border-left: 4px solid #667eea;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .build-item:hover {
-            background: #f0f0ff;
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
-        }
-        
-        .build-item .name {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 5px;
-        }
-        
-        .build-item .date {
-            font-size: 0.85em;
-            color: #888;
-            margin-bottom: 8px;
-        }
-        
-        .build-item .price {
-            color: #00d084;
-            font-weight: bold;
-        }
-        
-        .build-item .delete {
-            background: #ff6b6b;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85em;
-            margin-top: 10px;
-            width: 100%;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCRadar — Configurateur PC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0D0F14;
+    --surface: #141822;
+    --surface-hi: #1B2030;
+    --border: #262C3B;
+    --text: #EDEBE6;
+    --text-muted: #838A99;
+    --copper: #CC8B4C;
+    --copper-hi: #E3A566;
+    --cyan: #4FC8D6;
+    --cyan-dim: #2C5A61;
+    --ok: #6FA287;
+    --fail: #C1493F;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background:
+      radial-gradient(circle at 15% 0%, rgba(79,200,214,0.06), transparent 40%),
+      radial-gradient(circle at 85% 15%, rgba(204,139,76,0.05), transparent 45%),
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.012) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.012) 40px),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+  }
+
+  h1, h2, h3, .wordmark { font-family: 'Space Grotesk', sans-serif; font-weight: 700; }
+  .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  /* Header */
+  header { border-bottom: 1px solid var(--border); padding: 20px 0; position: relative; z-index: 5; }
+  header .wrap { display: flex; justify-content: space-between; align-items: center; }
+  .wordmark { font-size: 20px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .wordmark .node { width: 8px; height: 8px; border-radius: 50%; background: var(--copper); box-shadow: 0 0 8px var(--copper); }
+  .wordmark span.accent { color: var(--copper); }
+  nav a { color: var(--text-muted); text-decoration: none; font-size: 14px; margin-left: 28px; transition: color .15s; }
+  nav a:hover { color: var(--cyan); }
+
+  /* Hero */
+  .hero {
+    padding: 72px 0 56px;
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 40px;
+    align-items: center;
+  }
+  @media (max-width: 760px) { .hero { grid-template-columns: 1fr; padding-top: 48px; } .hero-graphic { order: -1; height: 220px; } }
+  .hero h1 {
+    font-size: 42px;
+    line-height: 1.12;
+    letter-spacing: -0.015em;
+    max-width: 480px;
+  }
+  .hero p { margin-top: 16px; color: var(--text-muted); max-width: 440px; font-size: 16px; }
+
+  .hero-graphic { width: 100%; height: 320px; }
+  .hero-graphic svg { width: 100%; height: 100%; }
+  .pulse-node { animation: pulse 2.6s ease-in-out infinite; transform-origin: center; }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; r: 5; }
+    50% { opacity: 1; r: 7; }
+  }
+  .trace-line { stroke-dasharray: 4 3; }
+
+  /* Niveau bar */
+  .level-bar {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--copper);
+    border-radius: 4px;
+    padding: 14px 20px;
+    margin-bottom: 40px;
+  }
+  .level-bar.visible { display: flex; }
+  .level-bar .info { font-size: 14px; color: var(--text-muted); }
+  .level-bar .info strong { color: var(--text); }
+  .level-bar button {
+    background: none; border: 1px solid var(--border); color: var(--text-muted);
+    padding: 6px 12px; border-radius: 3px; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif;
+    transition: all .15s;
+  }
+  .level-bar button:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* Level cards */
+  .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 56px; }
+  @media (max-width: 760px) { .levels { grid-template-columns: 1fr; } }
+  .level-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: border-color .2s, transform .2s, box-shadow .2s;
+    overflow: hidden;
+  }
+  .level-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, var(--copper), transparent);
+    opacity: 0;
+    transition: opacity .2s;
+  }
+  .level-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); box-shadow: 0 12px 24px -12px rgba(0,0,0,0.5); }
+  .level-card:hover::before { opacity: 1; }
+  .level-card.selected { border-color: var(--copper); box-shadow: 0 0 0 1px var(--copper), 0 12px 24px -12px rgba(204,139,76,0.25); }
+  .level-card.selected::before { opacity: 1; }
+
+  .gauge { display: flex; gap: 5px; }
+  .gauge span { width: 18px; height: 6px; border-radius: 1px; background: var(--border); }
+  .gauge span.filled { background: var(--copper); box-shadow: 0 0 6px rgba(204,139,76,0.6); }
+
+  .level-card h3 { font-size: 19px; }
+  .level-card p { color: var(--text-muted); font-size: 14px; flex-grow: 1; }
+  .level-card button {
+    background: var(--copper); color: #14171C; border: none; padding: 11px 16px;
+    font-weight: 600; font-size: 14px; border-radius: 3px; cursor: pointer; font-family: 'Inter', sans-serif;
+    transition: background .15s;
+  }
+  .level-card button:hover { background: var(--copper-hi); }
+
+  /* Configurateur */
+  #configurator { display: none; padding-bottom: 80px; }
+  #configurator.visible { display: block; }
+
+  .config-layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; align-items: start; }
+  @media (max-width: 760px) { .config-layout { grid-template-columns: 1fr; } }
+
+  .presets { display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
+  .preset-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+    padding: 22px; display: flex; justify-content: space-between; align-items: center; gap: 16px;
+    transition: border-color .15s;
+  }
+  .preset-card:hover { border-color: var(--cyan-dim); }
+  .preset-card .txt h4 { font-size: 15px; margin-bottom: 4px; }
+  .preset-card .txt p { color: var(--text-muted); font-size: 13px; }
+  .preset-card button {
+    background: transparent; border: 1px solid var(--copper); color: var(--copper);
+    padding: 9px 14px; border-radius: 3px; font-size: 13px; cursor: pointer; white-space: nowrap;
+    font-family: 'Inter', sans-serif; transition: all .15s;
+  }
+  .preset-card button:hover { background: var(--copper); color: #14171C; }
+
+  .custom-toggle {
+    color: var(--text-muted); font-size: 13px; text-decoration: underline; cursor: pointer;
+    background: none; border: none; font-family: 'Inter', sans-serif; padding: 4px 0; text-align: left;
+  }
+  .custom-toggle:hover { color: var(--cyan); }
+
+  .category-row {
+    border: 1px solid var(--border); background: var(--surface); border-radius: 3px;
+    padding: 16px 20px; margin-bottom: 10px; display: flex; gap: 16px; align-items: flex-start;
+    transition: border-color .15s;
+  }
+  .category-row:focus-within { border-color: var(--cyan-dim); }
+  .cat-icon { flex-shrink: 0; width: 34px; height: 34px; color: var(--copper); margin-top: 2px; }
+  .cat-icon svg { width: 100%; height: 100%; }
+  .cat-body { flex-grow: 1; }
+  .category-row label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+  .category-row select {
+    width: 100%; background: var(--surface-hi); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 12px; border-radius: 3px; font-size: 14px; font-family: 'Inter', sans-serif;
+  }
+  .spec-detail { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+  .spec-detail span { margin-right: 14px; }
+
+  /* Résumé */
+  .summary {
+    position: sticky; top: 24px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 3px; padding: 24px;
+  }
+  .summary h3 { font-size: 15px; margin-bottom: 16px; }
+  .summary-line { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .summary-line:last-of-type { border-bottom: none; }
+  .total-row { display: flex; justify-content: space-between; padding-top: 16px; margin-top: 8px; border-top: 1px solid var(--border); font-size: 17px; }
+  .total-row strong { color: var(--copper); font-family: 'IBM Plex Mono', monospace; }
+
+  .compat-list { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+  .compat-item { font-size: 12px; display: flex; gap: 8px; align-items: flex-start; }
+  .compat-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .compat-dot.ok { background: var(--ok); box-shadow: 0 0 5px rgba(111,162,135,0.6); }
+  .compat-dot.fail { background: var(--fail); box-shadow: 0 0 5px rgba(193,73,63,0.6); }
+  .compat-item.fail-text { color: var(--fail); }
+  .compat-item.ok-text { color: var(--text-muted); }
+
+  .save-block { margin-top: 24px; }
+  .save-block input {
+    width: 100%; background: var(--surface-hi); border: 1px solid var(--border); color: var(--text);
+    padding: 9px 12px; border-radius: 3px; font-size: 13px; margin-bottom: 8px; font-family: 'Inter', sans-serif;
+  }
+  .save-block button {
+    width: 100%; background: var(--copper); color: #14171C; border: none; padding: 11px;
+    font-weight: 600; font-size: 13px; border-radius: 3px; cursor: pointer; transition: background .15s;
+  }
+  .save-block button:hover:not(:disabled) { background: var(--copper-hi); }
+  .save-block button:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
+  .save-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; }
+
+  /* Mes configs */
+  #saved-section { padding: 48px 0 80px; border-top: 1px solid var(--border); }
+  #saved-section h2 { font-size: 22px; margin-bottom: 20px; }
+  .saved-build {
+    border: 1px solid var(--border); background: var(--surface); border-radius: 3px;
+    padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  }
+  .saved-build .name { font-size: 14px; }
+  .saved-build .price { font-family: 'IBM Plex Mono', monospace; color: var(--copper); font-size: 14px; }
+  .empty-state { color: var(--text-muted); font-size: 14px; border: 1px dashed var(--border); border-radius: 3px; padding: 24px; text-align: center; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🖥️ PC Configurator</h1>
-            <p>Construisez votre PC parfait avec notre assistant IA</p>
-        </header>
 
-        <div id="message" class="message"></div>
+<header>
+  <div class="wrap">
+    <div class="wordmark"><span class="node"></span>PC<span class="accent">Radar</span></div>
+    <nav>
+      <a href="#configurator-anchor">Configurateur</a>
+      <a href="#saved-section">Mes configs</a>
+    </nav>
+  </div>
+</header>
 
-        <!-- Configs sauvegardées -->
-        <div class="saved-builds">
-            <h2>📚 Vos configurations</h2>
-            <div class="builds-list" id="savedBuildsList"></div>
+<div class="wrap">
+
+  <section class="hero" id="configurator-anchor">
+    <div>
+      <h1>Construire un PC ne devrait pas être compliqué.</h1>
+      <p>Choisis ton niveau de contrôle sur les composants. On vérifie la compatibilité socket, mémoire, format et alimentation à ta place.</p>
+    </div>
+    <div class="hero-graphic">
+      <svg viewBox="0 0 320 320" fill="none">
+        <g stroke="var(--border)" stroke-width="1.5">
+          <path class="trace-line" d="M40 60 H120 V40" stroke="var(--cyan-dim)"/>
+          <path class="trace-line" d="M280 50 H200 V90" stroke="var(--copper)" stroke-opacity="0.5"/>
+          <path class="trace-line" d="M30 180 H90 V240 H160" stroke="var(--cyan-dim)"/>
+          <path class="trace-line" d="M290 220 H230 V160" stroke="var(--copper)" stroke-opacity="0.5"/>
+          <path d="M120 40 H200 V90 H120 Z" />
+          <path d="M90 240 H230 V160 H160 V190 H90 Z" />
+        </g>
+        <rect x="120" y="130" width="80" height="80" rx="4" stroke="var(--copper)" stroke-width="1.5" fill="var(--surface)"/>
+        <rect x="140" y="150" width="40" height="40" rx="2" stroke="var(--cyan)" stroke-width="1.2" fill="none"/>
+        <circle class="pulse-node" cx="160" cy="170" r="5" fill="var(--cyan)"/>
+        <circle cx="120" cy="40" r="3" fill="var(--cyan-dim)"/>
+        <circle cx="200" cy="90" r="3" fill="var(--copper)" fill-opacity="0.6"/>
+        <circle cx="90" cy="240" r="3" fill="var(--cyan-dim)"/>
+        <circle cx="230" cy="160" r="3" fill="var(--copper)" fill-opacity="0.6"/>
+        <g stroke="var(--border)" stroke-width="1">
+          <line x1="120" y1="140" x2="105" y2="140"/>
+          <line x1="120" y1="155" x2="105" y2="155"/>
+          <line x1="120" y1="185" x2="105" y2="185"/>
+          <line x1="120" y1="200" x2="105" y2="200"/>
+          <line x1="200" y1="140" x2="215" y2="140"/>
+          <line x1="200" y1="155" x2="215" y2="155"/>
+          <line x1="200" y1="185" x2="215" y2="185"/>
+          <line x1="200" y1="200" x2="215" y2="200"/>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <div class="level-bar" id="levelBar">
+    <div class="info">Niveau actuel : <strong id="levelBarText">—</strong></div>
+    <button onclick="resetLevel()">Changer de niveau</button>
+  </div>
+
+  <div class="levels" id="levelCards">
+    <div class="level-card" data-level="debutant">
+      <div class="gauge"><span class="filled"></span><span></span><span></span></div>
+      <h3>Débutant</h3>
+      <p>Tu choisis un usage (bureautique, jeu, création), on te propose une configuration complète déjà compatible.</p>
+      <button onclick="selectLevel('debutant')">Commencer</button>
+    </div>
+    <div class="level-card" data-level="intermediaire">
+      <div class="gauge"><span class="filled"></span><span class="filled"></span><span></span></div>
+      <h3>Intermédiaire</h3>
+      <p>Tu choisis chaque composant toi-même dans une liste simplifiée. On t'indique en direct ce qui est compatible.</p>
+      <button onclick="selectLevel('intermediaire')">Commencer</button>
+    </div>
+    <div class="level-card" data-level="pro">
+      <div class="gauge"><span class="filled"></span><span class="filled"></span><span class="filled"></span></div>
+      <h3>Pro</h3>
+      <p>Accès aux caractéristiques techniques complètes (socket, TDP, chipset) pour un contrôle total sur le choix.</p>
+      <button onclick="selectLevel('pro')">Commencer</button>
+    </div>
+  </div>
+
+  <div id="configurator">
+
+    <div id="presetsBlock" class="presets"></div>
+
+    <div id="customConfigurator" style="display:none;">
+      <div class="config-layout">
+        <div id="categoryList"></div>
+        <div class="summary">
+          <h3>Résumé de la configuration</h3>
+          <div id="summaryLines"></div>
+          <div class="total-row"><span>Total</span><strong id="totalPrice">0 €</strong></div>
+          <div class="compat-list" id="compatList"></div>
+          <div class="save-block">
+            <input type="text" id="buildName" placeholder="Nom de cette configuration">
+            <button id="saveBtn" onclick="saveBuild()">Enregistrer cette config</button>
+          </div>
+          <p class="save-note">Sauvegarde temporaire, valable pour cette session. La sauvegarde permanente arrivera avec la connexion à la base de données.</p>
         </div>
-
-        <!-- Principal -->
-        <div class="main-grid">
-            <!-- Gauche: Sélection composants -->
-            <div class="card">
-                <h2>⚙️ Composants disponibles</h2>
-                <div id="componentsContainer"></div>
-            </div>
-
-            <!-- Droite: Config actuelle + résumé -->
-            <div>
-                <div class="build-summary">
-                    <h2>Configuration actuelle</h2>
-                    <div class="selected-items" id="selectedItems"></div>
-                    <div class="price-total">
-                        Total: <span id="totalPrice">0€</span>
-                    </div>
-                    <div class="buttons">
-                        <button class="btn-primary" onclick="saveBuild()">💾 Sauvegarder</button>
-                        <button class="btn-secondary" onclick="clearBuild()">🗑️ Vider</button>
-                    </div>
-                </div>
-
-                <!-- IA -->
-                <div class="ai-section">
-                    <h2>✨ Assistant IA</h2>
-                    <p style="color: #666; margin-bottom: 15px;">Décrivez vos besoins et l'IA vous suggérera une configuration.</p>
-                    <div class="ai-prompt">
-                        <input type="text" id="aiPrompt" placeholder="Ex: Je veux un PC gaming pour la 4K à 60fps, budget 2000€...">
-                        <button onclick="askAI()">🚀 Suggérer</button>
-                    </div>
-                    <div id="ai-message"></div>
-                </div>
-            </div>
-        </div>
+      </div>
     </div>
 
-    <script>
-        let components = [];
-        let selectedComponents = {};
-        const categories = ['CPU', 'Carte mère', 'RAM', 'Stockage', 'GPU', 'Alimentation', 'Boîtier', 'Refroidissement CPU'];
+  </div>
 
-        // Charger composants
-        async function loadComponents() {
-            try {
-                const response = await fetch('/api/components');
-                const data = await response.json();
-                components = data.components || [];
-                renderCategories();
-                loadSavedBuilds();
-            } catch (error) {
-                showMessage('Erreur chargement composants', 'error');
-            }
-        }
+  <section id="saved-section">
+    <h2>Mes configurations enregistrées</h2>
+    <div id="savedList"><div class="empty-state">Aucune configuration enregistrée pour l'instant. Choisis un niveau ci-dessus pour commencer.</div></div>
+  </section>
 
-        // Afficher par catégorie
-        function renderCategories() {
-            const container = document.getElementById('componentsContainer');
-            container.innerHTML = '';
-            
-            categories.forEach(category => {
-                const items = components.filter(c => c.categorie === category);
-                if (items.length === 0) return;
+</div>
 
-                const section = document.createElement('div');
-                section.className = 'section';
-                section.innerHTML = `<h3>${category}</h3>`;
+<script>
+// --- Icônes par catégorie (traits simples, cohérents avec le thème circuit) ---
+const ICONS = {
+  cpu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="7" y="7" width="10" height="10" rx="1"/><rect x="10" y="10" width="4" height="4"/><path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"/></svg>`,
+  motherboard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="4" width="18" height="16" rx="1"/><rect x="6" y="7" width="6" height="6" rx="0.5"/><path d="M15 8h4M15 11h4M15 14h4M6 16h12"/></svg>`,
+  ram: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="8" width="18" height="9" rx="1"/><path d="M7 8v9M11 8v9M15 8v9M9 4v4M13 4v4"/></svg>`,
+  gpu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="7" width="20" height="10" rx="1"/><circle cx="8" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/><path d="M2 17v2h6v-2"/></svg>`,
+  storage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 13h18"/><circle cx="7" cy="16" r="1"/></svg>`,
+  psu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="4" width="16" height="16" rx="1"/><circle cx="10" cy="10" r="3"/><path d="M15 15l4 4M4 20h4v-4"/></svg>`,
+  case: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="6" y="2" width="12" height="20" rx="1"/><circle cx="12" cy="6" r="1"/><path d="M9 10h6M9 13h6"/></svg>`,
+};
 
-                const grid = document.createElement('div');
-                grid.className = 'component-grid';
+// --- Données des composants (à remplacer par un appel à Turso côté backend) ---
+const DATA = {
+  cpu: [
+    { id: 'cpu-i3', name: 'Intel Core i3-13100F', socket: 'LGA1700', tdp: 60, price: 120 },
+    { id: 'cpu-i5', name: 'Intel Core i5-13400F', socket: 'LGA1700', tdp: 65, price: 200 },
+    { id: 'cpu-ryzen5', name: 'AMD Ryzen 5 7600', socket: 'AM5', tdp: 65, price: 220 },
+    { id: 'cpu-ryzen7', name: 'AMD Ryzen 7 7800X3D', socket: 'AM5', tdp: 120, price: 450 },
+  ],
+  motherboard: [
+    { id: 'mb-b760', name: 'Asus B760M', socket: 'LGA1700', format: 'mATX', ramType: 'DDR4', price: 140 },
+    { id: 'mb-b650', name: 'MSI B650M', socket: 'AM5', format: 'mATX', ramType: 'DDR5', price: 150 },
+    { id: 'mb-x670', name: 'MSI X670E ATX', socket: 'AM5', format: 'ATX', ramType: 'DDR5', price: 280 },
+    { id: 'mb-z790itx', name: 'Gigabyte Z790 ITX', socket: 'LGA1700', format: 'ITX', ramType: 'DDR5', price: 220 },
+  ],
+  ram: [
+    { id: 'ram-ddr4-16', name: '16 Go DDR4 3200 MHz', type: 'DDR4', price: 50 },
+    { id: 'ram-ddr5-16', name: '16 Go DDR5 6000 MHz', type: 'DDR5', price: 70 },
+    { id: 'ram-ddr5-32', name: '32 Go DDR5 6000 MHz', type: 'DDR5', price: 130 },
+  ],
+  gpu: [
+    { id: 'gpu-none', name: 'Aucune (graphique intégré)', tdp: 0, price: 0 },
+    { id: 'gpu-4060', name: 'RTX 4060', tdp: 115, price: 330 },
+    { id: 'gpu-4070', name: 'RTX 4070 Super', tdp: 220, price: 640 },
+  ],
+  storage: [
+    { id: 'ssd-500', name: 'SSD NVMe 500 Go', price: 45 },
+    { id: 'ssd-1to', name: 'SSD NVMe 1 To', price: 80 },
+  ],
+  psu: [
+    { id: 'psu-550', name: 'Alimentation 550W 80+ Bronze', watt: 550, price: 60 },
+    { id: 'psu-750', name: 'Alimentation 750W 80+ Gold', watt: 750, price: 95 },
+  ],
+  case: [
+    { id: 'case-matx', name: 'Boîtier MicroATX', formats: ['mATX', 'ITX'], price: 60 },
+    { id: 'case-itx', name: 'Boîtier ITX compact', formats: ['ITX'], price: 80 },
+    { id: 'case-atx', name: 'Boîtier ATX moyen tour', formats: ['ATX', 'mATX', 'ITX'], price: 70 },
+  ],
+};
 
-                items.forEach(item => {
-                    const specs = JSON.parse(item.specs_json || '{}');
-                    const specsText = Object.entries(specs)
-                        .slice(0, 2)
-                        .map(([k, v]) => `${k}: ${v}`)
-                        .join(', ');
+const LABELS = { cpu: 'Processeur', motherboard: 'Carte mère', ram: 'Mémoire RAM', gpu: 'Carte graphique', storage: 'Stockage', psu: 'Alimentation', case: 'Boîtier' };
+const ORDER = ['cpu', 'motherboard', 'ram', 'gpu', 'storage', 'psu', 'case'];
 
-                    const btn = document.createElement('button');
-                    btn.className = `component-btn ${selectedComponents[category]?.id === item.id ? 'selected' : ''}`;
-                    btn.innerHTML = `
-                        <span class="name">${item.nom}</span>
-                        <span class="specs">${specsText}</span>
-                        <span class="price">${item.prix_indicatif}€</span>
-                    `;
-                    btn.onclick = () => selectComponent(category, item);
-                    grid.appendChild(btn);
-                });
+const PRESETS = [
+  { id: 'bureautique', name: 'Bureautique', desc: 'Navigation, documents, visioconférence. Aucune carte graphique dédiée.',
+    selections: { cpu: 'cpu-i3', motherboard: 'mb-b760', ram: 'ram-ddr4-16', gpu: 'gpu-none', storage: 'ssd-500', psu: 'psu-550', case: 'case-matx' } },
+  { id: 'gaming', name: 'Jeu', desc: 'Jeux récents en 1080p/1440p à réglages élevés.',
+    selections: { cpu: 'cpu-i5', motherboard: 'mb-b760', ram: 'ram-ddr4-16', gpu: 'gpu-4060', storage: 'ssd-500', psu: 'psu-750', case: 'case-atx' } },
+  { id: 'creation', name: 'Création / Streaming', desc: 'Montage vidéo, streaming, jeux exigeants en même temps.',
+    selections: { cpu: 'cpu-ryzen7', motherboard: 'mb-x670', ram: 'ram-ddr5-32', gpu: 'gpu-4070', storage: 'ssd-1to', psu: 'psu-750', case: 'case-atx' } },
+];
 
-                section.appendChild(grid);
-                container.appendChild(section);
-            });
+// --- État (en mémoire, pas de stockage navigateur) ---
+let state = { level: null, selections: {} };
+let savedBuilds = [];
 
-            updateBuildPreview();
-        }
+function findItem(cat, id) { return DATA[cat].find(i => i.id === id); }
 
-        // Sélectionner un composant
-        function selectComponent(category, component) {
-            selectedComponents[category] = component;
-            renderCategories();
-        }
+function selectLevel(level) {
+  state.level = level;
+  state.selections = {};
+  document.querySelectorAll('.level-card').forEach(c => c.classList.toggle('selected', c.dataset.level === level));
+  document.getElementById('levelBar').classList.add('visible');
+  document.getElementById('levelBarText').textContent = level === 'debutant' ? 'Débutant' : level === 'intermediaire' ? 'Intermédiaire' : 'Pro';
+  document.getElementById('configurator').classList.add('visible');
 
-        // Mettre à jour l'aperçu
-        function updateBuildPreview() {
-            const itemsDiv = document.getElementById('selectedItems');
-            itemsDiv.innerHTML = '';
+  const presetsBlock = document.getElementById('presetsBlock');
+  const custom = document.getElementById('customConfigurator');
 
-            Object.entries(selectedComponents).forEach(([category, comp]) => {
-                const item = document.createElement('div');
-                item.className = 'selected-item';
-                item.innerHTML = `
-                    <div>
-                        <strong>${category}</strong><br>
-                        <small>${comp.nom}</small>
-                    </div>
-                    <button class="remove" onclick="removeComponent('${category}')">✕</button>
-                `;
-                itemsDiv.appendChild(item);
-            });
+  if (level === 'debutant') {
+    presetsBlock.style.display = 'flex';
+    custom.style.display = 'none';
+    renderPresets();
+  } else {
+    presetsBlock.style.display = 'none';
+    custom.style.display = 'block';
+    renderCategoryList(level);
+    renderSummary();
+  }
+}
 
-            const total = Object.values(selectedComponents)
-                .reduce((sum, comp) => sum + (comp.prix_indicatif || 0), 0);
-            document.getElementById('totalPrice').textContent = total.toFixed(2) + '€';
-        }
+function resetLevel() {
+  state = { level: null, selections: {} };
+  document.getElementById('levelBar').classList.remove('visible');
+  document.getElementById('configurator').classList.remove('visible');
+  document.querySelectorAll('.level-card').forEach(c => c.classList.remove('selected'));
+}
 
-        // Retirer un composant
-        function removeComponent(category) {
-            delete selectedComponents[category];
-            renderCategories();
-        }
+function renderPresets() {
+  const el = document.getElementById('presetsBlock');
+  el.innerHTML = '';
+  PRESETS.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'preset-card';
+    div.innerHTML = `
+      <div class="txt"><h4>${p.name}</h4><p>${p.desc}</p></div>
+      <button onclick="usePreset('${p.id}')">Utiliser ce pack</button>
+    `;
+    el.appendChild(div);
+  });
+  const toggle = document.createElement('button');
+  toggle.className = 'custom-toggle';
+  toggle.textContent = 'Choisir chaque composant moi-même (mode intermédiaire)';
+  toggle.onclick = () => selectLevel('intermediaire');
+  el.appendChild(toggle);
+}
 
-        // Sauvegarder config
-        async function saveBuild() {
-            const name = prompt('Nom de la configuration:');
-            if (!name) return;
+function usePreset(presetId) {
+  const preset = PRESETS.find(p => p.id === presetId);
+  state.selections = { ...preset.selections };
+  document.getElementById('presetsBlock').style.display = 'none';
+  document.getElementById('customConfigurator').style.display = 'block';
+  renderCategoryList('debutant');
+  renderSummary();
+}
 
-            const buildData = {
-                nom: name,
-                composants_json: JSON.stringify(selectedComponents),
-                user_id_optionnel: null
-            };
+function renderCategoryList(level) {
+  const el = document.getElementById('categoryList');
+  el.innerHTML = '';
+  ORDER.forEach(cat => {
+    const row = document.createElement('div');
+    row.className = 'category-row';
+    const options = DATA[cat].map(item =>
+      `<option value="${item.id}" ${state.selections[cat] === item.id ? 'selected' : ''}>${item.name} — ${item.price} €</option>`
+    ).join('');
+    row.innerHTML = `
+      <div class="cat-icon">${ICONS[cat]}</div>
+      <div class="cat-body">
+        <label>${LABELS[cat]}</label>
+        <select onchange="updateSelection('${cat}', this.value)">
+          <option value="">— Choisir —</option>
+          ${options}
+        </select>
+        <div class="spec-detail" id="spec-${cat}"></div>
+      </div>
+    `;
+    el.appendChild(row);
+    renderSpecDetail(cat, level);
+  });
+}
 
-            try {
-                const response = await fetch('/api/builds', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(buildData)
-                });
-                const data = await response.json();
-                showMessage(`✅ Config "${name}" sauvegardée!`, 'success');
-                loadSavedBuilds();
-            } catch (error) {
-                showMessage('Erreur sauvegarde', 'error');
-            }
-        }
+function renderSpecDetail(cat, level) {
+  if (level !== 'pro') return;
+  const id = state.selections[cat];
+  const item = id ? findItem(cat, id) : null;
+  const el = document.getElementById(`spec-${cat}`);
+  if (!item) { el.textContent = ''; return; }
+  let parts = [];
+  if (item.socket) parts.push(`socket ${item.socket}`);
+  if (item.tdp !== undefined) parts.push(`TDP ${item.tdp} W`);
+  if (item.format) parts.push(`format ${item.format}`);
+  if (item.ramType) parts.push(`mémoire ${item.ramType}`);
+  if (item.type) parts.push(`type ${item.type}`);
+  if (item.watt) parts.push(`${item.watt} W`);
+  if (item.formats) parts.push(`compatible ${item.formats.join(', ')}`);
+  el.innerHTML = parts.map(p => `<span class="mono">${p}</span>`).join('');
+}
 
-        // Charger configs sauvegardées
-        async function loadSavedBuilds() {
-            try {
-                const response = await fetch('/api/builds');
-                const data = await response.json();
-                const list = document.getElementById('savedBuildsList');
-                list.innerHTML = '';
+function updateSelection(cat, value) {
+  state.selections[cat] = value || null;
+  if (state.level === 'pro') renderSpecDetail(cat, 'pro');
+  renderSummary();
+}
 
-                (data.builds || []).forEach(build => {
-                    const comps = JSON.parse(build.composants_json || '{}');
-                    const total = Object.values(comps)
-                        .reduce((sum, c) => sum + (c.prix_indicatif || 0), 0);
-                    
-                    const item = document.createElement('div');
-                    item.className = 'build-item';
-                    item.innerHTML = `
-                        <div class="name">${build.nom}</div>
-                        <div class="date">${new Date(build.date).toLocaleDateString()}</div>
-                        <div class="price">${total.toFixed(2)}€</div>
-                        <button class="delete" onclick="deleteBuild(${build.id})">Supprimer</button>
-                    `;
-                    item.style.cursor = 'pointer';
-                    item.onclick = (e) => {
-                        if (e.target.classList.contains('delete')) return;
-                        selectedComponents = comps;
-                        renderCategories();
-                        showMessage(`Config "${build.nom}" chargée`, 'success');
-                    };
-                    list.appendChild(item);
-                });
-            } catch (error) {
-                console.error('Erreur chargement configs:', error);
-            }
-        }
+function computeTotal() {
+  return ORDER.reduce((sum, cat) => {
+    const item = state.selections[cat] ? findItem(cat, state.selections[cat]) : null;
+    return sum + (item ? item.price : 0);
+  }, 0);
+}
 
-        // Supprimer config
-        async function deleteBuild(id) {
-            if (!confirm('Supprimer cette config?')) return;
-            try {
-                await fetch(`/api/builds/${id}`, { method: 'DELETE' });
-                loadSavedBuilds();
-                showMessage('Config supprimée', 'success');
-            } catch (error) {
-                showMessage('Erreur suppression', 'error');
-            }
-        }
+function computeCompatibility() {
+  const s = state.selections;
+  const results = [];
+  const cpu = s.cpu ? findItem('cpu', s.cpu) : null;
+  const mb = s.motherboard ? findItem('motherboard', s.motherboard) : null;
+  const ram = s.ram ? findItem('ram', s.ram) : null;
+  const gpu = s.gpu ? findItem('gpu', s.gpu) : null;
+  const psu = s.psu ? findItem('psu', s.psu) : null;
+  const kase = s.case ? findItem('case', s.case) : null;
 
-        // Vider
-        function clearBuild() {
-            if (confirm('Vider la config actuelle?')) {
-                selectedComponents = {};
-                renderCategories();
-                showMessage('Config vidée', 'success');
-            }
-        }
+  if (!cpu || !mb || !ram || !psu || !kase) {
+    results.push({ ok: null, msg: 'Sélectionne processeur, carte mère, RAM, alimentation et boîtier pour vérifier la compatibilité.' });
+    return results;
+  }
 
-        // IA
-        async function askAI() {
-            const prompt = document.getElementById('aiPrompt').value.trim();
-            if (!prompt) {
-                showMessage('Décrivez vos besoins', 'error');
-                return;
-            }
+  results.push({ ok: cpu.socket === mb.socket, msg: cpu.socket === mb.socket ? `Processeur et carte mère compatibles (socket ${cpu.socket}).` : `Socket incompatible : le processeur est en ${cpu.socket}, la carte mère en ${mb.socket}.` });
+  results.push({ ok: ram.type === mb.ramType, msg: ram.type === mb.ramType ? `Mémoire compatible (${ram.type}).` : `La RAM est en ${ram.type}, la carte mère attend du ${mb.ramType}.` });
+  results.push({ ok: kase.formats.includes(mb.format), msg: kase.formats.includes(mb.format) ? `Le boîtier accepte le format ${mb.format} de la carte mère.` : `Le boîtier ne supporte pas le format ${mb.format} de la carte mère.` });
 
-            const aiMsg = document.getElementById('ai-message');
-            aiMsg.innerHTML = '⏳ Génération en cours...';
-            aiMsg.style.color = '#ffa500';
+  const consumption = cpu.tdp + (gpu ? gpu.tdp : 0) + 150;
+  results.push({ ok: psu.watt >= consumption, msg: psu.watt >= consumption ? `Alimentation suffisante (${psu.watt} W pour environ ${consumption} W estimés).` : `Alimentation trop faible : ${psu.watt} W pour environ ${consumption} W estimés.` });
 
-            try {
-                const response = await fetch('/suggest-config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_prompt: prompt })
-                });
+  return results;
+}
 
-                const data = await response.json();
-                if (data.status === 'ok') {
-                    selectedComponents = data.suggested_build;
-                    renderCategories();
-                    updateBuildPreview();
-                    aiMsg.innerHTML = '✅ Configuration suggérée appliquée!';
-                    aiMsg.style.color = '#00d084';
-                } else {
-                    aiMsg.innerHTML = `❌ ${data.message}`;
-                    aiMsg.style.color = '#ff6b6b';
-                }
-            } catch (error) {
-                aiMsg.innerHTML = `❌ Erreur: ${error.message}`;
-                aiMsg.style.color = '#ff6b6b';
-            }
-        }
+function renderSummary() {
+  const lines = document.getElementById('summaryLines');
+  lines.innerHTML = ORDER.map(cat => {
+    const item = state.selections[cat] ? findItem(cat, state.selections[cat]) : null;
+    return `<div class="summary-line"><span>${LABELS[cat]}</span><span>${item ? item.name : '—'}</span></div>`;
+  }).join('');
 
-        // Message temporaire
-        function showMessage(text, type) {
-            const msg = document.getElementById('message');
-            msg.textContent = text;
-            msg.className = `message ${type}`;
-            setTimeout(() => { msg.className = 'message'; msg.textContent = ''; }, 3000);
-        }
+  document.getElementById('totalPrice').textContent = computeTotal() + ' €';
 
-        // Démarrage
-        loadComponents();
-    </script>
+  const compatEl = document.getElementById('compatList');
+  const results = computeCompatibility();
+  compatEl.innerHTML = results.map(r => {
+    if (r.ok === null) return `<div class="compat-item ok-text">${r.msg}</div>`;
+    return `<div class="compat-item ${r.ok ? 'ok-text' : 'fail-text'}"><span class="compat-dot ${r.ok ? 'ok' : 'fail'}"></span>${r.msg}</div>`;
+  }).join('');
+
+  const allSelected = ORDER.every(cat => state.selections[cat]);
+  const allCompatible = results.every(r => r.ok !== false);
+  document.getElementById('saveBtn').disabled = !(allSelected && allCompatible);
+}
+
+function saveBuild() {
+  const nameInput = document.getElementById('buildName');
+  const name = nameInput.value.trim() || 'Configuration sans nom';
+  savedBuilds.push({ name, price: computeTotal(), selections: { ...state.selections } });
+  nameInput.value = '';
+  renderSavedList();
+}
+
+function renderSavedList() {
+  const el = document.getElementById('savedList');
+  if (savedBuilds.length === 0) {
+    el.innerHTML = '<div class="empty-state">Aucune configuration enregistrée pour l\'instant. Choisis un niveau ci-dessus pour commencer.</div>';
+    return;
+  }
+  el.innerHTML = savedBuilds.map(b => `
+    <div class="saved-build">
+      <span class="name">${b.name}</span>
+      <span class="price mono">${b.price} €</span>
+    </div>
+  `).join('');
+}
+</script>
+
 </body>
 </html>
