@@ -295,3 +295,9 @@ def test_db():
         return {"status": "ok", "count": len(rows), "components": rows}
     finally:
         client.close()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
