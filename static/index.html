@@ -345,44 +345,56 @@ const ICONS = {
   case: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="6" y="2" width="12" height="20" rx="1"/><circle cx="12" cy="6" r="1"/><path d="M9 10h6M9 13h6"/></svg>`,
 };
 
-// --- Données des composants (à remplacer par un appel à Turso côté backend) ---
-const DATA = {
-  cpu: [
-    { id: 'cpu-i3', name: 'Intel Core i3-13100F', socket: 'LGA1700', tdp: 60, price: 120 },
-    { id: 'cpu-i5', name: 'Intel Core i5-13400F', socket: 'LGA1700', tdp: 65, price: 200 },
-    { id: 'cpu-ryzen5', name: 'AMD Ryzen 5 7600', socket: 'AM5', tdp: 65, price: 220 },
-    { id: 'cpu-ryzen7', name: 'AMD Ryzen 7 7800X3D', socket: 'AM5', tdp: 120, price: 450 },
-  ],
-  motherboard: [
-    { id: 'mb-b760', name: 'Asus B760M', socket: 'LGA1700', format: 'mATX', ramType: 'DDR4', price: 140 },
-    { id: 'mb-b650', name: 'MSI B650M', socket: 'AM5', format: 'mATX', ramType: 'DDR5', price: 150 },
-    { id: 'mb-x670', name: 'MSI X670E ATX', socket: 'AM5', format: 'ATX', ramType: 'DDR5', price: 280 },
-    { id: 'mb-z790itx', name: 'Gigabyte Z790 ITX', socket: 'LGA1700', format: 'ITX', ramType: 'DDR5', price: 220 },
-  ],
-  ram: [
-    { id: 'ram-ddr4-16', name: '16 Go DDR4 3200 MHz', type: 'DDR4', price: 50 },
-    { id: 'ram-ddr5-16', name: '16 Go DDR5 6000 MHz', type: 'DDR5', price: 70 },
-    { id: 'ram-ddr5-32', name: '32 Go DDR5 6000 MHz', type: 'DDR5', price: 130 },
-  ],
-  gpu: [
-    { id: 'gpu-none', name: 'Aucune (graphique intégré)', tdp: 0, price: 0 },
-    { id: 'gpu-4060', name: 'RTX 4060', tdp: 115, price: 330 },
-    { id: 'gpu-4070', name: 'RTX 4070 Super', tdp: 220, price: 640 },
-  ],
-  storage: [
-    { id: 'ssd-500', name: 'SSD NVMe 500 Go', price: 45 },
-    { id: 'ssd-1to', name: 'SSD NVMe 1 To', price: 80 },
-  ],
-  psu: [
-    { id: 'psu-550', name: 'Alimentation 550W 80+ Bronze', watt: 550, price: 60 },
-    { id: 'psu-750', name: 'Alimentation 750W 80+ Gold', watt: 750, price: 95 },
-  ],
-  case: [
-    { id: 'case-matx', name: 'Boîtier MicroATX', formats: ['mATX', 'ITX'], price: 60 },
-    { id: 'case-itx', name: 'Boîtier ITX compact', formats: ['ITX'], price: 80 },
-    { id: 'case-atx', name: 'Boîtier ATX moyen tour', formats: ['ATX', 'mATX', 'ITX'], price: 70 },
-  ],
+// --- Charger les composants depuis le backend ---
+let DATA = {
+  cpu: [], motherboard: [], ram: [], gpu: [], storage: [], psu: [], case: []
 };
+
+const CATEGORY_KEYS = {
+  CPU: 'cpu',
+  'Carte mère': 'motherboard',
+  RAM: 'ram',
+  Stockage: 'storage',
+  GPU: 'gpu',
+  Alimentation: 'psu',
+  Boîtier: 'case'
+};
+
+async function loadComponents() {
+  try {
+    const res = await fetch('/api/components');
+    const json = await res.json();
+    const apiComponents = Array.isArray(json.components)
+      ? json.components
+      : Object.values(json.components || {}).flat();
+
+    DATA = {
+      cpu: [], motherboard: [], ram: [], gpu: [], storage: [], psu: [], case: []
+    };
+
+    apiComponents.forEach(comp => {
+      const specs = JSON.parse(comp.specs_json || '{}');
+      const item = {
+        id: `comp-${comp.id}`,
+        name: comp.nom,
+        price: comp.prix_indicatif,
+        ...specs
+      };
+
+      const category = CATEGORY_KEYS[comp.categorie] || comp.categorie;
+      if (DATA[category]) {
+        DATA[category].push(item);
+      }
+    });
+
+    console.log('Composants chargés :', DATA);
+    renderCategories();
+  } catch (err) {
+    console.error('Erreur lors du chargement des composants :', err);
+  }
+}
+
+loadComponents();
 
 const LABELS = { cpu: 'Processeur', motherboard: 'Carte mère', ram: 'Mémoire RAM', gpu: 'Carte graphique', storage: 'Stockage', psu: 'Alimentation', case: 'Boîtier' };
 const ORDER = ['cpu', 'motherboard', 'ram', 'gpu', 'storage', 'psu', 'case'];
@@ -398,7 +410,6 @@ const PRESETS = [
 
 // --- État (en mémoire, pas de stockage navigateur) ---
 let state = { level: null, selections: {} };
-let savedBuilds = [];
 
 function findItem(cat, id) { return DATA[cat].find(i => i.id === id); }
 
@@ -561,27 +572,74 @@ function renderSummary() {
   document.getElementById('saveBtn').disabled = !(allSelected && allCompatible);
 }
 
-function saveBuild() {
+async function saveBuild() {
   const nameInput = document.getElementById('buildName');
-  const name = nameInput.value.trim() || 'Configuration sans nom';
-  savedBuilds.push({ name, price: computeTotal(), selections: { ...state.selections } });
-  nameInput.value = '';
-  renderSavedList();
-}
-
-function renderSavedList() {
-  const el = document.getElementById('savedList');
-  if (savedBuilds.length === 0) {
-    el.innerHTML = '<div class="empty-state">Aucune configuration enregistrée pour l\'instant. Choisis un niveau ci-dessus pour commencer.</div>';
+  const name = nameInput.value.trim();
+  if (!name) {
+    alert('Donne un nom à cette configuration');
     return;
   }
-  el.innerHTML = savedBuilds.map(b => `
-    <div class="saved-build">
-      <span class="name">${b.name}</span>
-      <span class="price mono">${b.price} €</span>
-    </div>
-  `).join('');
+
+  const build = {
+    nom: name,
+    composants_json: JSON.stringify(state.selections)
+  };
+
+  try {
+    const res = await fetch('/api/builds', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(build)
+    });
+    const json = await res.json();
+
+    if (res.ok && json.status === 'ok') {
+      alert('Configuration sauvegardée !');
+      nameInput.value = '';
+      loadSavedBuilds();
+    } else {
+      alert('Erreur : ' + (json.message || json.detail || 'sauvegarde impossible'));
+    }
+  } catch (err) {
+    console.error('Erreur sauvegarde :', err);
+    alert('Erreur réseau');
+  }
 }
+
+async function loadSavedBuilds() {
+  try {
+    const res = await fetch('/api/builds');
+    const json = await res.json();
+    const listEl = document.getElementById('savedList');
+    const builds = json.builds || [];
+
+    if (json.status === 'ok' && builds.length > 0) {
+      listEl.innerHTML = builds.map(build => {
+        const rawComponents = build.composants_json || build.composants || '{}';
+        const comps = typeof rawComponents === 'string'
+          ? JSON.parse(rawComponents)
+          : rawComponents;
+        const total = ORDER.reduce((sum, cat) => {
+          const item = comps[cat] ? findItem(cat, comps[cat]) : null;
+          return sum + (item ? item.price : 0);
+        }, 0);
+
+        return `
+          <div class="saved-build">
+            <div class="name">${build.nom}</div>
+            <div class="price">${total} €</div>
+          </div>
+        `;
+      }).join('');
+    } else {
+      listEl.innerHTML = '<div class="empty-state">Aucune configuration enregistrée.</div>';
+    }
+  } catch (err) {
+    console.error('Erreur chargement configs :', err);
+  }
+}
+
+loadSavedBuilds();
 </script>
 
 </body>
