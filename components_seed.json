@@ -1,0 +1,54 @@
+[
+  {
+    "categorie": "CPU",
+    "nom": "AMD Ryzen 5 5600",
+    "prix_indicatif": 120.0,
+    "specs": { "socket": "AM4", "tdp": 65 }
+  },
+  {
+    "categorie": "Carte mère",
+    "nom": "MSI B550M",
+    "prix_indicatif": 90.0,
+    "specs": { "socket": "AM4", "ram_type": "DDR4", "format": "mATX", "m2_slots": 1, "sata_ports": 4 }
+  },
+  {
+    "categorie": "RAM",
+    "nom": "Corsair Vengeance 16Go",
+    "prix_indicatif": 55.0,
+    "specs": { "type": "DDR4" }
+  },
+  {
+    "categorie": "Boîtier",
+    "nom": "NZXT H510",
+    "prix_indicatif": 80.0,
+    "specs": {
+      "formats_supportes": ["ATX", "mATX", "ITX"],
+      "gpu_max_length_mm": 300,
+      "cpu_cooler_max_height_mm": 165
+    }
+  },
+  {
+    "categorie": "Alimentation",
+    "nom": "Corsair RM650",
+    "prix_indicatif": 90.0,
+    "specs": { "wattage": 650 }
+  },
+  {
+    "categorie": "GPU",
+    "nom": "RTX 4060",
+    "prix_indicatif": 320.0,
+    "specs": { "tdp": 115, "longueur_mm": 240 }
+  },
+  {
+    "categorie": "Stockage",
+    "nom": "Samsung 970 EVO 1To",
+    "prix_indicatif": 70.0,
+    "specs": { "type": "NVMe" }
+  },
+  {
+    "categorie": "Refroidissement",
+    "nom": "Cooler Master Hyper 212",
+    "prix_indicatif": 35.0,
+    "specs": { "sockets_supportes": ["AM4", "LGA1200"], "hauteur_mm": 158 }
+  }
+]

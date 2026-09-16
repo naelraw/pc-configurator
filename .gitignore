@@ -3,3 +3,8 @@ venv/
 local_replica.db
 __pycache__/
 *.pyc
+.claude/
+.github/agents/
+.github/hooks/
+.github/skills/
+graphify-out/

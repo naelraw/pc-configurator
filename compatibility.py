@@ -1,22 +1,30 @@
 def check_cpu_carte_mere(cpu, carte_mere):
+	if "socket" not in cpu or "socket" not in carte_mere:
+		return True, "OK"
 	if cpu["socket"] != carte_mere["socket"]:
 		return False, "Le socket du CPU ne correspond pas à la carte mère."
 	return True, "OK"
 
 
 def check_carte_mere_ram(carte_mere, ram):
+	if "ram_type" not in carte_mere or "type" not in ram:
+		return True, "OK"
 	if carte_mere["ram_type"] != ram["type"]:
 		return False, "Le type de RAM n'est pas compatible avec la carte mère."
 	return True, "OK"
 
 
 def check_carte_mere_boitier(carte_mere, boitier):
+	if "format" not in carte_mere or "formats_supportes" not in boitier:
+		return True, "OK"
 	if carte_mere["format"] not in boitier["formats_supportes"]:
 		return False, "Le format de la carte mère n'est pas supporté par le boîtier."
 	return True, "OK"
 
 
 def check_alimentation(cpu, gpu, alimentation, marge=100):
+	if "tdp" not in cpu or "wattage" not in alimentation or (gpu and "tdp" not in gpu):
+		return True, "OK"
 	tdp_total = cpu["tdp"] + (gpu["tdp"] if gpu else 0) + marge
 	if alimentation["wattage"] < tdp_total:
 		return False, f"L'alimentation ({alimentation['wattage']}W) est insuffisante (besoin estimé: {tdp_total}W)."
@@ -24,12 +32,18 @@ def check_alimentation(cpu, gpu, alimentation, marge=100):
 
 
 def check_gpu_boitier(gpu, boitier):
-	if gpu and gpu["longueur_mm"] > boitier["gpu_max_length_mm"]:
+	if not gpu or "longueur_mm" not in gpu or "gpu_max_length_mm" not in boitier:
+		return True, "OK"
+	if gpu["longueur_mm"] > boitier["gpu_max_length_mm"]:
 		return False, "Le GPU est trop long pour le boîtier."
 	return True, "OK"
 
 
 def check_stockage(carte_mere, stockages):
+	if "m2_slots" not in carte_mere or "sata_ports" not in carte_mere:
+		return True, "OK"
+	if any("type" not in s for s in stockages):
+		return True, "OK"
 	nb_nvme = sum(1 for s in stockages if s["type"] == "NVMe")
 	nb_sata = sum(1 for s in stockages if s["type"] == "SATA")
 	if nb_nvme > carte_mere["m2_slots"]:
@@ -40,6 +54,8 @@ def check_stockage(carte_mere, stockages):
 
 
 def check_refroidissement(cpu, boitier, cooler):
+	if "socket" not in cpu or "sockets_supportes" not in cooler or "hauteur_mm" not in cooler or "cpu_cooler_max_height_mm" not in boitier:
+		return True, "OK"
 	if cpu["socket"] not in cooler["sockets_supportes"]:
 		return False, "Le refroidisseur ne supporte pas le socket du CPU."
 	if cooler["hauteur_mm"] > boitier["cpu_cooler_max_height_mm"]:
@@ -53,7 +69,16 @@ def verifier_compatibilite(
 	"""
 	Chaque paramètre est un dict (specs_json déjà parsé) sauf stockages qui est
 	une liste de dicts. gpu peut être None.
-	Retourne une liste d'erreurs (vide = tout compatible).
+
+	Un composant peut avoir des specs incomplètes (enregistrement autorisé
+	même si des champs obligatoires manquent — l'admin les complète plus
+	tard). Dans ce cas, la vérification concernée est silencieusement
+	ignorée (ni erreur, ni "compatible" affirmé) plutôt que de planter :
+	mieux vaut ne rien dire que de crasher toute la page, mais on ne
+	prétend jamais une compatibilité qu'on n'a pas pu vérifier.
+
+	Retourne une liste d'erreurs (vide = tout compatible, ou pas assez
+	d'infos pour dire le contraire).
 	"""
 	erreurs = []
 

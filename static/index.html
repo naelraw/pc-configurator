@@ -3,644 +3,131 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PCRadar — Configurateur PC</title>
+<title>PC Configurator - Créez le PC qui vous ressemble</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #0D0F14;
-    --surface: #141822;
-    --surface-hi: #1B2030;
-    --border: #262C3B;
-    --text: #EDEBE6;
-    --text-muted: #838A99;
-    --copper: #CC8B4C;
-    --copper-hi: #E3A566;
-    --cyan: #4FC8D6;
-    --cyan-dim: #2C5A61;
-    --ok: #6FA287;
-    --fail: #C1493F;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background:
-      radial-gradient(circle at 15% 0%, rgba(79,200,214,0.06), transparent 40%),
-      radial-gradient(circle at 85% 15%, rgba(204,139,76,0.05), transparent 45%),
-      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.012) 40px),
-      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.012) 40px),
-      var(--bg);
-    color: var(--text);
-    font-family: 'Inter', sans-serif;
-    line-height: 1.5;
-  }
-
-  h1, h2, h3, .wordmark { font-family: 'Space Grotesk', sans-serif; font-weight: 700; }
-  .mono { font-family: 'IBM Plex Mono', monospace; }
-
-  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
-
-  /* Header */
-  header { border-bottom: 1px solid var(--border); padding: 20px 0; position: relative; z-index: 5; }
-  header .wrap { display: flex; justify-content: space-between; align-items: center; }
-  .wordmark { font-size: 20px; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
-  .wordmark .node { width: 8px; height: 8px; border-radius: 50%; background: var(--copper); box-shadow: 0 0 8px var(--copper); }
-  .wordmark span.accent { color: var(--copper); }
-  nav a { color: var(--text-muted); text-decoration: none; font-size: 14px; margin-left: 28px; transition: color .15s; }
-  nav a:hover { color: var(--cyan); }
-
-  /* Hero */
-  .hero {
-    padding: 72px 0 56px;
-    display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    gap: 40px;
-    align-items: center;
-  }
-  @media (max-width: 760px) { .hero { grid-template-columns: 1fr; padding-top: 48px; } .hero-graphic { order: -1; height: 220px; } }
-  .hero h1 {
-    font-size: 42px;
-    line-height: 1.12;
-    letter-spacing: -0.015em;
-    max-width: 480px;
-  }
-  .hero p { margin-top: 16px; color: var(--text-muted); max-width: 440px; font-size: 16px; }
-
-  .hero-graphic { width: 100%; height: 320px; }
-  .hero-graphic svg { width: 100%; height: 100%; }
-  .pulse-node { animation: pulse 2.6s ease-in-out infinite; transform-origin: center; }
-  @keyframes pulse {
-    0%, 100% { opacity: 0.55; r: 5; }
-    50% { opacity: 1; r: 7; }
-  }
-  .trace-line { stroke-dasharray: 4 3; }
-
-  /* Niveau bar */
-  .level-bar {
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--copper);
-    border-radius: 4px;
-    padding: 14px 20px;
-    margin-bottom: 40px;
-  }
-  .level-bar.visible { display: flex; }
-  .level-bar .info { font-size: 14px; color: var(--text-muted); }
-  .level-bar .info strong { color: var(--text); }
-  .level-bar button {
-    background: none; border: 1px solid var(--border); color: var(--text-muted);
-    padding: 6px 12px; border-radius: 3px; font-size: 13px; cursor: pointer; font-family: 'Inter', sans-serif;
-    transition: all .15s;
-  }
-  .level-bar button:hover { border-color: var(--cyan); color: var(--cyan); }
-
-  /* Level cards */
-  .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 56px; }
-  @media (max-width: 760px) { .levels { grid-template-columns: 1fr; } }
-  .level-card {
-    position: relative;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    padding: 28px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    transition: border-color .2s, transform .2s, box-shadow .2s;
-    overflow: hidden;
-  }
-  .level-card::before {
-    content: '';
-    position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: linear-gradient(90deg, var(--copper), transparent);
-    opacity: 0;
-    transition: opacity .2s;
-  }
-  .level-card:hover { border-color: var(--cyan-dim); transform: translateY(-2px); box-shadow: 0 12px 24px -12px rgba(0,0,0,0.5); }
-  .level-card:hover::before { opacity: 1; }
-  .level-card.selected { border-color: var(--copper); box-shadow: 0 0 0 1px var(--copper), 0 12px 24px -12px rgba(204,139,76,0.25); }
-  .level-card.selected::before { opacity: 1; }
-
-  .gauge { display: flex; gap: 5px; }
-  .gauge span { width: 18px; height: 6px; border-radius: 1px; background: var(--border); }
-  .gauge span.filled { background: var(--copper); box-shadow: 0 0 6px rgba(204,139,76,0.6); }
-
-  .level-card h3 { font-size: 19px; }
-  .level-card p { color: var(--text-muted); font-size: 14px; flex-grow: 1; }
-  .level-card button {
-    background: var(--copper); color: #14171C; border: none; padding: 11px 16px;
-    font-weight: 600; font-size: 14px; border-radius: 3px; cursor: pointer; font-family: 'Inter', sans-serif;
-    transition: background .15s;
-  }
-  .level-card button:hover { background: var(--copper-hi); }
-
-  /* Configurateur */
-  #configurator { display: none; padding-bottom: 80px; }
-  #configurator.visible { display: block; }
-
-  .config-layout { display: grid; grid-template-columns: 1.4fr 1fr; gap: 32px; align-items: start; }
-  @media (max-width: 760px) { .config-layout { grid-template-columns: 1fr; } }
-
-  .presets { display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px; }
-  .preset-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
-    padding: 22px; display: flex; justify-content: space-between; align-items: center; gap: 16px;
-    transition: border-color .15s;
-  }
-  .preset-card:hover { border-color: var(--cyan-dim); }
-  .preset-card .txt h4 { font-size: 15px; margin-bottom: 4px; }
-  .preset-card .txt p { color: var(--text-muted); font-size: 13px; }
-  .preset-card button {
-    background: transparent; border: 1px solid var(--copper); color: var(--copper);
-    padding: 9px 14px; border-radius: 3px; font-size: 13px; cursor: pointer; white-space: nowrap;
-    font-family: 'Inter', sans-serif; transition: all .15s;
-  }
-  .preset-card button:hover { background: var(--copper); color: #14171C; }
-
-  .custom-toggle {
-    color: var(--text-muted); font-size: 13px; text-decoration: underline; cursor: pointer;
-    background: none; border: none; font-family: 'Inter', sans-serif; padding: 4px 0; text-align: left;
-  }
-  .custom-toggle:hover { color: var(--cyan); }
-
-  .category-row {
-    border: 1px solid var(--border); background: var(--surface); border-radius: 3px;
-    padding: 16px 20px; margin-bottom: 10px; display: flex; gap: 16px; align-items: flex-start;
-    transition: border-color .15s;
-  }
-  .category-row:focus-within { border-color: var(--cyan-dim); }
-  .cat-icon { flex-shrink: 0; width: 34px; height: 34px; color: var(--copper); margin-top: 2px; }
-  .cat-icon svg { width: 100%; height: 100%; }
-  .cat-body { flex-grow: 1; }
-  .category-row label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
-  .category-row select {
-    width: 100%; background: var(--surface-hi); border: 1px solid var(--border); color: var(--text);
-    padding: 10px 12px; border-radius: 3px; font-size: 14px; font-family: 'Inter', sans-serif;
-  }
-  .spec-detail { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
-  .spec-detail span { margin-right: 14px; }
-
-  /* Résumé */
-  .summary {
-    position: sticky; top: 24px; background: var(--surface); border: 1px solid var(--border);
-    border-radius: 3px; padding: 24px;
-  }
-  .summary h3 { font-size: 15px; margin-bottom: 16px; }
-  .summary-line { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--border); }
-  .summary-line:last-of-type { border-bottom: none; }
-  .total-row { display: flex; justify-content: space-between; padding-top: 16px; margin-top: 8px; border-top: 1px solid var(--border); font-size: 17px; }
-  .total-row strong { color: var(--copper); font-family: 'IBM Plex Mono', monospace; }
-
-  .compat-list { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
-  .compat-item { font-size: 12px; display: flex; gap: 8px; align-items: flex-start; }
-  .compat-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
-  .compat-dot.ok { background: var(--ok); box-shadow: 0 0 5px rgba(111,162,135,0.6); }
-  .compat-dot.fail { background: var(--fail); box-shadow: 0 0 5px rgba(193,73,63,0.6); }
-  .compat-item.fail-text { color: var(--fail); }
-  .compat-item.ok-text { color: var(--text-muted); }
-
-  .save-block { margin-top: 24px; }
-  .save-block input {
-    width: 100%; background: var(--surface-hi); border: 1px solid var(--border); color: var(--text);
-    padding: 9px 12px; border-radius: 3px; font-size: 13px; margin-bottom: 8px; font-family: 'Inter', sans-serif;
-  }
-  .save-block button {
-    width: 100%; background: var(--copper); color: #14171C; border: none; padding: 11px;
-    font-weight: 600; font-size: 13px; border-radius: 3px; cursor: pointer; transition: background .15s;
-  }
-  .save-block button:hover:not(:disabled) { background: var(--copper-hi); }
-  .save-block button:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; }
-  .save-note { font-size: 11px; color: var(--text-muted); margin-top: 10px; }
-
-  /* Mes configs */
-  #saved-section { padding: 48px 0 80px; border-top: 1px solid var(--border); }
-  #saved-section h2 { font-size: 22px; margin-bottom: 20px; }
-  .saved-build {
-    border: 1px solid var(--border); background: var(--surface); border-radius: 3px;
-    padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
-  }
-  .saved-build .name { font-size: 14px; }
-  .saved-build .price { font-family: 'IBM Plex Mono', monospace; color: var(--copper); font-size: 14px; }
-  .empty-state { color: var(--text-muted); font-size: 14px; border: 1px dashed var(--border); border-radius: 3px; padding: 24px; text-align: center; }
-</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
+<div class="grid-bg"></div>
+<div class="grid-bg-glow"></div>
+
 <header>
-  <div class="wrap">
-    <div class="wordmark"><span class="node"></span>PC<span class="accent">Radar</span></div>
+  <div class="nav-wrap">
+    <div class="logo">PC <span>CONFIGURATOR</span></div>
     <nav>
-      <a href="#configurator-anchor">Configurateur</a>
-      <a href="#saved-section">Mes configs</a>
+      <ul>
+        <li><a href="/">Accueil</a></li>
+        <li><a href="/configurateur">Configurateur</a></li>
+        <li><a href="/assistant">Assistant IA</a></li>
+        <li><a href="/comparateur">Comparateur</a></li>
+        <li><a href="/estimer-fps">Estimer FPS</a></li>
+        <li><a href="/compte">Mon compte</a></li>
+        <li><a href="#comment-ca-marche">Comment ça marche</a></li>
+      </ul>
     </nav>
   </div>
 </header>
 
-<div class="wrap">
-
-  <section class="hero" id="configurator-anchor">
-    <div>
-      <h1>Construire un PC ne devrait pas être compliqué.</h1>
-      <p>Choisis ton niveau de contrôle sur les composants. On vérifie la compatibilité socket, mémoire, format et alimentation à ta place.</p>
+<section class="hero" id="accueil">
+  <div class="hero-inner">
+    <h1>Créez le PC qui vous ressemble</h1>
+    <p>Choisissez vos composants, on vérifie automatiquement la compatibilité. Besoin d'aide ? Notre assistant IA vous propose une config sur mesure.</p>
+    <div class="hero-ctas">
+      <button class="btn btn-primary" onclick="location.href='/configurateur'">Commencer un build</button>
+      <button class="btn btn-secondary" onclick="location.href='/assistant'">Demander à l'IA</button>
     </div>
-    <div class="hero-graphic">
-      <svg viewBox="0 0 320 320" fill="none">
-        <g stroke="var(--border)" stroke-width="1.5">
-          <path class="trace-line" d="M40 60 H120 V40" stroke="var(--cyan-dim)"/>
-          <path class="trace-line" d="M280 50 H200 V90" stroke="var(--copper)" stroke-opacity="0.5"/>
-          <path class="trace-line" d="M30 180 H90 V240 H160" stroke="var(--cyan-dim)"/>
-          <path class="trace-line" d="M290 220 H230 V160" stroke="var(--copper)" stroke-opacity="0.5"/>
-          <path d="M120 40 H200 V90 H120 Z" />
-          <path d="M90 240 H230 V160 H160 V190 H90 Z" />
-        </g>
-        <rect x="120" y="130" width="80" height="80" rx="4" stroke="var(--copper)" stroke-width="1.5" fill="var(--surface)"/>
-        <rect x="140" y="150" width="40" height="40" rx="2" stroke="var(--cyan)" stroke-width="1.2" fill="none"/>
-        <circle class="pulse-node" cx="160" cy="170" r="5" fill="var(--cyan)"/>
-        <circle cx="120" cy="40" r="3" fill="var(--cyan-dim)"/>
-        <circle cx="200" cy="90" r="3" fill="var(--copper)" fill-opacity="0.6"/>
-        <circle cx="90" cy="240" r="3" fill="var(--cyan-dim)"/>
-        <circle cx="230" cy="160" r="3" fill="var(--copper)" fill-opacity="0.6"/>
-        <g stroke="var(--border)" stroke-width="1">
-          <line x1="120" y1="140" x2="105" y2="140"/>
-          <line x1="120" y1="155" x2="105" y2="155"/>
-          <line x1="120" y1="185" x2="105" y2="185"/>
-          <line x1="120" y1="200" x2="105" y2="200"/>
-          <line x1="200" y1="140" x2="215" y2="140"/>
-          <line x1="200" y1="155" x2="215" y2="155"/>
-          <line x1="200" y1="185" x2="215" y2="185"/>
-          <line x1="200" y1="200" x2="215" y2="200"/>
-        </g>
-      </svg>
-    </div>
-  </section>
 
-  <div class="level-bar" id="levelBar">
-    <div class="info">Niveau actuel : <strong id="levelBarText">—</strong></div>
-    <button onclick="resetLevel()">Changer de niveau</button>
-  </div>
-
-  <div class="levels" id="levelCards">
-    <div class="level-card" data-level="debutant">
-      <div class="gauge"><span class="filled"></span><span></span><span></span></div>
-      <h3>Débutant</h3>
-      <p>Tu choisis un usage (bureautique, jeu, création), on te propose une configuration complète déjà compatible.</p>
-      <button onclick="selectLevel('debutant')">Commencer</button>
-    </div>
-    <div class="level-card" data-level="intermediaire">
-      <div class="gauge"><span class="filled"></span><span class="filled"></span><span></span></div>
-      <h3>Intermédiaire</h3>
-      <p>Tu choisis chaque composant toi-même dans une liste simplifiée. On t'indique en direct ce qui est compatible.</p>
-      <button onclick="selectLevel('intermediaire')">Commencer</button>
-    </div>
-    <div class="level-card" data-level="pro">
-      <div class="gauge"><span class="filled"></span><span class="filled"></span><span class="filled"></span></div>
-      <h3>Pro</h3>
-      <p>Accès aux caractéristiques techniques complètes (socket, TDP, chipset) pour un contrôle total sur le choix.</p>
-      <button onclick="selectLevel('pro')">Commencer</button>
-    </div>
-  </div>
-
-  <div id="configurator">
-
-    <div id="presetsBlock" class="presets"></div>
-
-    <div id="customConfigurator" style="display:none;">
-      <div class="config-layout">
-        <div id="categoryList"></div>
-        <div class="summary">
-          <h3>Résumé de la configuration</h3>
-          <div id="summaryLines"></div>
-          <div class="total-row"><span>Total</span><strong id="totalPrice">0 €</strong></div>
-          <div class="compat-list" id="compatList"></div>
-          <div class="save-block">
-            <input type="text" id="buildName" placeholder="Nom de cette configuration">
-            <button id="saveBtn" onclick="saveBuild()">Enregistrer cette config</button>
-          </div>
-          <p class="save-note">Sauvegarde temporaire, valable pour cette session. La sauvegarde permanente arrivera avec la connexion à la base de données.</p>
-        </div>
+    <div class="levels">
+      <div class="level-card chip-card" onclick="location.href='/assistant?prefill=debutant'">
+        <span class="level-tag">01 · DÉBUTANT</span>
+        <h3>Je débute</h3>
+        <p>Je ne sais pas par où commencer, guidez-moi.</p>
+      </div>
+      <div class="level-card chip-card" onclick="location.href='/configurateur?hint=intermediaire'">
+        <span class="level-tag">02 · INTERMÉDIAIRE</span>
+        <h3>J'ai des bases</h3>
+        <p>Je veux choisir mes composants avec de l'aide.</p>
+      </div>
+      <div class="level-card chip-card" onclick="location.href='/configurateur'">
+        <span class="level-tag">03 · PRO</span>
+        <h3>Je sais ce qu'il faut</h3>
+        <p>Je sais ce que je veux, laissez-moi configurer.</p>
       </div>
     </div>
-
   </div>
+</section>
 
-  <section id="saved-section">
-    <h2>Mes configurations enregistrées</h2>
-    <div id="savedList"><div class="empty-state">Aucune configuration enregistrée pour l'instant. Choisis un niveau ci-dessus pour commencer.</div></div>
-  </section>
+<section id="stats">
+  <div class="stats-strip chip-card">
+    <div class="stat"><span class="num">8</span><span class="label">Catégories de composants</span></div>
+    <div class="stat"><span class="num">100%</span><span class="label">Gratuit</span></div>
+    <div class="stat"><span class="num">7</span><span class="label">Points de compatibilité vérifiés</span></div>
+    <div class="stat"><span class="num">IA</span><span class="label">Assistant intégré</span></div>
+  </div>
+</section>
 
-</div>
+<section id="fonctionnalites">
+  <div class="section-title">
+    <span class="eyebrow">FONCTIONNALITÉS</span>
+    <h2>Tout ce qu'il faut pour bien choisir</h2>
+    <p>Simple, fiable, sans mauvaise surprise à l'assemblage</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card chip-card">
+      <span class="num-tag">01</span>
+      <h3>Configurateur manuel</h3>
+      <p>Sélectionnez chaque composant vous-même, en toute liberté.</p>
+    </div>
+    <div class="feature-card chip-card">
+      <span class="num-tag">02</span>
+      <h3>Assistant IA</h3>
+      <p>Décrivez votre besoin en langage naturel, recevez une suggestion.</p>
+    </div>
+    <div class="feature-card chip-card">
+      <span class="num-tag">03</span>
+      <h3>Compatibilité garantie</h3>
+      <p>Socket, format, wattage : tout est vérifié avant validation.</p>
+    </div>
+    <div class="feature-card chip-card">
+      <span class="num-tag">04</span>
+      <h3>Sauvegarde de builds</h3>
+      <p>Retrouvez vos configurations enregistrées à tout moment.</p>
+    </div>
+  </div>
+</section>
 
-<script>
-// --- Icônes par catégorie (traits simples, cohérents avec le thème circuit) ---
-const ICONS = {
-  cpu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="7" y="7" width="10" height="10" rx="1"/><rect x="10" y="10" width="4" height="4"/><path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3"/></svg>`,
-  motherboard: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="4" width="18" height="16" rx="1"/><rect x="6" y="7" width="6" height="6" rx="0.5"/><path d="M15 8h4M15 11h4M15 14h4M6 16h12"/></svg>`,
-  ram: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="8" width="18" height="9" rx="1"/><path d="M7 8v9M11 8v9M15 8v9M9 4v4M13 4v4"/></svg>`,
-  gpu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2" y="7" width="20" height="10" rx="1"/><circle cx="8" cy="12" r="2.2"/><circle cx="15" cy="12" r="2.2"/><path d="M2 17v2h6v-2"/></svg>`,
-  storage: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M3 13h18"/><circle cx="7" cy="16" r="1"/></svg>`,
-  psu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="4" y="4" width="16" height="16" rx="1"/><circle cx="10" cy="10" r="3"/><path d="M15 15l4 4M4 20h4v-4"/></svg>`,
-  case: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="6" y="2" width="12" height="20" rx="1"/><circle cx="12" cy="6" r="1"/><path d="M9 10h6M9 13h6"/></svg>`,
-};
+<section id="comment-ca-marche">
+  <div class="section-title">
+    <span class="eyebrow">PROCESSUS</span>
+    <h2>Votre PC en 3 étapes</h2>
+  </div>
+  <div class="steps chip-card">
+    <div class="step">
+      <span class="step-num">1</span>
+      <h3>Choisissez vos composants</h3>
+      <p>Manuellement ou avec l'aide de l'IA selon votre niveau.</p>
+    </div>
+    <div class="step">
+      <span class="step-num">2</span>
+      <h3>On vérifie tout</h3>
+      <p>Compatibilité socket, format boîtier, wattage : automatique.</p>
+    </div>
+    <div class="step">
+      <span class="step-num">3</span>
+      <h3>Sauvegardez votre build</h3>
+      <p>Votre configuration reste accessible pour plus tard.</p>
+    </div>
+  </div>
+</section>
 
-// --- Charger les composants depuis le backend ---
-let DATA = {
-  cpu: [], motherboard: [], ram: [], gpu: [], storage: [], psu: [], case: []
-};
+<footer>
+  <p>PC Configurator — Projet personnel · Compatibilité vérifiée côté serveur · Suggestions IA toujours validées avant affichage</p>
+</footer>
 
-const CATEGORY_KEYS = {
-  CPU: 'cpu',
-  'Carte mère': 'motherboard',
-  RAM: 'ram',
-  Stockage: 'storage',
-  GPU: 'gpu',
-  Alimentation: 'psu',
-  Boîtier: 'case'
-};
-
-async function loadComponents() {
-  try {
-    const res = await fetch('/api/components');
-    const json = await res.json();
-    const apiComponents = Array.isArray(json.components)
-      ? json.components
-      : Object.values(json.components || {}).flat();
-
-    DATA = {
-      cpu: [], motherboard: [], ram: [], gpu: [], storage: [], psu: [], case: []
-    };
-
-    apiComponents.forEach(comp => {
-      const specs = JSON.parse(comp.specs_json || '{}');
-      const item = {
-        id: `comp-${comp.id}`,
-        name: comp.nom,
-        price: comp.prix_indicatif,
-        ...specs
-      };
-
-      const category = CATEGORY_KEYS[comp.categorie] || comp.categorie;
-      if (DATA[category]) {
-        DATA[category].push(item);
-      }
-    });
-
-    console.log('Composants chargés :', DATA);
-    renderCategories();
-  } catch (err) {
-    console.error('Erreur lors du chargement des composants :', err);
-  }
-}
-
-loadComponents();
-
-const LABELS = { cpu: 'Processeur', motherboard: 'Carte mère', ram: 'Mémoire RAM', gpu: 'Carte graphique', storage: 'Stockage', psu: 'Alimentation', case: 'Boîtier' };
-const ORDER = ['cpu', 'motherboard', 'ram', 'gpu', 'storage', 'psu', 'case'];
-
-const PRESETS = [
-  { id: 'bureautique', name: 'Bureautique', desc: 'Navigation, documents, visioconférence. Aucune carte graphique dédiée.',
-    selections: { cpu: 'cpu-i3', motherboard: 'mb-b760', ram: 'ram-ddr4-16', gpu: 'gpu-none', storage: 'ssd-500', psu: 'psu-550', case: 'case-matx' } },
-  { id: 'gaming', name: 'Jeu', desc: 'Jeux récents en 1080p/1440p à réglages élevés.',
-    selections: { cpu: 'cpu-i5', motherboard: 'mb-b760', ram: 'ram-ddr4-16', gpu: 'gpu-4060', storage: 'ssd-500', psu: 'psu-750', case: 'case-atx' } },
-  { id: 'creation', name: 'Création / Streaming', desc: 'Montage vidéo, streaming, jeux exigeants en même temps.',
-    selections: { cpu: 'cpu-ryzen7', motherboard: 'mb-x670', ram: 'ram-ddr5-32', gpu: 'gpu-4070', storage: 'ssd-1to', psu: 'psu-750', case: 'case-atx' } },
-];
-
-// --- État (en mémoire, pas de stockage navigateur) ---
-let state = { level: null, selections: {} };
-
-function findItem(cat, id) { return DATA[cat].find(i => i.id === id); }
-
-function selectLevel(level) {
-  state.level = level;
-  state.selections = {};
-  document.querySelectorAll('.level-card').forEach(c => c.classList.toggle('selected', c.dataset.level === level));
-  document.getElementById('levelBar').classList.add('visible');
-  document.getElementById('levelBarText').textContent = level === 'debutant' ? 'Débutant' : level === 'intermediaire' ? 'Intermédiaire' : 'Pro';
-  document.getElementById('configurator').classList.add('visible');
-
-  const presetsBlock = document.getElementById('presetsBlock');
-  const custom = document.getElementById('customConfigurator');
-
-  if (level === 'debutant') {
-    presetsBlock.style.display = 'flex';
-    custom.style.display = 'none';
-    renderPresets();
-  } else {
-    presetsBlock.style.display = 'none';
-    custom.style.display = 'block';
-    renderCategoryList(level);
-    renderSummary();
-  }
-}
-
-function resetLevel() {
-  state = { level: null, selections: {} };
-  document.getElementById('levelBar').classList.remove('visible');
-  document.getElementById('configurator').classList.remove('visible');
-  document.querySelectorAll('.level-card').forEach(c => c.classList.remove('selected'));
-}
-
-function renderPresets() {
-  const el = document.getElementById('presetsBlock');
-  el.innerHTML = '';
-  PRESETS.forEach(p => {
-    const div = document.createElement('div');
-    div.className = 'preset-card';
-    div.innerHTML = `
-      <div class="txt"><h4>${p.name}</h4><p>${p.desc}</p></div>
-      <button onclick="usePreset('${p.id}')">Utiliser ce pack</button>
-    `;
-    el.appendChild(div);
-  });
-  const toggle = document.createElement('button');
-  toggle.className = 'custom-toggle';
-  toggle.textContent = 'Choisir chaque composant moi-même (mode intermédiaire)';
-  toggle.onclick = () => selectLevel('intermediaire');
-  el.appendChild(toggle);
-}
-
-function usePreset(presetId) {
-  const preset = PRESETS.find(p => p.id === presetId);
-  state.selections = { ...preset.selections };
-  document.getElementById('presetsBlock').style.display = 'none';
-  document.getElementById('customConfigurator').style.display = 'block';
-  renderCategoryList('debutant');
-  renderSummary();
-}
-
-function renderCategoryList(level) {
-  const el = document.getElementById('categoryList');
-  el.innerHTML = '';
-  ORDER.forEach(cat => {
-    const row = document.createElement('div');
-    row.className = 'category-row';
-    const options = DATA[cat].map(item =>
-      `<option value="${item.id}" ${state.selections[cat] === item.id ? 'selected' : ''}>${item.name} — ${item.price} €</option>`
-    ).join('');
-    row.innerHTML = `
-      <div class="cat-icon">${ICONS[cat]}</div>
-      <div class="cat-body">
-        <label>${LABELS[cat]}</label>
-        <select onchange="updateSelection('${cat}', this.value)">
-          <option value="">— Choisir —</option>
-          ${options}
-        </select>
-        <div class="spec-detail" id="spec-${cat}"></div>
-      </div>
-    `;
-    el.appendChild(row);
-    renderSpecDetail(cat, level);
-  });
-}
-
-function renderSpecDetail(cat, level) {
-  if (level !== 'pro') return;
-  const id = state.selections[cat];
-  const item = id ? findItem(cat, id) : null;
-  const el = document.getElementById(`spec-${cat}`);
-  if (!item) { el.textContent = ''; return; }
-  let parts = [];
-  if (item.socket) parts.push(`socket ${item.socket}`);
-  if (item.tdp !== undefined) parts.push(`TDP ${item.tdp} W`);
-  if (item.format) parts.push(`format ${item.format}`);
-  if (item.ramType) parts.push(`mémoire ${item.ramType}`);
-  if (item.type) parts.push(`type ${item.type}`);
-  if (item.watt) parts.push(`${item.watt} W`);
-  if (item.formats) parts.push(`compatible ${item.formats.join(', ')}`);
-  el.innerHTML = parts.map(p => `<span class="mono">${p}</span>`).join('');
-}
-
-function updateSelection(cat, value) {
-  state.selections[cat] = value || null;
-  if (state.level === 'pro') renderSpecDetail(cat, 'pro');
-  renderSummary();
-}
-
-function computeTotal() {
-  return ORDER.reduce((sum, cat) => {
-    const item = state.selections[cat] ? findItem(cat, state.selections[cat]) : null;
-    return sum + (item ? item.price : 0);
-  }, 0);
-}
-
-function computeCompatibility() {
-  const s = state.selections;
-  const results = [];
-  const cpu = s.cpu ? findItem('cpu', s.cpu) : null;
-  const mb = s.motherboard ? findItem('motherboard', s.motherboard) : null;
-  const ram = s.ram ? findItem('ram', s.ram) : null;
-  const gpu = s.gpu ? findItem('gpu', s.gpu) : null;
-  const psu = s.psu ? findItem('psu', s.psu) : null;
-  const kase = s.case ? findItem('case', s.case) : null;
-
-  if (!cpu || !mb || !ram || !psu || !kase) {
-    results.push({ ok: null, msg: 'Sélectionne processeur, carte mère, RAM, alimentation et boîtier pour vérifier la compatibilité.' });
-    return results;
-  }
-
-  results.push({ ok: cpu.socket === mb.socket, msg: cpu.socket === mb.socket ? `Processeur et carte mère compatibles (socket ${cpu.socket}).` : `Socket incompatible : le processeur est en ${cpu.socket}, la carte mère en ${mb.socket}.` });
-  results.push({ ok: ram.type === mb.ramType, msg: ram.type === mb.ramType ? `Mémoire compatible (${ram.type}).` : `La RAM est en ${ram.type}, la carte mère attend du ${mb.ramType}.` });
-  results.push({ ok: kase.formats.includes(mb.format), msg: kase.formats.includes(mb.format) ? `Le boîtier accepte le format ${mb.format} de la carte mère.` : `Le boîtier ne supporte pas le format ${mb.format} de la carte mère.` });
-
-  const consumption = cpu.tdp + (gpu ? gpu.tdp : 0) + 150;
-  results.push({ ok: psu.watt >= consumption, msg: psu.watt >= consumption ? `Alimentation suffisante (${psu.watt} W pour environ ${consumption} W estimés).` : `Alimentation trop faible : ${psu.watt} W pour environ ${consumption} W estimés.` });
-
-  return results;
-}
-
-function renderSummary() {
-  const lines = document.getElementById('summaryLines');
-  lines.innerHTML = ORDER.map(cat => {
-    const item = state.selections[cat] ? findItem(cat, state.selections[cat]) : null;
-    return `<div class="summary-line"><span>${LABELS[cat]}</span><span>${item ? item.name : '—'}</span></div>`;
-  }).join('');
-
-  document.getElementById('totalPrice').textContent = computeTotal() + ' €';
-
-  const compatEl = document.getElementById('compatList');
-  const results = computeCompatibility();
-  compatEl.innerHTML = results.map(r => {
-    if (r.ok === null) return `<div class="compat-item ok-text">${r.msg}</div>`;
-    return `<div class="compat-item ${r.ok ? 'ok-text' : 'fail-text'}"><span class="compat-dot ${r.ok ? 'ok' : 'fail'}"></span>${r.msg}</div>`;
-  }).join('');
-
-  const allSelected = ORDER.every(cat => state.selections[cat]);
-  const allCompatible = results.every(r => r.ok !== false);
-  document.getElementById('saveBtn').disabled = !(allSelected && allCompatible);
-}
-
-async function saveBuild() {
-  const nameInput = document.getElementById('buildName');
-  const name = nameInput.value.trim();
-  if (!name) {
-    alert('Donne un nom à cette configuration');
-    return;
-  }
-
-  const build = {
-    nom: name,
-    composants_json: JSON.stringify(state.selections)
-  };
-
-  try {
-    const res = await fetch('/api/builds', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(build)
-    });
-    const json = await res.json();
-
-    if (res.ok && json.status === 'ok') {
-      alert('Configuration sauvegardée !');
-      nameInput.value = '';
-      loadSavedBuilds();
-    } else {
-      alert('Erreur : ' + (json.message || json.detail || 'sauvegarde impossible'));
-    }
-  } catch (err) {
-    console.error('Erreur sauvegarde :', err);
-    alert('Erreur réseau');
-  }
-}
-
-async function loadSavedBuilds() {
-  try {
-    const res = await fetch('/api/builds');
-    const json = await res.json();
-    const listEl = document.getElementById('savedList');
-    const builds = json.builds || [];
-
-    if (json.status === 'ok' && builds.length > 0) {
-      listEl.innerHTML = builds.map(build => {
-        const rawComponents = build.composants_json || build.composants || '{}';
-        const comps = typeof rawComponents === 'string'
-          ? JSON.parse(rawComponents)
-          : rawComponents;
-        const total = ORDER.reduce((sum, cat) => {
-          const item = comps[cat] ? findItem(cat, comps[cat]) : null;
-          return sum + (item ? item.price : 0);
-        }, 0);
-
-        return `
-          <div class="saved-build">
-            <div class="name">${build.nom}</div>
-            <div class="price">${total} €</div>
-          </div>
-        `;
-      }).join('');
-    } else {
-      listEl.innerHTML = '<div class="empty-state">Aucune configuration enregistrée.</div>';
-    }
-  } catch (err) {
-    console.error('Erreur chargement configs :', err);
-  }
-}
-
-loadSavedBuilds();
-</script>
+<script src="/static/grid-effect.js"></script>
 
 </body>
 </html>

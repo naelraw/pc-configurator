@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mon compte — PC Configurator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/amazon-tag.js"></script>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="grid-bg-glow"></div>
+
+<header>
+  <div class="nav-wrap">
+    <div class="logo">PC <span>CONFIGURATOR</span></div>
+    <nav>
+      <ul>
+        <li><a href="/">Accueil</a></li>
+        <li><a href="/configurateur">Configurateur</a></li>
+        <li><a href="/assistant">Assistant IA</a></li>
+        <li><a href="/comparateur">Comparateur</a></li>
+        <li><a href="/estimer-fps">Estimer FPS</a></li>
+        <li><a href="/compte">Mon compte</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<section id="compte" style="padding-top:56px;">
+
+  <!-- Vue "non connecté" -->
+  <div id="guest-view">
+    <div class="section-title">
+      <span class="eyebrow">COMPTE</span>
+      <h2>Connexion / Inscription</h2>
+      <p>Crée un compte pour sauvegarder tes configurations et les retrouver plus tard</p>
+    </div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login" onclick="switchTab('login')">Se connecter</div>
+      <div class="auth-tab" id="tab-register" onclick="switchTab('register')">Créer un compte</div>
+    </div>
+
+    <form class="auth-form show" id="login-form" onsubmit="return handleLogin(event)">
+      <label for="login-email">E-mail</label>
+      <input type="email" id="login-email" required autocomplete="email">
+      <label for="login-password">Mot de passe</label>
+      <input type="password" id="login-password" required autocomplete="current-password">
+      <button type="submit" class="btn btn-primary">Se connecter</button>
+      <div class="auth-error" id="login-error"></div>
+    </form>
+
+    <form class="auth-form" id="register-form" onsubmit="return handleRegister(event)">
+      <label for="register-email">E-mail</label>
+      <input type="email" id="register-email" required autocomplete="email">
+      <label for="register-password">Mot de passe (8 caractères minimum)</label>
+      <input type="password" id="register-password" required minlength="8" autocomplete="new-password">
+      <button type="submit" class="btn btn-primary">Créer mon compte</button>
+      <div class="auth-error" id="register-error"></div>
+    </form>
+  </div>
+
+  <!-- Vue "connecté" -->
+  <div id="user-view" style="display:none;">
+    <div class="section-title">
+      <span class="eyebrow">COMPTE</span>
+      <h2>Mes configurations</h2>
+    </div>
+
+    <div class="account-bar chip-card">
+      <span class="email" id="account-email"></span>
+      <button class="btn btn-secondary" onclick="handleLogout()">Se déconnecter</button>
+    </div>
+
+    <div id="builds-list"></div>
+  </div>
+
+</section>
+
+<footer>
+  <p>PC Configurator — Projet personnel · Compatibilité vérifiée côté serveur · Suggestions IA toujours validées avant affichage</p>
+</footer>
+
+<script>
+  const API_BASE = window.location.origin;
+  let allComponents = [];
+
+  // Échappe une valeur pour l'insérer comme texte affiché OU comme valeur
+  // d'attribut HTML (href="...", src="...") — le nom d'une build et les
+  // clés de composants_json sont saisis librement par l'utilisateur (ou
+  // envoyés directement à l'API sans passer par l'interface), jamais
+  // fiables tels quels dans du innerHTML.
+  function escapeHtml(str){
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  async function loadComponents(){
+    try{
+      const res = await fetch(API_BASE + '/api/components');
+      const data = await res.json();
+      allComponents = Object.values(data.components || {}).flat();
+    }catch(e){
+      console.error('Erreur chargement composants', e);
+    }
+  }
+
+  function switchTab(tab){
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    document.getElementById('login-form').classList.toggle('show', tab === 'login');
+    document.getElementById('register-form').classList.toggle('show', tab === 'register');
+  }
+
+  function showError(id, message){
+    const el = document.getElementById(id);
+    el.textContent = message;
+    el.classList.add('show');
+  }
+  function hideError(id){
+    document.getElementById(id).classList.remove('show');
+  }
+
+  async function handleLogin(event){
+    event.preventDefault();
+    hideError('login-error');
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+
+    try{
+      const res = await fetch(API_BASE + '/api/auth/login', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      });
+      if(res.status === 401){
+        showError('login-error', 'E-mail ou mot de passe incorrect.');
+        return false;
+      }
+      if(!res.ok){
+        showError('login-error', "Erreur lors de la connexion.");
+        return false;
+      }
+      await refreshView();
+    }catch(e){
+      showError('login-error', 'Erreur réseau.');
+    }
+    return false;
+  }
+
+  async function handleRegister(event){
+    event.preventDefault();
+    hideError('register-error');
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+
+    try{
+      const res = await fetch(API_BASE + '/api/auth/register', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+      });
+      if(res.status === 409){
+        showError('register-error', 'Un compte existe déjà avec cet e-mail.');
+        return false;
+      }
+      if(!res.ok){
+        const data = await res.json().catch(() => ({}));
+        showError('register-error', data.detail || "Erreur lors de l'inscription.");
+        return false;
+      }
+      await refreshView();
+    }catch(e){
+      showError('register-error', 'Erreur réseau.');
+    }
+    return false;
+  }
+
+  async function handleLogout(){
+    await fetch(API_BASE + '/api/auth/logout', { method: 'POST', credentials: 'include' });
+    await refreshView();
+  }
+
+  let lastLoadedBuilds = [];
+
+  async function loadBuilds(){
+    const listEl = document.getElementById('builds-list');
+    try{
+      if(allComponents.length === 0) await loadComponents();
+
+      const res = await fetch(API_BASE + '/api/builds', { credentials: 'include' });
+      const data = await res.json();
+      lastLoadedBuilds = data.builds || [];
+
+      if(!data.builds || data.builds.length === 0){
+        listEl.innerHTML = '<div class="no-price">Aucune configuration sauvegardée pour l\'instant. Va sur le <a href="/configurateur" style="color:var(--led);">configurateur</a> pour en créer une.</div>';
+        return;
+      }
+
+      listEl.innerHTML = data.builds.map((b, i) => `
+        <div class="build-card chip-card">
+          <div class="build-card-header" onclick="toggleBuildDetail(${i})">
+            <div>
+              <div class="build-name">${escapeHtml(b.nom)}</div>
+              <div class="build-date">Sauvegardée le ${new Date(b.date).toLocaleDateString('fr-FR')}</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <button class="btn btn-secondary" style="padding:8px 14px; font-size:0.8rem;" onclick="event.stopPropagation(); editBuild(${b.id})">Modifier</button>
+              <button class="btn btn-secondary" style="padding:8px 14px; font-size:0.8rem;" onclick="event.stopPropagation(); copyBuildLink(${b.id})">Copier le lien</button>
+              <button class="btn btn-danger" style="padding:8px 14px; font-size:0.8rem;" onclick="event.stopPropagation(); deleteBuild(${b.id})">Supprimer</button>
+              <span class="build-card-toggle" id="toggle-${i}">▼</span>
+            </div>
+          </div>
+          <div class="build-detail" id="detail-${i}">
+            ${renderBuildDetail(b.composants_json)}
+          </div>
+        </div>
+      `).join('');
+    }catch(e){
+      listEl.innerHTML = '<div class="no-price">Erreur lors du chargement de tes configurations.</div>';
+    }
+  }
+
+  function toggleBuildDetail(i){
+    document.getElementById('detail-' + i).classList.toggle('show');
+    const arrow = document.getElementById('toggle-' + i);
+    arrow.textContent = document.getElementById('detail-' + i).classList.contains('show') ? '▲' : '▼';
+  }
+
+  // Dépose la build à modifier en sessionStorage puis redirige vers le
+  // configurateur, qui la charge et bascule "Sauvegarder" en mode mise à
+  // jour (PUT) plutôt que création d'une nouvelle configuration.
+  function editBuild(buildId){
+    const build = lastLoadedBuilds.find(b => b.id === buildId);
+    if(!build) return;
+    sessionStorage.setItem('editBuild', JSON.stringify({
+      id: build.id,
+      nom: build.nom,
+      composants_json: build.composants_json,
+    }));
+    window.location.href = '/configurateur';
+  }
+
+  async function deleteBuild(buildId){
+    const build = lastLoadedBuilds.find(b => b.id === buildId);
+    if(!build) return;
+    if(!confirm(`Supprimer définitivement la configuration "${build.nom}" ? Cette action est irréversible.`)) return;
+
+    try{
+      const res = await fetch(API_BASE + `/api/builds/${buildId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if(res.ok){
+        await loadBuilds();
+      }else{
+        const data = await res.json().catch(() => ({}));
+        alert(data.detail || 'Erreur lors de la suppression.');
+      }
+    }catch(e){
+      alert('Erreur réseau : ' + e.message);
+    }
+  }
+
+  async function copyBuildLink(buildId){
+    const url = window.location.origin + '/build/' + buildId;
+    try{
+      await navigator.clipboard.writeText(url);
+      alert('Lien copié : ' + url);
+    }catch(e){
+      prompt('Copie ce lien manuellement :', url);
+    }
+  }
+
+  // composants_json est de la forme { "CPU": 42, "RAM": 17, ... } (catégorie -> id).
+  // On résout chaque id contre la liste complète des composants pour afficher
+  // le nom, le prix, et un lien d'achat si un prix de marché est disponible.
+  function renderBuildDetail(composantsJson){
+    const entries = Object.entries(composantsJson || {});
+    if(entries.length === 0) return '<p style="color:var(--text-dim); font-size:0.88rem;">Aucun composant enregistré.</p>';
+
+    return entries.map(([categorie, id]) => {
+      const item = allComponents.find(c => c.id === id);
+      if(!item){
+        return `<div class="build-detail-row"><span class="cat">${escapeHtml(categorie)}</span><span class="nom">Composant introuvable</span></div>`;
+      }
+
+      const prixMarche = (item.prix_marche || []).slice().sort((a, b) => a.prix - b.prix);
+      const meilleurPrix = prixMarche[0];
+
+      const buyBtn = meilleurPrix
+        ? `<a href="${escapeHtml(withAffiliateTag(meilleurPrix.lien))}" target="_blank" rel="noopener noreferrer sponsored" class="buy-btn">Acheter — ${meilleurPrix.prix}€</a>`
+        : `<a href="/comparateur" class="buy-btn" style="background:var(--border); color:var(--text-dim);">Voir prix</a>`;
+
+      const thumbHtml = item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="row-thumb" alt="">` : '';
+
+      return `
+        <div class="build-detail-row">
+          <div class="item-info">
+            ${thumbHtml}
+            <div>
+              <span class="cat">${escapeHtml(categorie)}</span>
+              <span class="nom">${escapeHtml(item.nom)}</span>
+            </div>
+          </div>
+          ${buyBtn}
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function refreshView(){
+    const res = await fetch(API_BASE + '/api/auth/me', { credentials: 'include' });
+    const data = await res.json();
+
+    if(data.logged_in){
+      document.getElementById('guest-view').style.display = 'none';
+      document.getElementById('user-view').style.display = 'block';
+      document.getElementById('account-email').textContent = data.user.email;
+      loadBuilds();
+    }else{
+      document.getElementById('guest-view').style.display = 'block';
+      document.getElementById('user-view').style.display = 'none';
+    }
+  }
+
+  refreshView();
+  loadAmazonTag();
+</script>
+
+<script src="/static/grid-effect.js"></script>
+
+</body>
+</html>

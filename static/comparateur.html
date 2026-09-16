@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comparateur de prix — PC Configurator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/amazon-tag.js"></script>
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="grid-bg-glow"></div>
+
+<header>
+  <div class="nav-wrap">
+    <div class="logo">PC <span>CONFIGURATOR</span></div>
+    <nav>
+      <ul>
+        <li><a href="/">Accueil</a></li>
+        <li><a href="/configurateur">Configurateur</a></li>
+        <li><a href="/assistant">Assistant IA</a></li>
+        <li><a href="/comparateur">Comparateur</a></li>
+        <li><a href="/estimer-fps">Estimer FPS</a></li>
+        <li><a href="/compte">Mon compte</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<section id="comparateur" style="padding-top:56px;">
+  <div class="section-title">
+    <span class="eyebrow">COMPARATEUR</span>
+    <h2>Comparez les prix</h2>
+    <p>Cherchez un composant pour voir les prix relevés chez différents revendeurs</p>
+  </div>
+
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="Ex: RTX 4060, Ryzen 5 5600...">
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <div class="compare-result" id="compare-result"></div>
+</section>
+
+<footer>
+  <p>PC Configurator — Projet personnel · Prix relevés et mis à jour manuellement, pas en temps réel</p>
+</footer>
+
+<script>
+  const API_BASE = window.location.origin;
+  let allComponents = [];
+
+  async function loadComponents(){
+    try{
+      const res = await fetch(API_BASE + '/api/components');
+      const data = await res.json();
+      allComponents = Object.values(data.components || {}).flat();
+    }catch(e){
+      console.error('Erreur chargement composants', e);
+    }
+  }
+
+  // Recherche tolérante : chaque mot tapé doit juste se retrouver quelque
+  // part dans le nom (n'importe où, n'importe quel ordre), sans tenir
+  // compte des accents ni de la casse — "a md" ou "ryzen" doivent tous les
+  // deux trouver "AMD Ryzen 5 5600".
+  function normalize(str){
+    return (str || '')
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  // Échappe une valeur pour l'insérer comme texte affiché OU comme valeur
+  // d'attribut HTML (href="...", src="...") — un vendeur/lien peut venir
+  // d'une proposition de correction soumise par n'importe quel utilisateur
+  // connecté, jamais fiable tel quel dans du innerHTML.
+  function escapeHtml(str){
+    return String(str ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  // Échappe une valeur pour l'insérer à la fois comme littéral JS
+  // (apostrophes) et comme attribut HTML (guillemets doubles) dans un même
+  // onclick="..." généré par innerHTML.
+  function escapeForJsString(str){
+    return String(str)
+      .replace(/\\/g, '\\\\')
+      .replace(/'/g, "\\'")
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  function matchesQuery(nom, query){
+    const normalizedNom = normalize(nom);
+    const tokens = normalize(query).split(/\s+/).filter(Boolean);
+    return tokens.every(token => normalizedNom.includes(token));
+  }
+
+  // Score d'un token isolé dans le nom : un match sur un mot ENTIER (ex: le
+  // "5" de "Ryzen 5 5600") compte bien plus qu'un match qui démarre juste un
+  // mot plus long (ex: le "5" au début de "5100") — sinon un token court
+  // comme "5" matche aussi fort "Ryzen 3 5100" que "Ryzen 5 5600", ce qui
+  // cassait le tri par pertinence sur les recherches avec un numéro de série.
+  function wordMatchScore(haystack, token){
+    const idx = haystack.indexOf(token);
+    if(idx === -1) return 0;
+
+    const precededByBoundary = idx === 0 || haystack[idx - 1] === ' ' || haystack[idx - 1] === '-';
+    const endIdx = idx + token.length;
+    const followedByBoundary = endIdx === haystack.length || haystack[endIdx] === ' ' || haystack[endIdx] === '-';
+
+    if(precededByBoundary && followedByBoundary) return 15; // mot entier
+    if(precededByBoundary) return 8;                        // début d'un mot plus long
+    return 1;                                                // match au milieu d'un mot
+  }
+
+  // Score de pertinence : un match exact du nom complet sort toujours en
+  // premier, puis un nom qui commence par la requête telle quelle, puis les
+  // matches par tokens (voir wordMatchScore ci-dessus).
+  function scoreRelevance(nom, query){
+    const normalizedNom = normalize(nom);
+    const normalizedQuery = normalize(query);
+    if(normalizedNom === normalizedQuery) return 1000;
+    if(normalizedNom.startsWith(normalizedQuery)) return 500;
+
+    const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    return tokens.reduce((score, token) => score + wordMatchScore(normalizedNom, token), 0);
+  }
+
+  function handleSearchInput(){
+    const query = document.getElementById('search-input').value.trim();
+    const resultsBox = document.getElementById('search-results');
+
+    if(!query){
+      resultsBox.classList.remove('show');
+      resultsBox.innerHTML = '';
+      return;
+    }
+
+    const matches = allComponents
+      .filter(c => matchesQuery(c.nom, query))
+      .sort((a, b) => scoreRelevance(b.nom, query) - scoreRelevance(a.nom, query))
+      .slice(0, 12);
+
+    if(matches.length === 0){
+      resultsBox.innerHTML = '<div class="search-result-item">Aucun composant trouvé</div>';
+      resultsBox.classList.add('show');
+      return;
+    }
+
+    resultsBox.innerHTML = matches.map(c => `
+      <div class="search-result-item" onclick="selectComponent(${c.id})">
+        ${escapeHtml(c.nom)}<br><span class="cat">${escapeHtml(c.categorie)}</span>
+      </div>
+    `).join('');
+    resultsBox.classList.add('show');
+  }
+
+  function selectComponent(id){
+    const component = allComponents.find(c => c.id === id);
+    if(!component) return;
+
+    document.getElementById('search-input').value = component.nom;
+    document.getElementById('search-results').classList.remove('show');
+
+    renderCompareResult(component);
+  }
+
+  function renderCompareResult(component){
+    const container = document.getElementById('compare-result');
+    const prixMarche = (component.prix_marche || []).slice().sort((a, b) => a.prix - b.prix);
+
+    const thumbHtml = component.image_url
+      ? `<img src="${escapeHtml(component.image_url)}" class="compare-heading-thumb" alt="">`
+      : '';
+
+    let html = `
+      <div class="compare-heading">
+        ${thumbHtml}
+        <div class="compare-heading-text">
+          <span class="cat-badge">${escapeHtml(component.categorie)}</span>
+          ${escapeHtml(component.nom)}
+        </div>
+      </div>
+    `;
+
+    if(component.prix_indicatif){
+      html += `<p style="color:var(--text-dim); font-size:0.88rem;">Prix de référence (configurateur) : ${component.prix_indicatif}€</p>`;
+    }
+
+    if(component.description){
+      html += `<p style="color:var(--text-dim); font-size:0.88rem; line-height:1.5; margin-top:8px;">${escapeHtml(component.description)}</p>`;
+    }
+
+    const specs = component.specs || {};
+    const specsEntries = Object.entries(specs);
+    if(specsEntries.length > 0){
+      html += '<div class="detail-specs" style="margin-top:12px;">';
+      specsEntries.forEach(([k, v]) => {
+        html += `<div class="detail-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}</span></div>`;
+      });
+      html += '</div>';
+    }
+
+    const amazonDetails = component.caracteristiques_amazon || [];
+    if(amazonDetails.length > 0){
+      html += `
+        <details style="margin-top:10px;">
+          <summary style="cursor:pointer; color:var(--led);">Tous les détails</summary>
+          <div class="detail-specs" style="margin-top:8px;">
+            ${amazonDetails.map(d => `<div class="detail-row"><span class="k">${escapeHtml(d.type)}</span><span class="v">${escapeHtml(d.value)}</span></div>`).join('')}
+          </div>
+        </details>
+      `;
+    }
+
+    if(prixMarche.length === 0){
+      html += `<div class="no-price">Aucun prix de marché n'a encore été relevé pour ce composant.</div>`;
+    }else{
+      html += '<div class="price-table">';
+      prixMarche.forEach((releve, i) => {
+        const isBest = i === 0;
+        const deadBadge = releve.lien_mort
+          ? `<span class="dead-link-badge">⚠ Ce lien semble mort — dernière vérification le ${releve.dernier_check ? new Date(releve.dernier_check).toLocaleDateString('fr-FR') : '?'}</span>`
+          : '';
+        html += `
+          <div class="price-row ${isBest ? 'best' : ''} ${releve.lien_mort ? 'lien-mort' : ''}">
+            <span class="vendeur">${escapeHtml(releve.vendeur)}${isBest ? ' — meilleur prix' : ''}${deadBadge}</span>
+            <span class="date">Relevé le ${escapeHtml(releve.date_releve)}</span>
+            <span class="prix">${releve.prix}€</span>
+            <a href="${escapeHtml(withAffiliateTag(releve.lien))}" target="_blank" rel="noopener noreferrer sponsored" class="lien-btn">Voir l'offre</a>
+            <button class="report-link-btn" onclick="reportBrokenLink(${component.id}, '${escapeForJsString(releve.vendeur)}')" title="Signaler ce lien comme cassé et proposer une correction">Signaler un lien cassé</button>
+          </div>
+        `;
+      });
+      html += '</div>';
+      html += `<div class="price-disclaimer">Prix relevés manuellement à une date donnée, pas en temps réel — vérifiez le prix actuel avant achat en cliquant sur "Voir l'offre". Cette page contient des liens affiliés Amazon : nous pouvons percevoir une commission sur les achats effectués via ces liens, sans coût supplémentaire pour vous.</div>`;
+    }
+
+    container.innerHTML = html;
+  }
+
+  // Réservé aux comptes connectés (pour limiter le spam) — la correction
+  // proposée ne modifie rien directement, elle part dans une file de
+  // modération que seul un admin peut valider depuis /admin.
+  async function reportBrokenLink(componentId, vendeur){
+    const meRes = await fetch(API_BASE + '/api/auth/me', { credentials: 'include' });
+    const me = await meRes.json();
+
+    if(!me.logged_in){
+      alert('Connecte-toi pour proposer une correction de lien.');
+      window.location.href = '/compte';
+      return;
+    }
+
+    const nouveauLien = prompt(`Nouveau lien pour "${vendeur}" :`);
+    if(!nouveauLien) return;
+
+    try{
+      const res = await fetch(API_BASE + '/api/link-corrections', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'include',
+        body: JSON.stringify({ component_id: componentId, vendeur, nouveau_lien: nouveauLien }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(res.ok){
+        alert('Merci ! Ta correction a été envoyée pour validation par un admin.');
+      }else{
+        alert(data.detail || 'Erreur lors de l\'envoi de la correction.');
+      }
+    }catch(e){
+      alert('Erreur réseau lors de l\'envoi.');
+    }
+  }
+
+  document.getElementById('search-input').addEventListener('input', handleSearchInput);
+
+  // Ferme la liste de résultats si on clique ailleurs
+  document.addEventListener('click', (e) => {
+    if(!e.target.closest('.search-box')){
+      document.getElementById('search-results').classList.remove('show');
+    }
+  });
+
+  loadAmazonTag();
+  loadComponents();
+</script>
+
+<script src="/static/grid-effect.js"></script>
+
+</body>
+</html>
