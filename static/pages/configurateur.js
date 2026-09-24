@@ -316,6 +316,20 @@
   // Appelé par le menu de tri (data-onchange, sans accès aux variables let).
   function rerenderComponents(){ renderComponents(allComponents); }
 
+  // Badge de prix (historique relevé chaque jour) : seulement avec assez de
+  // relevés pour ne jamais afficher une "baisse" ou un "plus bas" trompeur.
+  function priceTrendBadge(item){
+    const t = item.tendance_prix, prix = Number(item.prix_indicatif);
+    if(!t || !prix) return '';
+    if(t.precedent && prix < t.precedent * 0.97){
+      return `<span class="price-badge">En baisse −${Math.round((1 - prix / t.precedent) * 100)} %</span>`;
+    }
+    if(t.releves_30j >= 7 && t.min_30j && prix <= t.min_30j * 1.005){
+      return `<span class="price-badge">Plus bas depuis 30 j</span>`;
+    }
+    return '';
+  }
+
   function renderComponents(components){
     const container = document.getElementById('components-container');
     container.innerHTML = '';
@@ -399,6 +413,7 @@
         const outOfStockBadge = isOutOfStock ? `<span class="out-of-stock-badge">Épuisé</span>` : '';
         btn.innerHTML = `
           ${outOfStockBadge}
+          ${isOutOfStock ? '' : priceTrendBadge(item)}
           ${imageHtml}
           <span class="name">${escapeHtml(item.nom)}</span>
           <span class="specs">${specsText}</span>

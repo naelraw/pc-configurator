@@ -948,8 +948,10 @@ def get_catalog():
         if _CATALOG["components"] is not None and time.time() - _CATALOG["at"] < CATALOG_CACHE_SECONDS:
             return _CATALOG["components"]
         components = get_all_components_light()
+        trends = _price_trends()
         for component in components:
             component["page"] = component_pages.page_url(component)
+            component["tendance_prix"] = trends.get(component["id"])
         if not components and _CATALOG["components"]:
             # Base momentanément indisponible : on garde la dernière version.
             return _CATALOG["components"]
@@ -963,6 +965,33 @@ def get_catalog():
             etag='"' + hashlib.md5(body).hexdigest() + '"',
         )
         return components
+
+
+def _price_trends():
+    """
+    Pour les badges de prix du configurateur : plus bas prix et nombre de
+    relevés sur 30 jours, et dernier prix relevé avant aujourd'hui.
+    """
+    client = get_client()
+    try:
+        month = client.execute(
+            "SELECT component_id, MIN(prix), COUNT(*) FROM price_history "
+            "WHERE date >= date('now', '-30 days') AND prix > 0 GROUP BY component_id"
+        ).rows
+        previous = client.execute(
+            "SELECT h.component_id, h.prix FROM price_history h "
+            "JOIN (SELECT component_id, MAX(date) AS d FROM price_history WHERE date < date('now') GROUP BY component_id) last "
+            "ON last.component_id = h.component_id AND last.d = h.date"
+        ).rows
+    except Exception as err:
+        print(f"Tendances de prix indisponibles : {err}")
+        return {}
+    finally:
+        client.close()
+    trends = {row[0]: {"min_30j": row[1], "releves_30j": row[2], "precedent": None} for row in month}
+    for component_id, prix in previous:
+        trends.setdefault(component_id, {"min_30j": None, "releves_30j": 0, "precedent": None})["precedent"] = prix
+    return trends
 
 
 def invalidate_catalog():

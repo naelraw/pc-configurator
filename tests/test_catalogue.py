@@ -61,3 +61,24 @@ def test_estimation_fps(client, catalog):
     r = client.post("/api/estimate-fps", json={"composants_json": ids, "jeux": ["Fortnite", "Cyberpunk 2077"]})
     assert r.status_code == 200
     assert all(res["couvert"] for res in r.json()["resultats"])
+
+
+def test_tendances_de_prix(app_main, catalog):
+    import sqlite3
+    from datetime import date, timedelta
+    from conftest import DB
+    ssd = component(catalog, "Crucial P3")          # prix du jour 70 €
+    psu = component(catalog, "Corsair RM750e")      # prix du jour 95 €
+    db = sqlite3.connect(DB)
+    for d in range(1, 9):                            # 8 relevés, dont un plus bas à 65 €
+        db.execute("insert or replace into price_history values (?, ?, ?)",
+                   (ssd["id"], (date.today() - timedelta(days=d)).isoformat(), 65 if d == 5 else 80))
+    db.execute("insert or replace into price_history values (?, ?, ?)",
+               (psu["id"], (date.today() - timedelta(days=1)).isoformat(), 110))  # hier 110 € -> baisse
+    db.commit()
+    app_main.invalidate_catalog()
+    by_id = {c["id"]: c for c in app_main.get_catalog()}
+    t_ssd, t_psu = by_id[ssd["id"]]["tendance_prix"], by_id[psu["id"]]["tendance_prix"]
+    assert t_ssd["releves_30j"] == 8 and t_ssd["min_30j"] == 65 and t_ssd["precedent"] == 80
+    assert t_psu["precedent"] == 110
+    assert by_id[component(catalog, "Ryzen 5 5600")["id"]]["tendance_prix"] is None
