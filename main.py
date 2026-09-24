@@ -46,6 +46,7 @@ from compatibility import (
 from schema import REQUIRED_FIELDS, validate_component
 import fps_data
 import featured_builds
+import guides
 
 try:
     import google.generativeai as genai
@@ -723,7 +724,8 @@ def sitemap_xml():
         ("/assistant", "0.9", "weekly"),
         ("/comparateur", "0.8", "weekly"),
         ("/estimer-fps", "0.8", "weekly"),
-    ]
+        ("/guides", "0.8", "daily"),
+    ] + [(f"/guides/{slug}", "0.8", "daily") for slug in guides.GUIDES]
     urls = "\n".join(
         f"""  <url>
     <loc>{SITE_URL}{path}</loc>
@@ -2009,6 +2011,7 @@ def _compute_featured_configs():
             "id": profile["id"],
             "titre": profile["titre"],
             "onglet": profile["onglet"],
+            "guide": f"/guides/{guides.SLUG_BY_PROFILE[profile['id']]}",
             "usage": profile["usage"],
             "budget": profile["budget"],
             "resolution": profile["resolution"],
@@ -2026,6 +2029,28 @@ def _compute_featured_configs():
     data = {"status": "ok", "nb_composants": len(components), "configs": configs}
     if configs:
         FEATURED_CACHE.update(at=time.time(), data=data)
+
+
+@app.get("/guides")
+def guides_index_page():
+    configs = featured_configs().get("configs", [])
+    if not configs:
+        raise HTTPException(status_code=503, detail="Guides momentanément indisponibles.")
+    return HTMLResponse(guides.render_index(configs))
+
+
+@app.get("/guides/{slug}")
+def guide_page(slug: str):
+    """Guide d'achat d'une config du moment, rendu côté serveur (voir guides.py)."""
+    profile_id = guides.GUIDES.get(slug)
+    if not profile_id:
+        raise HTTPException(status_code=404, detail="Guide introuvable.")
+    configs = featured_configs().get("configs", [])
+    config = next((c for c in configs if c["id"] == profile_id), None)
+    if not config:
+        raise HTTPException(status_code=503, detail="Guide momentanément indisponible.")
+    catalog_by_id = {c["id"]: c for c in get_catalog()}
+    return HTMLResponse(guides.render_guide(config, configs, catalog_by_id))
 
 
 @app.get("/api/builds/recommandees")

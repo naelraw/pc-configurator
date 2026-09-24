@@ -37,7 +37,7 @@
     var c = configs[current];
     if(!c){ showError(); return; }
     renderTabs();
-    usageEl.innerHTML = '<strong>' + esc(c.titre) + '</strong> · ' + esc(c.usage) + ' · FPS estimés en qualité ' + esc(c.qualite);
+    usageEl.innerHTML = (c.guide ? '<a class="demo-guide-link" href="' + esc(c.guide) + '"><strong>' + esc(c.titre) + '</strong></a>' : '<strong>' + esc(c.titre) + '</strong>') + ' · ' + esc(c.usage) + ' · FPS estimés en qualité ' + esc(c.qualite);
     listEl.innerHTML = c.composants.map(function(p){
       var thumb = p.image_url
         ? '<span class="build-demo-thumb' + (p.image_processed ? '' : ' is-raw') + '"><img src="' + esc(p.image_url) + '?w=120" alt="" decoding="async"></span>'

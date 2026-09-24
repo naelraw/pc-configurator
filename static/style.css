@@ -1049,6 +1049,37 @@ footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:14px 24px
   margin:36px 0 12px; padding-top:28px; border-top:1px solid var(--line);
 }
 .legal-page h2:first-of-type{ border-top:none; padding-top:0; }
+/* Guides d'achat (guides.py) : même gabarit que les pages légales */
+.guide-page{ max-width:880px; }
+.guide-kicker{ font-size:0.8rem !important; color:var(--accent) !important; font-weight:500; margin-bottom:6px !important; }
+.guide-page .legal-updated{ margin-bottom:20px; }
+.guide-lede{ font-size:1.02rem; color:var(--text) !important; }
+.guide-grid{ display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:16px; margin:24px 0 8px; }
+.guide-card{ border:1px solid var(--line); border-radius:var(--r-lg); background:var(--surface); padding:18px 18px 16px; }
+.guide-page .guide-card h2{ margin:0 0 12px; padding:0; border:0; font-size:1rem; }
+.guide-table{ width:100%; border-collapse:collapse; font-size:0.86rem; }
+.guide-table th, .guide-table td{ padding:7px 0; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+.guide-table th{ color:var(--text-3); font-weight:500; width:30%; padding-right:10px; }
+.guide-table td{ color:var(--text); }
+.guide-price{ text-align:right !important; font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; padding-left:10px !important; }
+.guide-table tfoot th, .guide-table tfoot td{ border-bottom:0; padding-top:12px; color:var(--text); font-weight:600; }
+.guide-cta{ width:100%; justify-content:center; margin-top:16px; }
+.guide-note{ font-size:0.82rem !important; color:var(--text-3) !important; line-height:1.5 !important; }
+.guide-fps{ list-style:none; margin:0 0 14px !important; padding:0; }
+.guide-fps li{ display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); margin:0 !important; color:var(--text-2); font-size:0.9rem; }
+.guide-fps b{ font-family:var(--font-mono); font-weight:500; color:var(--accent); }
+.guide-reasons li{ margin-bottom:10px !important; }
+.guide-reasons strong{ color:var(--text); font-weight:560; }
+.guide-others{ display:grid; gap:8px; margin:0 0 20px; }
+.guide-other{
+  display:flex; justify-content:space-between; align-items:center; gap:12px; padding:14px 16px;
+  border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface); color:var(--text);
+  transition:border-color .15s var(--ease), background-color .15s var(--ease);
+}
+.guide-other:hover{ border-color:var(--accent-line); background:var(--surface-2); text-decoration:none; }
+.guide-other b{ font-family:var(--font-mono); font-weight:500; white-space:nowrap; }
+.guide-disclaimer{ margin-top:28px; }
+@media (max-width:760px){ .guide-grid{ grid-template-columns:1fr; } }
 .legal-page p{ color:var(--text-2); line-height:1.75; margin-bottom:14px; max-width:68ch; }
 .legal-page ul{ color:var(--text-2); line-height:1.75; margin:0 0 14px 22px; }
 .legal-page li{ margin-bottom:6px; }
@@ -1339,3 +1370,5 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .build-alert input{ width:110px; }
 .build-alert-unit{ color:var(--text-2); font-size:0.86rem; margin-left:-4px; }
 @media (max-width:640px){ .build-alert{ margin:0 12px 12px; } }
+.demo-guide-link{ color:inherit; text-decoration:underline; text-decoration-color:var(--line-strong); text-underline-offset:3px; }
+.demo-guide-link:hover{ text-decoration-color:var(--accent); }
