@@ -65,16 +65,17 @@ def test_estimation_fps(client, catalog):
 
 def test_tendances_de_prix(app_main, catalog):
     import sqlite3
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta, timezone
     from conftest import DB
+    today = datetime.now(timezone.utc).date()     # la base date en UTC, comme le serveur
     ssd = component(catalog, "Crucial P3")          # prix du jour 70 €
     psu = component(catalog, "Corsair RM750e")      # prix du jour 95 €
     db = sqlite3.connect(DB)
     for d in range(1, 9):                            # 8 relevés, dont un plus bas à 65 €
         db.execute("insert or replace into price_history values (?, ?, ?)",
-                   (ssd["id"], (date.today() - timedelta(days=d)).isoformat(), 65 if d == 5 else 80))
+                   (ssd["id"], (today - timedelta(days=d)).isoformat(), 65 if d == 5 else 80))
     db.execute("insert or replace into price_history values (?, ?, ?)",
-               (psu["id"], (date.today() - timedelta(days=1)).isoformat(), 110))  # hier 110 € -> baisse
+               (psu["id"], (today - timedelta(days=1)).isoformat(), 110))  # hier 110 € -> baisse
     db.commit()
     app_main.invalidate_catalog()
     by_id = {c["id"]: c for c in app_main.get_catalog()}
