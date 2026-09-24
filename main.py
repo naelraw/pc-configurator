@@ -49,11 +49,6 @@ import featured_builds
 import guides
 
 try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
-
-try:
     from google import genai as genai_new
     from google.genai import types as genai_types
 except ImportError:
@@ -137,8 +132,6 @@ GEMINI_API_KEYS = [
 ]
 
 groq_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
-if genai and GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 # Récupération auto des infos produit Amazon par ASIN, via le dataset
 # "Amazon Products" de Bright Data (5000 requêtes gratuites/mois, jamais de

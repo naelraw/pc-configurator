@@ -5,7 +5,6 @@ httptools>=0.6
 libsql-client==0.3.1
 requests==2.31.0
 groq
-google-generativeai
 google-genai
 python-dotenv==1.0.0
 itsdangerous
