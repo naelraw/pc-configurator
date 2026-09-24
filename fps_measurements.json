@@ -6825,5 +6825,141 @@
   "qualite": "eleve",
   "reglages": "High",
   "source": "https://www.techspot.com/review/3130-geforce-rtx-5070-ti-vs-radeon-rx-9070-xt/"
+ },
+ "battlefield 2042": {
+  "cartes": {
+   "rtx 3090|24": [
+    157,
+    125,
+    80
+   ],
+   "rtx 3080 ti|12": [
+    156,
+    124,
+    78
+   ],
+   "rx 6900 xt|16": [
+    153,
+    112,
+    67
+   ],
+   "rtx 3080|10": [
+    153,
+    115,
+    72
+   ],
+   "rx 6800 xt|16": [
+    148,
+    109,
+    65
+   ],
+   "rx 6800|16": [
+    133,
+    99,
+    58
+   ],
+   "rtx 3070 ti|8": [
+    129,
+    97,
+    60
+   ],
+   "rtx 2080 ti|11": [
+    124,
+    94,
+    55
+   ],
+   "rtx 3070|8": [
+    124,
+    95,
+    54
+   ],
+   "rx 6700 xt|12": [
+    121,
+    81,
+    46
+   ],
+   "rtx 3060 ti|8": [
+    117,
+    84,
+    50
+   ],
+   "rx 6600 xt|8": [
+    95,
+    64,
+    34
+   ],
+   "rtx 3060|12": [
+    91,
+    64,
+    37
+   ],
+   "rx 6600|8": [
+    82,
+    58,
+    26
+   ],
+   "rtx 2060|6": [
+    77,
+    55,
+    null
+   ]
+  },
+  "editeur": "TechSpot",
+  "qualite": "ultra",
+  "reglages": "Ultra",
+  "source": "https://www.techspot.com/article/2364-battlefield-2042-benchmarks/"
+ },
+ "call of duty warzone": {
+  "cartes": {
+   "rtx 4090|24": [
+    242,
+    204,
+    145
+   ],
+   "rtx 4080|16": [
+    217,
+    164,
+    111
+   ],
+   "rx 6950 xt|16": [
+    193,
+    138,
+    92
+   ],
+   "rx 6800 xt|16": [
+    171,
+    121,
+    77
+   ],
+   "rtx 3080|10": [
+    152,
+    113,
+    76
+   ],
+   "rtx 3070|8": [
+    122,
+    72,
+    53
+   ],
+   "rx 6700 xt|12": [
+    122,
+    87,
+    54
+   ],
+   "rx 6600 xt|8": [
+    100,
+    66,
+    38
+   ],
+   "rtx 3060|12": [
+    83,
+    58,
+    36
+   ]
+  },
+  "editeur": "TechSpot",
+  "qualite": "ultra",
+  "reglages": "Ultra (Warzone 2.0)",
+  "source": "https://www.techspot.com/article/2579-cod-warzone-2-benchmark/"
  }
 }
