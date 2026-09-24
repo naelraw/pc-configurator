@@ -678,12 +678,23 @@ def favicon():
     par ces crawlers (constaté en pratique : favicon absent du résultat
     Google alors qu'il s'affiche bien dans l'onglet du navigateur, qui lui
     suit correctement les <link rel="icon">). FileResponse plutôt que
-    RedirectResponse : sert le PNG directement, sans redirection à suivre.
+    RedirectResponse : sert le fichier directement, sans redirection à suivre.
+    Vrai fichier ICO (16, 32 et 48 px) : Bing, qui affiche l'icône dans ses
+    résultats, attend un .ico ou une taille multiple de 48 px.
     """
-    return FileResponse("static/favicon.png", media_type="image/png")
+    return FileResponse("static/favicon.ico", media_type="image/x-icon")
 
 
 SITE_URL = "https://pcradar.tech"
+
+# IndexNow (Bing, Yandex...) : ce fichier public prouve que le site est bien le
+# nôtre quand on signale des pages à revisiter. La clé n'est pas un secret.
+INDEXNOW_KEY = "6f5a431a2e404283eb5c4ec0a53f7f63"
+
+
+@app.get(f"/{INDEXNOW_KEY}.txt")
+def indexnow_key_file():
+    return Response(content=INDEXNOW_KEY, media_type="text/plain")
 
 
 @app.get("/robots.txt")
