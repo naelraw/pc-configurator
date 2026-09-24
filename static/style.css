@@ -1058,7 +1058,7 @@ footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:14px 24px
 .guide-page .legal-updated{ margin-bottom:20px; }
 .guide-lede{ font-size:1.02rem; color:var(--text) !important; }
 .guide-grid{ display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:16px; margin:24px 0 8px; }
-.guide-card{ border:1px solid var(--line); border-radius:var(--r-lg); background:var(--surface); padding:18px 18px 16px; }
+.guide-card{ border:1px solid var(--line); border-radius:var(--r-lg); background:var(--surface); padding:18px 18px 16px; margin:0; width:100%; min-width:0; }
 .guide-page .guide-card h2{ margin:0 0 12px; padding:0; border:0; font-size:1rem; }
 .guide-table{ width:100%; border-collapse:collapse; font-size:0.86rem; }
 .guide-table th, .guide-table td{ padding:7px 0; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
@@ -1377,3 +1377,27 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 @media (max-width:640px){ .build-alert{ margin:0 12px 12px; } }
 .demo-guide-link{ color:inherit; text-decoration:underline; text-decoration-color:var(--line-strong); text-underline-offset:3px; }
 .demo-guide-link:hover{ text-decoration-color:var(--accent); }
+/* Fiches composants (component_pages.py) */
+.comp-hero{ display:grid; grid-template-columns:200px minmax(0,1fr); gap:24px; align-items:center; margin-bottom:8px; }
+.comp-image{ width:200px; height:200px; border-radius:var(--r-lg); background:var(--photo-bg); display:flex; align-items:center; justify-content:center; padding:14px; }
+.comp-image img{ max-width:100%; max-height:100%; object-fit:contain; mix-blend-mode:multiply; }
+.comp-head h1{ margin-bottom:6px !important; }
+.comp-price{ font-family:var(--font-mono); font-size:1.6rem !important; color:var(--text) !important; font-weight:500; margin:4px 0 2px !important; font-variant-numeric:tabular-nums; }
+.comp-head .legal-updated{ margin-bottom:14px; }
+.comp-head .guide-cta{ width:auto; margin-top:0; }
+.comp-badge{ display:inline-block; padding:1px 8px; border-radius:999px; font-size:0.72rem; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-line); }
+.comp-badge.is-out{ color:var(--danger); background:var(--danger-soft); border-color:var(--danger-line); }
+.comp-offers li{ align-items:center; }
+.comp-offers li b{ margin-left:auto; color:var(--text) !important; }
+.comp-offers li a{ font-size:0.82rem; white-space:nowrap; }
+.comp-table-wrap{ overflow-x:auto; margin-bottom:12px; }
+.comp-fps th, .comp-fps td{ text-align:center; }
+.comp-fps tbody th{ text-align:left; color:var(--text-2); }
+.comp-fps td{ font-family:var(--font-mono); }
+.guide-table a{ color:var(--text); text-decoration:underline; text-decoration-color:var(--line-strong); text-underline-offset:3px; }
+.guide-table a:hover{ text-decoration-color:var(--accent); }
+.detail-page-link{ display:inline-flex; align-items:center; gap:6px; font-size:0.85rem; color:var(--accent); margin:-4px 0 12px; }
+@media (max-width:600px){
+  .comp-hero{ grid-template-columns:1fr; }
+  .comp-image{ width:160px; height:160px; }
+}

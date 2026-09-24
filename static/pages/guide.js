@@ -7,4 +7,9 @@
       window.location.href = '/configurateur';
     });
   });
+  if(window.PCPriceHistory){
+    document.querySelectorAll('[data-price-history]').forEach(function(el){
+      PCPriceHistory.mount(el, el.getAttribute('data-price-history'));
+    });
+  }
 })();

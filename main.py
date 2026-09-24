@@ -47,6 +47,7 @@ from schema import REQUIRED_FIELDS, validate_component
 import fps_data
 import featured_builds
 import guides
+import component_pages
 
 try:
     from google import genai as genai_new
@@ -731,6 +732,9 @@ def sitemap_xml():
         ("/estimer-fps", "0.8", "weekly"),
         ("/guides", "0.8", "daily"),
     ] + [(f"/guides/{slug}", "0.8", "daily") for slug in guides.GUIDES]
+    pages += [("/composants", "0.7", "daily")]
+    pages += [(component_pages.category_url(cat), "0.7", "daily") for cat in component_pages.CATEGORY_SLUGS]
+    pages += [(component_pages.page_url(c), "0.6", "daily") for c in get_catalog()]
     urls = "\n".join(
         f"""  <url>
     <loc>{SITE_URL}{path}</loc>
@@ -934,6 +938,8 @@ def get_catalog():
         if _CATALOG["components"] is not None and time.time() - _CATALOG["at"] < CATALOG_CACHE_SECONDS:
             return _CATALOG["components"]
         components = get_all_components_light()
+        for component in components:
+            component["page"] = component_pages.page_url(component)
         if not components and _CATALOG["components"]:
             # Base momentanément indisponible : on garde la dernière version.
             return _CATALOG["components"]
@@ -2034,6 +2040,77 @@ def _compute_featured_configs():
     data = {"status": "ok", "nb_composants": len(components), "configs": configs}
     if configs:
         FEATURED_CACHE.update(at=time.time(), data=data)
+
+
+def _component_price_stats(component_id):
+    client = get_client()
+    try:
+        row = client.execute(
+            "SELECT MIN(prix), COUNT(*), MIN(date) FROM price_history WHERE component_id = ? AND prix > 0",
+            [component_id],
+        ).rows[0]
+    finally:
+        client.close()
+    if not row[1]:
+        return None
+    y, m, d = row[2].split("-")
+    return {"min": row[0], "n": row[1], "depuis": f"{d}/{m}/{y}"}
+
+
+def _component_fps_block(component, catalog):
+    """FPS d'une carte graphique avec le meilleur processeur en stock (et inversement)."""
+    cat = component["categorie"]
+    if cat not in ("CPU", "GPU"):
+        return None
+    other_cat = "GPU" if cat == "CPU" else "CPU"
+    partners = [c for c in catalog if c["categorie"] == other_cat and c.get("en_stock") and c.get("perf_index")]
+    if not partners:
+        return None
+    partner = max(partners, key=lambda c: c["perf_index"])
+    result = _run_fps_estimation([component, partner], component_pages.FPS_GAMES, "ultra")
+    if not result or not any(r.get("couvert") for r in result.get("resultats", [])):
+        return None
+    result["contexte"] = (
+        f"Avec un {partner['nom']}, processeur haut de gamme qui ne bride pas la carte graphique."
+        if cat == "GPU" else
+        f"Avec une {partner['nom']}, pour montrer la limite propre au processeur (surtout visible en 1080p)."
+    )
+    return result
+
+
+def _affiliate(url, vendeur):
+    return component_pages.affiliate_url(url, vendeur, AMAZON_ASSOCIATE_TAG, AWIN_PUBLISHER_ID, AWIN_MERCHANT_IDS)
+
+
+@app.get("/composants")
+def components_index_page():
+    return HTMLResponse(component_pages.render_index(get_catalog()))
+
+
+@app.get("/composants/{category_slug}")
+def components_category_page(category_slug: str):
+    categorie = component_pages.CATEGORY_BY_SLUG.get(category_slug)
+    if not categorie:
+        raise HTTPException(status_code=404, detail="Catégorie introuvable.")
+    items = [c for c in get_catalog() if c["categorie"] == categorie]
+    return HTMLResponse(component_pages.render_category(categorie, items))
+
+
+@app.get("/composant/{id_slug}")
+def component_page(id_slug: str):
+    """Fiche d'un composant ; l'adresse canonique contient son nom (redirection sinon)."""
+    match = re.match(r"^(\d+)", id_slug)
+    catalog = get_catalog()
+    component = next((c for c in catalog if match and c["id"] == int(match.group(1))), None)
+    if not component:
+        raise HTTPException(status_code=404, detail="Composant introuvable.")
+    canonical = component_pages.page_url(component)
+    if f"/composant/{id_slug}" != canonical:
+        return RedirectResponse(canonical, status_code=301)
+    return HTMLResponse(component_pages.render_component(
+        component, catalog, _component_fps_block(component, catalog),
+        _component_price_stats(component["id"]), _affiliate,
+    ))
 
 
 @app.get("/guides")

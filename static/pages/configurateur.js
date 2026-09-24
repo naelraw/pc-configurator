@@ -544,6 +544,7 @@
     document.getElementById('detail-modal-content').innerHTML = `
       <span class="cat-badge">${escapeHtml(item.categorie)}</span>
       <h3>${escapeHtml(item.nom)}</h3>
+      ${item.page ? `<a class="detail-page-link" href="${escapeHtml(item.page)}">Fiche complète : prix, FPS, compatibilité <i class="ph ph-arrow-right" aria-hidden="true"></i></a>` : ''}
       ${imageHtml}
       <p class="detail-price-ref">Prix de référence : ${item.prix_indicatif}€</p>
       <div class="follow-slot"></div>

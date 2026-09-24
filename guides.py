@@ -76,6 +76,7 @@ _SHELL_FOOT = """
     </div>
     <div class="footer-legal-links">
       <a href="/guides">Guides d'achat</a>
+      <a href="/composants">Composants</a>
       <a href="/mentions-legales">Mentions légales</a>
       <a href="/confidentialite">Confidentialité</a>
       <a href="/cgu">CGU</a>
@@ -86,6 +87,7 @@ _SHELL_FOOT = """
 
 <script src="/static/nav-menu.js"></script>
 <script src="/static/effects.js"></script>
+<script src="/static/price-history.js"></script>
 <script src="/static/pages/guide.js"></script>
 </body>
 </html>
@@ -107,6 +109,11 @@ def _page(title, description, canonical, body):
         _SHELL_HEAD.format(title=escape(title), description=escape(description), canonical=escape(canonical))
         + body + _SHELL_FOOT
     )
+
+
+def _component_url(part):
+    from component_pages import page_url  # import local : component_pages importe ce module
+    return page_url(part)
 
 
 def _part(config, categorie):
@@ -165,7 +172,7 @@ def render_guide(config, all_configs, catalog_by_id):
 
     rows = "".join(
         f"<tr><th scope=\"row\">{escape(p['categorie'])}</th>"
-        f"<td>{escape(p['nom'])}</td><td class=\"guide-price\">{_euros(p['prix'] or 0)}</td></tr>"
+        f"<td><a href=\"{escape(_component_url(p))}\">{escape(p['nom'])}</a></td><td class=\"guide-price\">{_euros(p['prix'] or 0)}</td></tr>"
         for p in config["composants"]
     )
     fps = "".join(
