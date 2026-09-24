@@ -445,6 +445,7 @@
       ${imageHtml}
       <p class="detail-price-ref">Prix de référence : ${item.prix_indicatif}€</p>
       <div class="follow-slot"></div>
+      <div class="price-history-slot"></div>
       ${descriptionHtml}
       <div class="detail-specs">${specsHtml}</div>
       <h3 style="margin-top:18px; margin-bottom:8px;">Prix relevés</h3>
@@ -453,6 +454,7 @@
     `;
     document.getElementById('detail-modal-overlay').classList.add('show');
     PCAccount.mountFollow(document.querySelector('#detail-modal-content .follow-slot'), item);
+    if(window.PCPriceHistory) PCPriceHistory.mount(document.querySelector('#detail-modal-content .price-history-slot'), item.id);
   }
 
   function closeDetailModal(){

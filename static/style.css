@@ -709,6 +709,25 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .detail-image.is-transparent{ background:var(--surface-2); }
 .detail-image.is-transparent img{ mix-blend-mode:normal; }
 .detail-price-ref{ color:var(--text-2); font-size:0.88rem; margin-bottom:16px; font-variant-numeric:tabular-nums; }
+/* Historique du prix dans la fiche détail (static/price-history.js) */
+.price-history{
+  margin:0 0 16px; padding:12px 14px 10px; border-radius:var(--r-md);
+  background:var(--surface-2); border:1px solid var(--line);
+}
+.ph-head{ display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 10px; margin-bottom:8px; }
+.ph-title{ font-size:0.84rem; font-weight:560; color:var(--text); display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+.ph-range{ font-family:var(--font-mono); font-size:0.74rem; color:var(--text-3); }
+.ph-badge{
+  font-size:0.7rem; font-weight:500; color:var(--accent); padding:1px 8px; border-radius:999px; white-space:nowrap;
+  background:var(--accent-soft); border:1px solid var(--accent-line);
+}
+.ph-chart{ display:block; width:100%; height:84px; overflow:visible; }
+.ph-area{ fill:var(--accent-soft); }
+.ph-line{ fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
+.ph-dot{ fill:var(--accent); stroke:var(--surface-2); stroke-width:2; }
+.ph-stats{ display:flex; justify-content:space-between; gap:12px; margin-top:8px; font-size:0.78rem; color:var(--text-2); }
+.ph-stats b{ font-family:var(--font-mono); font-weight:500; color:var(--text); font-variant-numeric:tabular-nums; margin-left:4px; }
+.ph-empty{ font-size:0.82rem; color:var(--text-2); margin:0; line-height:1.5; }
 .detail-specs, .detail-prices{ display:flex; flex-direction:column; }
 .detail-row{
   display:flex; justify-content:space-between; gap:12px; padding:9px 0;

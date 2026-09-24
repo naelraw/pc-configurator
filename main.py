@@ -19,13 +19,13 @@ except ImportError:
     fcntl = None
 import time
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlparse
 import requests
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -978,6 +978,39 @@ def api_components(request: Request):
         headers["Content-Encoding"] = "gzip"
         return Response(content=_CATALOG["gzip"], media_type="application/json", headers=headers)
     return Response(content=_CATALOG["body"], media_type="application/json", headers=headers)
+
+
+@app.get("/api/components/{component_id}/prix-historique")
+def component_price_history(component_id: int, jours: int = 90):
+    """
+    Historique du prix d'un composant (un point par jour, relevé par la mise
+    à jour automatique des prix), pour le graphique de la fiche détail.
+    """
+    jours = max(7, min(jours, 365))
+    depuis = (datetime.utcnow().date() - timedelta(days=jours)).isoformat()
+    client = get_client()
+    try:
+        rows = client.execute(
+            "SELECT date, prix FROM price_history WHERE component_id = ? AND date >= ? AND prix > 0 ORDER BY date",
+            [component_id, depuis],
+        ).rows
+        plus_bas = client.execute(
+            "SELECT MIN(prix) FROM price_history WHERE component_id = ? AND prix > 0", [component_id]
+        ).rows[0][0]
+    finally:
+        client.close()
+    points = [{"date": r[0], "prix": r[1]} for r in rows]
+    prix = [p["prix"] for p in points]
+    return JSONResponse(
+        {
+            "points": points,
+            "min": min(prix) if prix else None,
+            "max": max(prix) if prix else None,
+            "plus_bas_historique": plus_bas,
+            "jours": jours,
+        },
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
 
 
 @app.get("/api/components/by-asin/{asin}")
