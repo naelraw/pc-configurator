@@ -913,8 +913,11 @@ a.bento-cell:hover .more{ color:var(--accent); }
 }
 .vs-spec-row:nth-child(even){ background:rgba(255,255,255,0.02); }
 .vs-spec-header{ font-size:0.78rem; color:var(--text-2); border-bottom:1px solid var(--line); border-radius:0; background:transparent !important; }
-.vs-spec-label{ color:var(--text-2); text-transform:capitalize; overflow-wrap:break-word; min-width:0; }
+.vs-spec-label{ color:var(--text-2); overflow-wrap:break-word; min-width:0; }
 .vs-spec-val{ text-align:center; overflow-wrap:break-word; min-width:0; font-variant-numeric:tabular-nums; }
+.vs-specs-block .vs-spec-row:not(.vs-spec-header) .vs-spec-val{ font-weight:400; color:var(--text-2); }
+.vs-specs-block .vs-spec-row:not(.vs-spec-header) .vs-spec-val.is-best{ font-weight:700; color:var(--text); }
+.vs-specs-legend{ font-size:0.8rem; color:var(--text-3); margin:-4px 0 10px; }
 .vs-spec-header .vs-spec-val{ color:var(--text); font-weight:600; }
 @media (max-width:640px){ .vs-spec-row{ grid-template-columns:90px 1fr 1fr; font-size:0.78rem; padding:8px; } }
 @media (max-width:700px){

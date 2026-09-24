@@ -5352,12 +5352,14 @@ def _run_fps_estimation(chosen, jeux, qualite="ultra"):
 # simple. Toute autre catégorie retombe sur une simple comparaison de specs
 # côte à côte, sans revendiquer de score de performance inventé.
 RAM_CAPACITY_PATTERN = re.compile(r"(\d+)\s*go\b", re.IGNORECASE)
-RAM_SPEED_PATTERN = re.compile(r"(\d{3,5})\s*mhz\b", re.IGNORECASE)
+RAM_SPEED_PATTERN = re.compile(r"(\d{3,5})\s*(?:mhz|mt/s)\b", re.IGNORECASE)
+# Beaucoup de titres écrivent la fréquence sans unité : "DDR4 3200", "DDR5-6000".
+RAM_SPEED_AFTER_DDR = re.compile(r"ddr[345]\s*-?\s*(\d{4})\b", re.IGNORECASE)
 
 
 def _parse_ram_specs(nom):
     capacity_match = RAM_CAPACITY_PATTERN.search(nom)
-    speed_match = RAM_SPEED_PATTERN.search(nom)
+    speed_match = RAM_SPEED_PATTERN.search(nom) or RAM_SPEED_AFTER_DDR.search(nom)
     return {
         "capacite_go": int(capacity_match.group(1)) if capacity_match else None,
         "frequence_mhz": int(speed_match.group(1)) if speed_match else None,
@@ -5373,6 +5375,8 @@ def compare_performance(id_a: int, id_b: int):
     catégories différentes entre A et B) : specs brutes côte à côte, sans
     score de performance.
     """
+    if id_a == id_b:
+        raise HTTPException(status_code=400, detail="Choisis deux composants différents à comparer.")
     components = get_catalog()
     components_by_id = {c["id"]: c for c in components}
     a = components_by_id.get(id_a)

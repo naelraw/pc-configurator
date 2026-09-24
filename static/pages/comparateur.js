@@ -70,9 +70,13 @@
     }
 
     const restrictCategory = slot === 'b' && selectedA ? selectedA.categorie : null;
+    // Le composant déjà choisi de l'autre côté (ou une autre fiche du même
+    // modèle) n'est jamais proposé : le comparer à lui-même n'a pas de sens.
+    const other = slot === 'a' ? selectedB : selectedA;
 
     const matches = allComponents
-      .filter(c => (!restrictCategory || c.categorie === restrictCategory) && matchesQuery(c.nom, query))
+      .filter(c => (!restrictCategory || c.categorie === restrictCategory) && matchesQuery(c.nom, query)
+        && !(other && isSameComponent(c, other)))
       .sort((a, b) => scoreRelevance(b.nom, query) - scoreRelevance(a.nom, query))
       .slice(0, 12);
 
@@ -90,9 +94,20 @@
     resultsBox.classList.add('show');
   }
 
+  function isSameComponent(x, y){
+    return x.id === y.id || normalize(x.nom) === normalize(y.nom);
+  }
+
   function selectComponent(slot, id){
     const component = allComponents.find(c => c.id === id);
     if(!component) return;
+    const other = slot === 'a' ? selectedB : selectedA;
+    if(other && isSameComponent(component, other)){
+      const box = document.getElementById(`results-${slot}`);
+      box.innerHTML = "<div class='search-result-item'>Choisis un composant différent de celui d’en face.</div>";
+      box.classList.add('show');
+      return;
+    }
 
     document.getElementById(`search-${slot}`).value = component.nom;
     document.getElementById(`results-${slot}`).classList.remove('show');
@@ -188,6 +203,8 @@
       // détail derrière — specs brutes en complément, jamais à la place.
       html += renderSpecsTable(a, b, 'Caractéristiques');
     }else if(mode === 'ram'){
+      const bestCap = a.capacite_go && b.capacite_go && a.capacite_go !== b.capacite_go ? (a.capacite_go > b.capacite_go ? 'a' : 'b') : null;
+      const bestFreq = a.frequence_mhz && b.frequence_mhz && a.frequence_mhz !== b.frequence_mhz ? (a.frequence_mhz > b.frequence_mhz ? 'a' : 'b') : null;
       html += `
         <div class="vs-specs-block">
           <div class="vs-spec-row vs-spec-header">
@@ -197,13 +214,13 @@
           </div>
           <div class="vs-spec-row">
             <span class="vs-spec-label">Capacité</span>
-            <span class="vs-spec-val">${a.capacite_go ? a.capacite_go + ' Go' : '?'}</span>
-            <span class="vs-spec-val">${b.capacite_go ? b.capacite_go + ' Go' : '?'}</span>
+            <span class="vs-spec-val${bestCap === 'a' ? ' is-best' : ''}">${a.capacite_go ? a.capacite_go + ' Go' : '?'}</span>
+            <span class="vs-spec-val${bestCap === 'b' ? ' is-best' : ''}">${b.capacite_go ? b.capacite_go + ' Go' : '?'}</span>
           </div>
           <div class="vs-spec-row">
             <span class="vs-spec-label">Fréquence</span>
-            <span class="vs-spec-val">${a.frequence_mhz ? a.frequence_mhz + ' MHz' : '?'}</span>
-            <span class="vs-spec-val">${b.frequence_mhz ? b.frequence_mhz + ' MHz' : '?'}</span>
+            <span class="vs-spec-val${bestFreq === 'a' ? ' is-best' : ''}">${a.frequence_mhz ? a.frequence_mhz + ' MHz' : '?'}</span>
+            <span class="vs-spec-val${bestFreq === 'b' ? ' is-best' : ''}">${b.frequence_mhz ? b.frequence_mhz + ' MHz' : '?'}</span>
           </div>
         </div>
         <p style="color:var(--text-dim); font-size:0.82rem; text-align:center; margin-top:10px;">Plus de capacité aide le multitâche, une fréquence plus élevée améliore le débit mémoire (surtout notable sur CPU AMD Ryzen).</p>
@@ -215,6 +232,41 @@
     container.innerHTML = html;
   }
 
+  // Libellés lisibles et unités des caractéristiques (clés brutes en base).
+  const SPEC_LABELS = {
+    socket: 'Socket', tdp: 'Consommation (TDP)', wattage: 'Puissance', format: 'Format',
+    ram_type: 'Type de mémoire', type: 'Type', m2_slots: 'Emplacements M.2', sata_ports: 'Ports SATA',
+    formats_supportes: 'Formats de carte mère', gpu_max_length_mm: 'Carte graphique max.',
+    cpu_cooler_max_height_mm: 'Ventirad max.', longueur_mm: 'Longueur', hauteur_mm: 'Hauteur',
+    sockets_supportes: 'Sockets supportés', couleur: 'Couleur',
+  };
+  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm' };
+  const TYPE_RANK = { DDR3: 1, DDR4: 2, DDR5: 3, SATA: 1, NVMe: 2 };
+
+  // Meilleure valeur d'une caractéristique : 'a', 'b' ou null (égalité,
+  // valeur manquante, ou caractéristique où "mieux" dépend de l'usage :
+  // longueur d'une carte graphique, hauteur d'un ventirad, format, socket...).
+  function bestSide(key, va, vb, categorie){
+    if(va === undefined || vb === undefined || va === null || vb === null) return null;
+    let score;
+    if(['wattage', 'm2_slots', 'sata_ports', 'gpu_max_length_mm', 'cpu_cooler_max_height_mm'].includes(key)){
+      score = v => Number(v);                                    // plus = mieux
+    }else if(key === 'formats_supportes' || key === 'sockets_supportes'){
+      score = v => Array.isArray(v) ? v.length : 0;              // plus compatible = mieux
+    }else if(key === 'type' || key === 'ram_type'){
+      score = v => TYPE_RANK[v] || 0;                            // DDR5 > DDR4, NVMe > SATA
+    }else if(key === 'tdp'){
+      // Ventirad : capacité de refroidissement (plus = mieux) ;
+      // processeur / carte graphique : consommation (moins = mieux).
+      score = categorie === 'Refroidissement' ? (v => Number(v)) : (v => -Number(v));
+    }else{
+      return null;
+    }
+    const sa = score(va), sb = score(vb);
+    if(!Number.isFinite(sa) || !Number.isFinite(sb) || sa === sb || (sa === 0 && sb === 0)) return null;
+    return sa > sb ? 'a' : 'b';
+  }
+
   function renderSpecsTable(a, b, titre){
     const specsA = a.specs || {};
     const specsB = b.specs || {};
@@ -222,17 +274,24 @@
     if(keys.length === 0){
       return titre ? '' : '<p style="color:var(--text-dim); padding:16px 0; text-align:center;">Aucune caractéristique enregistrée pour comparer ces composants.</p>';
     }
-    const fmt = v => v === undefined ? '-' : (Array.isArray(v) ? v.join(', ') : String(v));
-    const rows = keys.map(k => `
+    const categorie = a.categorie || (selectedA && selectedA.categorie);
+    const fmt = (k, v) => v === undefined || v === null ? '-' : (Array.isArray(v) ? v.join(', ') : String(v) + (SPEC_UNITS[k] || ''));
+    let anyBest = false;
+    const rows = keys.map(k => {
+      const best = bestSide(k, specsA[k], specsB[k], categorie);
+      if(best) anyBest = true;
+      return `
       <div class="vs-spec-row">
-        <span class="vs-spec-label">${escapeHtml(k)}</span>
-        <span class="vs-spec-val">${escapeHtml(fmt(specsA[k]))}</span>
-        <span class="vs-spec-val">${escapeHtml(fmt(specsB[k]))}</span>
+        <span class="vs-spec-label">${escapeHtml(SPEC_LABELS[k] || k)}</span>
+        <span class="vs-spec-val${best === 'a' ? ' is-best' : ''}">${escapeHtml(fmt(k, specsA[k]))}</span>
+        <span class="vs-spec-val${best === 'b' ? ' is-best' : ''}">${escapeHtml(fmt(k, specsB[k]))}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
     return `
       <div class="vs-specs-block">
         ${titre ? `<h3 class="vs-specs-title">${escapeHtml(titre)}</h3>` : ''}
+        ${anyBest ? '<p class="vs-specs-legend">En gras : la meilleure valeur des deux.</p>' : ''}
         <div class="vs-spec-row vs-spec-header">
           <span class="vs-spec-label"></span>
           <span class="vs-spec-val">${escapeHtml(a.nom)}</span>
