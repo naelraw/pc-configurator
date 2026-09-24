@@ -1,0 +1,8 @@
+[Unit]
+Description=PC Radar - surveillance du site
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/pc-configurator/venv/bin/python /home/ubuntu/pc-configurator/ops/healthcheck.py
+StandardOutput=append:/home/ubuntu/backups/healthcheck.log
+StandardError=append:/home/ubuntu/backups/healthcheck.log

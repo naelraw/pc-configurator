@@ -1,0 +1,8 @@
+[Unit]
+Description=PC Radar - copie chiffrée de la base hors serveur (e-mail)
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/pc-configurator/venv/bin/python /home/ubuntu/pc-configurator/ops/offsite_backup.py
+StandardOutput=append:/home/ubuntu/backups/offsite.log
+StandardError=append:/home/ubuntu/backups/offsite.log

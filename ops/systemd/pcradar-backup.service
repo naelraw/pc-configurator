@@ -1,0 +1,8 @@
+[Unit]
+Description=PC Radar - sauvegarde de la base
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/pc-configurator/ops/backup_db.sh
+StandardOutput=append:/home/ubuntu/backups/db/backup.log
+StandardError=append:/home/ubuntu/backups/db/backup.log
