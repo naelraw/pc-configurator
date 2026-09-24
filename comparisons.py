@@ -14,6 +14,21 @@ from guides import _euros, _page, _today
 
 MAX_RATIO = 1.25  # écart de performance max pour qu'une paire soit un vrai duel
 
+# Duels phares (concurrents annoncés comme tels, les plus recherchés) : traités
+# en priorité, avant les paires trouvées automatiquement. Cartes graphiques :
+# nom du modèle (+ mémoire si plusieurs versions) ; processeurs : modèle tel
+# que reconnu par fps_data.
+FEATURED_DUELS = [
+    ("rtx 5080", "rx 9070 xt"), ("rtx 5070 ti", "rx 9070 xt"), ("rtx 5070", "rx 9070"),
+    ("rtx 5060 ti|16", "rx 9060 xt|16"), ("rtx 5060 ti|8", "rx 9060 xt|8"), ("rtx 5060", "rx 9060 xt|8"),
+    ("rtx 5050", "rx 7600"), ("rtx 4070 super", "rx 7800 xt"), ("rtx 4060", "rx 7600"),
+    ("rtx 4060 ti", "rx 7700 xt"), ("rtx 4080 super", "rx 7900 xtx"), ("rtx 4070 ti super", "rx 7900 xt"),
+    ("rtx 5070", "rtx 4070 super"), ("rx 9070 xt", "rx 7900 xt"), ("arc b580", "rtx 4060"),
+    ("i9-14900k", "9800x3d"), ("ultra 9 285", "9800x3d"), ("i7-14700k", "7800x3d"), ("i7-14700k", "9700x"),
+    ("ultra 7 265", "9700x"), ("i5-14600k", "9600x"), ("ultra 5 245k", "9600x"), ("i5-13600k", "7600x"),
+    ("i5-14400", "7500f"), ("i5-12400", "5600"), ("i3-14100", "5500"), ("9800x3d", "7800x3d"), ("7800x3d", "5800x3d"),
+]
+
 
 def _price(c):
     return float(c.get("prix_indicatif") or 0)
@@ -89,17 +104,42 @@ def pairs(catalog):
     """Chaque modèle face à son concurrent le plus proche (autre marque), sans doublon."""
     ms = models(catalog)
     result, seen, uses = [], set(), {}
+
+    def find(ref):
+        if ref in ms:
+            return ms[ref]
+        # Carte graphique sans mémoire précisée : la version la plus proposée.
+        variants = [m for m in ms.values() if m["kind"] == "GPU" and m.get("card") == ref]
+        return max(variants, key=lambda m: len(m["listings"])) if variants else None
+
+    featured = {"GPU": [], "CPU": []}
+    for ref_a, ref_b in FEATURED_DUELS:
+        x, y = find(ref_a), find(ref_b)
+        if not x or not y or frozenset((x["key"], y["key"])) in seen:
+            continue
+        seen.add(frozenset((x["key"], y["key"])))
+        uses[x["key"]] = uses.get(x["key"], 0) + 1
+        uses[y["key"]] = uses.get(y["key"], 0) + 1
+        featured[x["kind"]].append({"kind": x["kind"], "a": x, "b": y, "slug": f"{x['slug']}-vs-{y['slug']}",
+                                    "main_res": 1 if x["kind"] == "GPU" else 0, "phare": True})
+
     for kind, main_res in (("GPU", 1), ("CPU", 0)):
+        result += featured[kind]
         pool = [m for m in ms.values() if m["kind"] == kind]
-        for m in sorted(pool, key=lambda x: -x["perf"][main_res]):
+        # Candidats : chaque modèle et son concurrent le plus proche.
+        candidates = []
+        for m in pool:
             rivals = [o for o in pool if _brand(kind, o["key"]) != _brand(kind, m["key"])]
-            if not rivals:
-                continue
-            rival = min(rivals, key=lambda o: abs(o["perf"][main_res] / m["perf"][main_res] - 1))
-            ratio = max(rival["perf"][main_res], m["perf"][main_res]) / min(rival["perf"][main_res], m["perf"][main_res])
+            if rivals:
+                rival = min(rivals, key=lambda o: abs(o["perf"][main_res] / m["perf"][main_res] - 1))
+                ratio = max(rival["perf"][main_res], m["perf"][main_res]) / min(rival["perf"][main_res], m["perf"][main_res])
+                candidates.append((ratio, m, rival))
+        # Les duels les plus serrés d'abord (RTX 5070 Ti vs RX 9070 XT avant
+        # RTX 5080 vs RX 9070 XT). Un modèle apparaît dans 2 duels au plus :
+        # au-delà, les pages se ressemblent trop (mauvais pour le référencement).
+        kind_pairs = []
+        for ratio, m, rival in sorted(candidates, key=lambda t: t[0]):
             ident = frozenset((m["key"], rival["key"]))
-            # Un modèle apparaît dans 2 duels au plus : au-delà, les pages se
-            # ressemblent trop (mauvais pour le référencement, peu utile).
             if ratio > MAX_RATIO or ident in seen or uses.get(m["key"], 0) >= 2 or uses.get(rival["key"], 0) >= 2:
                 continue
             seen.add(ident)
@@ -107,7 +147,8 @@ def pairs(catalog):
             uses[rival["key"]] = uses.get(rival["key"], 0) + 1
             # Ordre habituel des recherches : NVIDIA/Intel d'abord.
             a, b = (m, rival) if _brand(kind, m["key"]) in ("nvidia", "intel") else (rival, m)
-            result.append({"kind": kind, "a": a, "b": b, "slug": f"{a['slug']}-vs-{b['slug']}", "main_res": main_res})
+            kind_pairs.append({"kind": kind, "a": a, "b": b, "slug": f"{a['slug']}-vs-{b['slug']}", "main_res": main_res})
+        result += sorted(kind_pairs, key=lambda p: -max(p["a"]["perf"][main_res], p["b"]["perf"][main_res]))
     return result
 
 
