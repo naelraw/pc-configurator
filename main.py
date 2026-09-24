@@ -2677,9 +2677,12 @@ CATEGORY_KEYWORDS = [
     ("RAM", ["memoire vive", "barrette memoire", "ram ddr", "dimm", "sodimm",
              "ddr4 ram", "ddr5 ram", "ram ddr4", "ram ddr5", "memoire ddr4", "memoire ddr5"]),
     ("Stockage", ["ssd", "disque dur", "disque ssd", "nvme", "hdd", "m.2"]),
-    ("Alimentation", ["alimentation pc", "bloc d'alimentation", "bloc dalimentation", "80 plus", "psu"]),
-    ("Refroidissement", ["ventirad", "watercooling", "aio", "refroidisseur", "ventilateur cpu"]),
-    ("Boîtier", ["boitier pc", "boitier gaming", "tour pc", "case pc"]),
+    ("Alimentation", ["alimentation pc", "bloc d'alimentation", "bloc dalimentation", "80 plus", "psu",
+                      "alimentation", "alimentation modulaire"]),
+    ("Refroidissement", ["ventirad", "watercooling", "aio", "refroidisseur", "ventilateur cpu",
+                         "liquid freezer", "air cooler", "cpu cooler", "caloducs", "heat pipes", "refroidissement liquide"]),
+    ("Boîtier", ["boitier pc", "boitier gaming", "tour pc", "case pc",
+                 "boitier", "moyen tour", "tour median", "mid tower", "mid-tower", "full tower"]),
     # Catégorie "Accessoire" unique — vérifiée après les composants internes
     # ci-dessus pour éviter les faux positifs (ex: "ventilateur cpu" est
     # capté par Refroidissement avant d'atteindre "ventilateur"). Tous les
