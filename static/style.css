@@ -34,7 +34,7 @@
   /* Texte */
   --text:#ececee;
   --text-2:#a3a3ab;
-  --text-3:#6e6f77;
+  --text-3:#81828a; /* contraste ≥ 4,5:1 sur --bg, --surface et --surface-2 (WCAG AA) */
 
   /* Accent unique */
   --accent:#3ecf8e;
@@ -1073,6 +1073,30 @@ footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:14px 24px
 .account-section{ margin-top:40px; }
 .account-section h2{ font-size:1.2rem; font-weight:600; letter-spacing:-0.02em; margin-bottom:4px; }
 .account-section-sub{ color:var(--text-2); font-size:0.9rem; margin-bottom:16px; max-width:65ch; }
+.account-section-sub a{ color:var(--text); text-decoration:underline; text-underline-offset:2px; }
+/* Mes données : export et suppression du compte */
+.account-data-actions{ display:flex; flex-wrap:wrap; align-items:center; gap:12px 20px; }
+.btn-danger-link{
+  background:none; border:0; padding:6px 0; font:inherit; font-size:0.88rem; cursor:pointer;
+  color:var(--danger); text-decoration:underline; text-underline-offset:3px;
+}
+.btn-danger-link:focus-visible{ outline:2px solid var(--danger); outline-offset:3px; border-radius:4px; }
+.delete-account-box{
+  margin-top:16px; padding:16px 18px; border-radius:var(--r-md);
+  background:var(--danger-soft); border:1px solid var(--danger-line); max-width:640px;
+}
+.delete-account-box p{ font-size:0.9rem; color:var(--text); margin-bottom:12px; }
+.delete-account-box label{ display:block; font-size:0.85rem; color:var(--text-2); margin-bottom:6px; }
+.delete-account-row{ display:flex; flex-wrap:wrap; gap:8px; }
+.delete-account-row input{
+  flex:1 1 180px; min-width:0; padding:10px 14px; border:1px solid var(--line-strong); border-radius:var(--r-sm);
+  background:var(--surface); color:var(--text); font-size:0.95rem;
+  transition:border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.delete-account-row input:focus{ outline:none; border-color:var(--danger); box-shadow:0 0 0 3px var(--danger-soft); }
+.delete-account-row .btn[disabled]{ opacity:0.45; cursor:not-allowed; }
+.delete-account-error{ color:var(--danger); font-size:0.85rem; margin:10px 0 0; }
+.delete-account-error:empty{ display:none; }
 
 .delta{ font-size:0.8rem; color:var(--text-3); font-variant-numeric:tabular-nums; }
 .delta.down{ color:var(--accent); }

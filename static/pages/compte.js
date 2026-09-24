@@ -103,6 +103,42 @@
     await refreshView();
   }
 
+  // Suppression du compte (RGPD) : confirmation en tapant SUPPRIMER.
+  function showDeleteAccount(){
+    document.getElementById('delete-account-box').hidden = false;
+    document.getElementById('delete-account-confirm').focus();
+  }
+
+  function hideDeleteAccount(){
+    document.getElementById('delete-account-box').hidden = true;
+    document.getElementById('delete-account-confirm').value = '';
+    document.getElementById('delete-account-btn').disabled = true;
+    document.getElementById('delete-account-error').textContent = '';
+  }
+
+  function onDeleteConfirmInput(){
+    const typed = document.getElementById('delete-account-confirm').value.trim().toUpperCase();
+    document.getElementById('delete-account-btn').disabled = typed !== 'SUPPRIMER';
+  }
+
+  async function deleteAccount(){
+    const btn = document.getElementById('delete-account-btn');
+    const errorEl = document.getElementById('delete-account-error');
+    btn.disabled = true;
+    errorEl.textContent = '';
+    try{
+      const res = await fetch(API_BASE + '/api/auth/account', { method: 'DELETE', credentials: 'include' });
+      if(!res.ok) throw new Error();
+      try{ localStorage.removeItem('pc_configurator_draft'); }catch(e){}
+      hideDeleteAccount();
+      await refreshView();
+      alert('Ton compte et toutes tes données ont été supprimés.');
+    }catch(e){
+      errorEl.textContent = 'La suppression a échoué. Réessaie, ou écris à contact.pcradar@gmail.com.';
+      btn.disabled = false;
+    }
+  }
+
   let lastLoadedBuilds = [];
 
   async function loadBuilds(){

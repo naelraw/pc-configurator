@@ -104,6 +104,25 @@
       <h2>Mes configurations</h2>
       <div id="builds-list"></div>
     </div>
+
+    <div class="account-section">
+      <h2>Mes données</h2>
+      <p class="account-section-sub">Tes données sont stockées en France. Tu peux les récupérer ou supprimer ton compte à tout moment (<a href="/confidentialite">politique de confidentialité</a>).</p>
+      <div class="account-data-actions">
+        <a class="btn btn-secondary" href="/api/auth/export" download>Télécharger mes données</a>
+        <button type="button" class="btn-danger-link" data-onclick="showDeleteAccount()">Supprimer mon compte</button>
+      </div>
+      <div class="delete-account-box" id="delete-account-box" hidden>
+        <p>Ton compte, tes configurations, tes composants suivis et tes alertes seront <strong>définitivement supprimés</strong>. Cette action est irréversible.</p>
+        <label for="delete-account-confirm">Pour confirmer, tape <strong>SUPPRIMER</strong> :</label>
+        <div class="delete-account-row">
+          <input type="text" id="delete-account-confirm" autocomplete="off" data-oninput="onDeleteConfirmInput()">
+          <button type="button" class="btn btn-danger" id="delete-account-btn" disabled data-onclick="deleteAccount()">Supprimer définitivement</button>
+          <button type="button" class="btn btn-secondary" data-onclick="hideDeleteAccount()">Annuler</button>
+        </div>
+        <p class="delete-account-error" id="delete-account-error" role="alert"></p>
+      </div>
+    </div>
   </div>
 
 </section>

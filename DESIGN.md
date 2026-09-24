@@ -10,7 +10,7 @@ colors:
   line-strong: "#35363c"
   text: "#ececee"
   text-2: "#a3a3ab"
-  text-3: "#6e6f77"
+  text-3: "#81828a"
   accent: "#3ecf8e"
   accent-hover: "#5fdba3"
   accent-ink: "#05140d"

@@ -1184,6 +1184,78 @@ def logout(request: Request):
     return {"status": "ok"}
 
 
+def _table_exists(client, name):
+    return bool(client.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", [name]).rows)
+
+
+def _user_build_filter(user_id):
+    # builds.user_id_optionnel est une colonne TEXT : on compare aux deux formes.
+    return "(user_id_optionnel = ? OR user_id_optionnel = ?)", [user_id, str(user_id)]
+
+
+@app.get("/api/auth/export")
+def export_my_data(user=Depends(require_login)):
+    """
+    Droit à la portabilité (RGPD) : toutes les données liées au compte, en
+    JSON téléchargeable. Jamais le mot de passe, même haché.
+    """
+    where, args = _user_build_filter(user["id"])
+    client = get_client()
+    try:
+        def rows(sql, params):
+            result = client.execute(sql, params)
+            return [dict(zip(result.columns, row)) for row in result.rows]
+
+        account = rows("SELECT email, created_at FROM users WHERE id = ?", [user["id"]])
+        data = {
+            "compte": account[0] if account else {"email": user["email"]},
+            "configurations": rows(f"SELECT id, nom, composants_json, date FROM builds WHERE {where}", args),
+            "favoris": rows("SELECT component_id, prix_ajout, prix_cible, created_at FROM favorites WHERE user_id = ?", [user["id"]]),
+            "alertes_de_configuration": rows(
+                "SELECT build_id, prix_reference, prix_cible, created_at FROM build_alerts WHERE user_id = ?", [user["id"]]
+            ),
+            "signalements_de_liens": rows(
+                "SELECT component_id, vendeur, nouveau_lien, statut, date FROM link_corrections WHERE user_id = ?", [user["id"]]
+            ) if _table_exists(client, "link_corrections") else [],
+        }
+    finally:
+        client.close()
+    return Response(
+        content=json.dumps(data, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="mes-donnees-pc-radar.json"'},
+    )
+
+
+@app.delete("/api/auth/account")
+def delete_my_account(request: Request, user=Depends(require_login)):
+    """
+    Droit à l'effacement (RGPD) : supprime le compte et tout ce qui lui est
+    rattaché. Les signalements de liens déjà envoyés sont gardés pour
+    l'historique de modération, mais anonymisés.
+    """
+    where, args = _user_build_filter(user["id"])
+    client = get_client()
+    try:
+        build_ids = [r[0] for r in client.execute(f"SELECT id FROM builds WHERE {where}", args).rows]
+        statements = [
+            ("DELETE FROM favorites WHERE user_id = ?", [user["id"]]),
+            ("DELETE FROM build_alerts WHERE user_id = ?", [user["id"]]),
+            (f"DELETE FROM builds WHERE {where}", args),
+            ("DELETE FROM users WHERE id = ?", [user["id"]]),
+        ]
+        statements += [("DELETE FROM build_alerts WHERE build_id = ?", [bid]) for bid in build_ids]
+        if _table_exists(client, "link_corrections"):
+            statements.append(
+                ("UPDATE link_corrections SET user_id = NULL, user_email = NULL WHERE user_id = ?", [user["id"]])
+            )
+        client.batch(statements)
+    finally:
+        client.close()
+    request.session.clear()
+    return {"status": "ok"}
+
+
 @app.get("/api/auth/me")
 def me(request: Request):
     user = get_current_user(request)

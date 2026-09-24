@@ -48,9 +48,9 @@
 
   <div class="legal-note">
     En résumé : PC Radar ne collecte <strong>aucun outil de tracking ou de publicité</strong> —
-    pas de Google Analytics, pas de pixel Facebook, pas de revente de données. La seule donnée
-    personnelle collectée est votre email si vous créez un compte, uniquement pour permettre la
-    sauvegarde de vos configurations.
+    pas de Google Analytics, pas de pixel Facebook, pas de revente de données. Si vous créez un
+    compte, votre email sert uniquement à vous connecter, à retrouver vos configurations et
+    composants suivis, et à vous envoyer les alertes de prix que vous avez demandées.
   </div>
 
   <h2>Qui est responsable du traitement</h2>
@@ -64,7 +64,10 @@
   <ul>
     <li><strong>Sans compte</strong> : aucune donnée personnelle n'est collectée. Vous pouvez configurer, comparer et estimer des FPS sans créer de compte.</li>
     <li><strong>Avec un compte</strong> : votre adresse email et un mot de passe (stocké sous forme hachée, jamais en clair — nous ne pouvons pas le lire).</li>
-    <li><strong>Configurations sauvegardées</strong> : si vous enregistrez un build, sa composition (liste de composants choisis) est liée à votre compte pour que vous puissiez le retrouver.</li>
+    <li><strong>Configurations sauvegardées</strong> : si vous enregistrez un build, son nom, sa composition (liste de composants choisis) et son prix total au moment de la sauvegarde sont liés à votre compte pour que vous puissiez le retrouver.</li>
+    <li><strong>Composants suivis</strong> : les composants que vous suivez, leur prix au moment où vous les avez ajoutés et le prix cible éventuel de votre alerte.</li>
+    <li><strong>Alertes de configuration</strong> : si vous suivez le prix d'une configuration entière, son prix de référence et votre prix cible.</li>
+    <li><strong>Données techniques</strong> (avec ou sans compte) : comme tout site web, le serveur enregistre l'adresse IP et la page demandée dans ses journaux, conservés 14 jours, pour la sécurité et le diagnostic des pannes. Les tentatives de connexion échouées sont associées à l'adresse IP pendant une heure au maximum, pour bloquer le devinage de mots de passe.</li>
   </ul>
   <p>
     Aucune autre information (nom, adresse postale, téléphone, moyen de paiement) n'est demandée
@@ -81,8 +84,9 @@
 
   <h2>Pourquoi ces données sont utilisées</h2>
   <ul>
-    <li>Vous permettre de vous connecter et de retrouver vos configurations sauvegardées.</li>
-    <li>Sécuriser votre compte (mot de passe haché, session signée).</li>
+    <li>Vous permettre de vous connecter et de retrouver vos configurations et composants suivis.</li>
+    <li>Vous envoyer par email les alertes de baisse de prix que vous avez activées (et seulement celles-là : aucune newsletter, aucune publicité).</li>
+    <li>Sécuriser votre compte et le site (mot de passe haché, session signée, blocage des tentatives abusives).</li>
     <li>
       Si vous signalez un lien de prix cassé ou incorrect depuis le comparateur (fonctionnalité
       réservée aux comptes connectés, pour limiter le spam), votre email est associé à cette
@@ -106,8 +110,10 @@
   <p>
     Les données sont <strong>stockées en France</strong>, sur un serveur Oracle Cloud Infrastructure
     situé dans la région de Paris (voir les <a href="/mentions-legales">mentions légales</a>).
-    Un compte et les données associées sont conservés tant que le compte existe ; ils sont
-    supprimés définitivement en cas de suppression du compte, sur simple demande par email.
+    Un compte et les données associées sont conservés tant que le compte existe. Vous pouvez le
+    supprimer vous-même à tout moment depuis la page <a href="/compte">Mon compte</a> : les
+    données sont alors effacées immédiatement du site, puis disparaissent des sauvegardes de
+    sécurité (conservées sur le même serveur, en France) au bout de 14 jours au maximum.
   </p>
   <p>Certaines fonctions passent par des services tiers, qui peuvent traiter des données hors de France :</p>
   <ul>
@@ -121,8 +127,8 @@
   <ul>
     <li><strong>Droit d'accès</strong> : savoir quelles données vous concernant sont stockées.</li>
     <li><strong>Droit de rectification</strong> : corriger une donnée inexacte.</li>
-    <li><strong>Droit à l'effacement</strong> : demander la suppression de votre compte et des données associées.</li>
-    <li><strong>Droit à la portabilité</strong> : recevoir vos données dans un format exploitable.</li>
+    <li><strong>Droit à l'effacement</strong> : supprimer votre compte et les données associées, directement depuis <a href="/compte">Mon compte</a>.</li>
+    <li><strong>Droit à la portabilité</strong> : télécharger vos données (fichier JSON) depuis <a href="/compte">Mon compte</a>.</li>
     <li><strong>Droit d'opposition</strong> : vous opposer à un traitement de vos données.</li>
   </ul>
   <p>
