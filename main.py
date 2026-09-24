@@ -48,6 +48,7 @@ import fps_data
 import featured_builds
 import guides
 import component_pages
+import comparisons
 
 try:
     from google import genai as genai_new
@@ -735,6 +736,8 @@ def sitemap_xml():
     pages += [("/composants", "0.7", "daily")]
     pages += [(component_pages.category_url(cat), "0.7", "daily") for cat in component_pages.CATEGORY_SLUGS]
     pages += [(component_pages.page_url(c), "0.6", "daily") for c in get_catalog()]
+    pages += [("/comparer", "0.7", "daily")]
+    pages += [(f"/comparer/{p['slug']}", "0.6", "daily") for p in comparisons.pairs(get_catalog())]
     urls = "\n".join(
         f"""  <url>
     <loc>{SITE_URL}{path}</loc>
@@ -2111,6 +2114,30 @@ def component_page(id_slug: str):
         component, catalog, _component_fps_block(component, catalog),
         _component_price_stats(component["id"]), _affiliate,
     ))
+
+
+def _best_in_stock(catalog, categorie):
+    pool = [c for c in catalog if c["categorie"] == categorie and c.get("en_stock") and c.get("perf_index")]
+    return max(pool, key=lambda c: c["perf_index"]) if pool else None
+
+
+@app.get("/comparer")
+def comparisons_index_page():
+    return HTMLResponse(comparisons.render_index(comparisons.pairs(get_catalog())))
+
+
+@app.get("/comparer/{slug}")
+def comparison_page(slug: str):
+    catalog = get_catalog()
+    all_pairs = comparisons.pairs(catalog)
+    pair = next((p for p in all_pairs if p["slug"] == slug), None)
+    if not pair:
+        raise HTTPException(status_code=404, detail="Comparatif introuvable.")
+    partner = _best_in_stock(catalog, "CPU" if pair["kind"] == "GPU" else "GPU")
+    fps_for = lambda component, other: (
+        _run_fps_estimation([component, other], component_pages.FPS_GAMES, "ultra") if other else None
+    )
+    return HTMLResponse(comparisons.render_pair(pair, all_pairs, fps_for, partner))
 
 
 @app.get("/guides")

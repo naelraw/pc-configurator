@@ -1401,3 +1401,4 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   .comp-hero{ grid-template-columns:1fr; }
   .comp-image{ width:160px; height:160px; }
 }
+.comp-fps td.is-win{ color:var(--accent); font-weight:600; }

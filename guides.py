@@ -77,6 +77,7 @@ _SHELL_FOOT = """
     <div class="footer-legal-links">
       <a href="/guides">Guides d'achat</a>
       <a href="/composants">Composants</a>
+      <a href="/comparer">Comparatifs</a>
       <a href="/mentions-legales">Mentions légales</a>
       <a href="/confidentialite">Confidentialité</a>
       <a href="/cgu">CGU</a>
