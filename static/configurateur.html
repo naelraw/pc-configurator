@@ -2,22 +2,38 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="theme-color" content="#0e0f11">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Configurateur — PC Configurator</title>
+<title>Configurateur PC en ligne — Vérification de compatibilité | PC Radar</title>
+<meta name="description" content="Choisissez vos composants (CPU, GPU, RAM, carte mère...) et laissez PC Radar vérifier automatiquement leur compatibilité. Configurateur gratuit, sans inscription.">
+<link rel="canonical" href="https://pcradar.tech/configurateur">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pcradar.tech/configurateur">
+<meta property="og:site_name" content="PC Radar">
+<meta property="og:title" content="Configurateur PC en ligne — Vérification de compatibilité | PC Radar">
+<meta property="og:description" content="Choisissez vos composants et laissez PC Radar vérifier automatiquement leur compatibilité. Gratuit, sans inscription.">
+<meta property="og:image" content="https://pcradar.tech/static/favicon.png">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://m.media-amazon.com">
+<link rel="preload" href="/api/components" as="fetch" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/style.css">
-<script src="/static/amazon-tag.js"></script>
+<script src="/static/affiliate-tag.js"></script>
+<script src="/static/account-features.js"></script>
+<script src="/static/csp-handlers.js"></script>
 </head>
 <body>
 
-<div class="grid-bg"></div>
-<div class="grid-bg-glow"></div>
-
 <header>
   <div class="nav-wrap">
-    <div class="logo">PC <span>CONFIGURATOR</span></div>
+    <a href="/" class="logo"><img src="/static/favicon.svg" alt="" width="22" height="22">PC Radar</a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <nav>
       <ul>
         <li><a href="/">Accueil</a></li>
@@ -31,52 +47,78 @@
   </div>
 </header>
 
+<main>
 <section id="configurateur" style="padding-top:56px;">
   <div class="section-title">
-    <span class="eyebrow">CONFIGURATION MANUELLE</span>
-    <h2>Composez votre PC</h2>
+    <h1>Composez votre PC</h1>
     <p>Composant par composant, à votre rythme</p>
   </div>
   <div class="config-hint" id="config-hint"></div>
 
   <div class="config-toolbar chip-card">
-    <div class="field">
-      <label for="sort-select">Trier par</label>
-      <select id="sort-select" onchange="renderComponents(allComponents)">
-        <option value="name-asc">Nom (A-Z)</option>
-        <option value="price-asc">Prix croissant</option>
-        <option value="price-desc">Prix décroissant</option>
-      </select>
+    <div class="field field-search">
+      <label for="search-input">Rechercher</label>
+      <input type="text" id="search-input" placeholder="Nom du composant..." data-oninput="onFilterChange()">
     </div>
-    <div class="field">
-      <label for="brand-select">Marque</label>
-      <select id="brand-select" onchange="renderComponents(allComponents)">
-        <option value="">Toutes les marques</option>
-      </select>
+    <!-- Bouton visible uniquement sur mobile (voir CSS) : replie les filtres
+         secondaires par défaut pour ne pas repousser les produits loin sous
+         la ligne de flottaison sur un petit écran. Toujours dépliés sur
+         desktop, où ils tiennent sur une seule ligne. -->
+    <button type="button" class="toolbar-filters-toggle" id="toolbar-filters-toggle" data-onclick="toggleMobileFilters()" aria-expanded="false" aria-controls="toolbar-extra-filters">
+      Plus de filtres <i class="ph ph-caret-down toolbar-filters-toggle-icon" aria-hidden="true"></i>
+    </button>
+    <div class="toolbar-extra-filters" id="toolbar-extra-filters">
+      <div class="field">
+        <label for="sort-select">Trier par</label>
+        <select id="sort-select" data-onchange="rerenderComponents()">
+          <option value="best-first">Meilleur d'abord</option>
+          <option value="name-asc">Nom (A-Z)</option>
+          <option value="price-asc">Prix croissant</option>
+          <option value="price-desc">Prix décroissant</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="brand-select">Marque</label>
+        <select id="brand-select" data-onchange="onFilterChange()">
+          <option value="">Toutes les marques</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="category-filter-select">Catégorie</label>
+        <select id="category-filter-select" data-onchange="onCategoryFilterChange()">
+          <option value="">Toutes les catégories</option>
+          <option value="CPU">CPU</option>
+          <option value="Carte mère">Carte mère</option>
+          <option value="RAM">RAM</option>
+          <option value="Boîtier">Boîtier</option>
+          <option value="Alimentation">Alimentation</option>
+          <option value="GPU">GPU</option>
+          <option value="Stockage">Stockage</option>
+          <option value="Refroidissement">Refroidissement</option>
+          <option value="Accessoire">Accessoire</option>
+        </select>
+      </div>
+      <div class="field field-price-range">
+        <span class="field-label-text">Prix (€)</span>
+        <div class="price-range-inputs">
+          <input type="number" id="price-min-input" placeholder="Min" min="0" aria-label="Prix minimum" data-oninput="onFilterChange()">
+          <span class="price-range-sep">–</span>
+          <input type="number" id="price-max-input" placeholder="Max" min="0" aria-label="Prix maximum" data-oninput="onFilterChange()">
+        </div>
+      </div>
+      <div class="field">
+        <label for="budget-input">Budget max</label>
+        <input type="number" id="budget-input" placeholder="Ex: 1200" min="0" data-oninput="onBudgetChange()">
+      </div>
+      <div class="field field-checkbox">
+        <label class="toggle-switch">
+          <input type="checkbox" id="show-out-of-stock-checkbox" data-onchange="onFilterChange()">
+          <span class="toggle-track"></span>
+          Voir les produits épuisés
+        </label>
+      </div>
+      <div class="budget-summary" id="budget-summary"></div>
     </div>
-    <div class="field">
-      <label for="category-filter-select">Catégorie</label>
-      <select id="category-filter-select" onchange="onCategoryFilterChange()">
-        <option value="">Toutes les catégories</option>
-        <option value="CPU">CPU</option>
-        <option value="Carte mère">Carte mère</option>
-        <option value="RAM">RAM</option>
-        <option value="Boîtier">Boîtier</option>
-        <option value="Alimentation">Alimentation</option>
-        <option value="GPU">GPU</option>
-        <option value="Stockage">Stockage</option>
-        <option value="Refroidissement">Refroidissement</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="price-min-input">Prix min</label>
-      <input type="number" id="price-min-input" placeholder="Ex: 50" min="0" oninput="renderComponents(allComponents)">
-    </div>
-    <div class="field">
-      <label for="budget-input">Budget maximum</label>
-      <input type="number" id="budget-input" placeholder="Ex: 1200" min="0" oninput="onBudgetChange()">
-    </div>
-    <div class="budget-summary" id="budget-summary"></div>
   </div>
 
   <!-- N'apparaît qu'après avoir choisi une catégorie ci-dessus : filtres
@@ -86,699 +128,43 @@
 
   <div id="components-container"></div>
   <div class="build-preview chip-card" id="build-preview">
-    <h3>VOTRE CONFIGURATION</h3>
+    <h2>Votre configuration</h2>
     <div id="preview-content"></div>
     <div id="compat-result"></div>
-    <button class="btn btn-primary use-config-btn" onclick="saveBuild()">Sauvegarder cette configuration</button>
+    <button class="btn btn-primary use-config-btn" data-onclick="saveBuild()">Sauvegarder cette configuration</button>
+    <button class="btn btn-secondary use-config-btn" id="add-all-to-cart-btn" data-onclick="addAllToAmazonCart()" style="margin-top:8px;"><i class="ph ph-shopping-cart" aria-hidden="true"></i> Tout ajouter au panier Amazon</button>
     <div id="save-confirmation"></div>
   </div>
 </section>
+</main>
 
-<div class="modal-overlay" id="detail-modal-overlay" onclick="closeDetailModal()">
-  <div class="modal-box chip-card" onclick="event.stopPropagation()">
-    <button class="modal-close" onclick="closeDetailModal()">✕</button>
+<div class="modal-overlay" id="detail-modal-overlay" data-onclick="closeDetailModal()">
+  <div class="modal-box chip-card" data-onclick="event.stopPropagation()">
+    <button class="modal-close" data-onclick="closeDetailModal()">✕</button>
     <div id="detail-modal-content"></div>
   </div>
 </div>
 
 <footer>
-  <p>PC Configurator — Projet personnel · Compatibilité vérifiée côté serveur · Suggestions IA toujours validées avant affichage</p>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <strong>PC Radar</strong>
+      <span>Projet personnel et indépendant. Compatibilité vérifiée côté serveur, suggestions IA validées avant affichage.</span>
+    </div>
+    <div class="footer-legal-links">
+      <a href="/mentions-legales">Mentions légales</a>
+      <a href="/confidentialite">Confidentialité</a>
+      <a href="/cgu">CGU</a>
+      <a href="/cookies">Cookies</a>
+    </div>
+  </div>
 </footer>
 
-<script>
-  const API_BASE = window.location.origin;
-  let selectedComponents = {};
-  let allComponents = [];
-  let budgetMax = null;
-  let editingBuildId = null;   // non-null = "Sauvegarder" met à jour cette config au lieu d'en créer une nouvelle
-  let editingBuildNom = null;
-
-  const FIELD_TO_CATEGORY = {
-    cpu_id: 'CPU',
-    motherboard_id: 'Carte mère',
-    ram_id: 'RAM',
-    gpu_id: 'GPU',
-    psu_id: 'Alimentation',
-    storage_id: 'Stockage',
-    case_id: 'Boîtier',
-  };
-
-  function onBudgetChange(){
-    const raw = document.getElementById('budget-input').value;
-    budgetMax = raw === '' ? null : Number(raw);
-    renderComponents(allComponents);
-    updateBuildPreview();
-  }
-
-  function sortItems(items){
-    const mode = document.getElementById('sort-select').value;
-    const sorted = items.slice();
-    if(mode === 'price-asc') sorted.sort((a, b) => a.prix_indicatif - b.prix_indicatif);
-    else if(mode === 'price-desc') sorted.sort((a, b) => b.prix_indicatif - a.prix_indicatif);
-    else sorted.sort((a, b) => a.nom.localeCompare(b.nom));
-    return sorted;
-  }
-
-  // La "marque" n'est pas un champ à part dans la base — on la déduit du
-  // premier mot du nom (ex: "AMD Ryzen 5 5600" -> "AMD"). Évite d'ajouter
-  // un champ obligatoire de plus au schéma juste pour filtrer.
-  function getBrand(nom){
-    return (nom || '').trim().split(' ')[0];
-  }
-
-  // Échappe une valeur pour l'insérer comme texte affiché OU comme valeur
-  // d'attribut HTML (src="...") — les specs/image/prix de marché d'un
-  // composant peuvent venir d'une recherche web IA (find-component-info,
-  // find-image) ou d'une correction de lien proposée par un utilisateur,
-  // jamais fiables telles quelles dans du innerHTML.
-  function escapeHtml(str){
-    return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  function appendOption(select, value){
-    const opt = document.createElement('option');
-    opt.value = value;
-    opt.textContent = value;
-    select.appendChild(opt);
-  }
-
-  function populateBrandOptions(){
-    const brands = [...new Set(allComponents.map(c => getBrand(c.nom)))].sort();
-    brands.forEach(brand => appendOption(document.getElementById('brand-select'), brand));
-  }
-
-  // Filtres spécialisés par catégorie : n'apparaissent qu'une fois la
-  // catégorie choisie dans le filtre principal, jamais tous en même temps —
-  // chaque champ ne regarde que les specs qui existent vraiment pour cette
-  // catégorie (ex: le socket n'a aucun sens pour de la RAM).
-  //   kind "select"      -> menu déroulant sur une valeur texte exacte
-  //   kind "select-list" -> menu déroulant sur une valeur dans une liste
-  //   kind "max"/"min"   -> borne numérique
-  const CATEGORY_FILTER_FIELDS = {
-    'CPU': [
-      { key: 'socket', label: 'Socket', kind: 'select' },
-      { key: 'tdp', label: 'TDP maximum (W)', kind: 'max' },
-    ],
-    'Carte mère': [
-      { key: 'socket', label: 'Socket', kind: 'select' },
-      { key: 'format', label: 'Format', kind: 'select' },
-      { key: 'ram_type', label: 'Type de RAM', kind: 'select' },
-      { key: 'm2_slots', label: 'Slots M.2 minimum', kind: 'min' },
-      { key: 'sata_ports', label: 'Ports SATA minimum', kind: 'min' },
-    ],
-    'RAM': [
-      { key: 'type', label: 'Type', kind: 'select' },
-    ],
-    'Boîtier': [
-      { key: 'formats_supportes', label: 'Format supporté', kind: 'select-list' },
-      { key: 'gpu_max_length_mm', label: 'Accepte un GPU d\'au moins (mm)', kind: 'min' },
-      { key: 'cpu_cooler_max_height_mm', label: 'Accepte un ventirad d\'au moins (mm)', kind: 'min' },
-    ],
-    'Alimentation': [
-      { key: 'wattage', label: 'Wattage minimum', kind: 'min' },
-      { key: 'certification', label: 'Certification 80 PLUS', kind: 'select' },
-      { key: 'modularite', label: 'Modularité', kind: 'select' },
-      { key: 'format', label: 'Format', kind: 'select' },
-    ],
-    'GPU': [
-      { key: 'vram', label: 'Mémoire vidéo (VRAM)', kind: 'select' },
-      { key: 'tdp', label: 'TDP maximum (W)', kind: 'max' },
-      { key: 'longueur_mm', label: 'Longueur maximum (mm)', kind: 'max' },
-    ],
-    'Stockage': [
-      { key: 'type', label: 'Type', kind: 'select' },
-    ],
-    'Refroidissement': [
-      { key: 'sockets_supportes', label: 'Socket supporté', kind: 'select-list' },
-      { key: 'hauteur_mm', label: 'Hauteur maximum (mm)', kind: 'max' },
-    ],
-  };
-
-  function specFilterInputId(key){
-    return `spec-filter-${key}`;
-  }
-
-  // Reconstruit la barre de filtres spécialisés pour la catégorie choisie
-  // (ou la vide si "Toutes les catégories" est sélectionné).
-  function onCategoryFilterChange(){
-    const category = document.getElementById('category-filter-select').value;
-    const toolbar = document.getElementById('specialized-filters-toolbar');
-    const fields = CATEGORY_FILTER_FIELDS[category] || [];
-
-    if(fields.length === 0){
-      toolbar.classList.add('hidden');
-      toolbar.innerHTML = '';
-      renderComponents(allComponents);
-      return;
-    }
-
-    const itemsInCategory = allComponents.filter(c => c.categorie === category);
-
-    toolbar.innerHTML = fields.map(field => {
-      const inputId = specFilterInputId(field.key);
-      if(field.kind === 'min' || field.kind === 'max'){
-        return `
-          <div class="field">
-            <label for="${inputId}">${field.label}</label>
-            <input type="number" id="${inputId}" oninput="renderComponents(allComponents)">
-          </div>
-        `;
-      }
-
-      const values = new Set();
-      itemsInCategory.forEach(item => {
-        const value = (item.specs || {})[field.key];
-        if(field.kind === 'select-list' && Array.isArray(value)){
-          value.forEach(v => values.add(v));
-        }else if(value){
-          values.add(value);
-        }
-      });
-
-      const optionsHtml = [...values].sort().map(v => `<option value="${v}">${v}</option>`).join('');
-      return `
-        <div class="field">
-          <label for="${inputId}">${field.label}</label>
-          <select id="${inputId}" onchange="renderComponents(allComponents)">
-            <option value="">Tous</option>
-            ${optionsHtml}
-          </select>
-        </div>
-      `;
-    }).join('');
-
-    toolbar.classList.remove('hidden');
-    renderComponents(allComponents);
-  }
-
-  function filterItems(items){
-    const categoryFilter = document.getElementById('category-filter-select').value;
-    const brand = document.getElementById('brand-select').value;
-    const priceMinRaw = document.getElementById('price-min-input').value;
-    const priceMin = priceMinRaw === '' ? null : Number(priceMinRaw);
-    const fields = CATEGORY_FILTER_FIELDS[categoryFilter] || [];
-
-    return items.filter(item => {
-      if(categoryFilter && item.categorie !== categoryFilter) return false;
-      if(brand && getBrand(item.nom) !== brand) return false;
-      if(priceMin !== null && item.prix_indicatif < priceMin) return false;
-
-      if(categoryFilter && item.categorie === categoryFilter){
-        const specs = item.specs || {};
-        for(const field of fields){
-          const inputEl = document.getElementById(specFilterInputId(field.key));
-          if(!inputEl || inputEl.value === '') continue;
-
-          if(field.kind === 'select'){
-            if(specs[field.key] !== inputEl.value) return false;
-          }else if(field.kind === 'select-list'){
-            if(!(specs[field.key] || []).includes(inputEl.value)) return false;
-          }else if(field.kind === 'min'){
-            if(!(Number(specs[field.key]) >= Number(inputEl.value))) return false;
-          }else if(field.kind === 'max'){
-            if(!(Number(specs[field.key]) <= Number(inputEl.value))) return false;
-          }
-        }
-      }
-
-      return true;
-    });
-  }
-
-  async function loadComponents(){
-    try{
-      const res = await fetch(API_BASE + '/api/components');
-      const data = await res.json();
-      // data.components est un objet groupé par catégorie ({CPU:[...], RAM:[...]}) :
-      // on l'aplatit en tableau, c'est ce que renderComponents() attend.
-      allComponents = Object.values(data.components || {}).flat();
-      populateBrandOptions();
-      renderComponents(allComponents);
-      applyIncomingAISuggestion();
-    }catch(e){
-      console.error('Erreur chargement composants', e);
-    }
-  }
-
-  // Catégories repliées par l'utilisateur — persiste tant que la page n'est
-  // pas rechargée, pour ne pas avoir à tout réouvrir à chaque sélection.
-  let collapsedCategories = new Set();
-
-  function toggleCategory(category){
-    if(collapsedCategories.has(category)) collapsedCategories.delete(category);
-    else collapsedCategories.add(category);
-    renderComponents(allComponents);
-  }
-
-  function renderComponents(components){
-    const container = document.getElementById('components-container');
-    container.innerHTML = '';
-    const byCategory = {};
-    components.forEach(c => {
-      if(!byCategory[c.categorie]) byCategory[c.categorie] = [];
-      byCategory[c.categorie].push(c);
-    });
-
-    // Total déjà engagé sur les AUTRES catégories, pour calculer combien il
-    // reste de budget disponible pour la catégorie qu'on est en train d'afficher.
-    const totalSelected = Object.values(selectedComponents).reduce((sum, c) => sum + Number(c.prix_indicatif || 0), 0);
-
-    const categoryFilter = document.getElementById('category-filter-select').value;
-
-    Object.entries(byCategory).forEach(([category, items]) => {
-      // Une catégorie est choisie dans le filtre : on n'affiche qu'elle,
-      // pas des sections vides pour toutes les autres.
-      if(categoryFilter && category !== categoryFilter) return;
-
-      const section = document.createElement('div');
-      section.className = 'category-section';
-
-      const isCollapsed = collapsedCategories.has(category);
-      const title = document.createElement('h3');
-      title.className = 'category-toggle';
-      title.innerHTML = `<span>${category}</span><span class="toggle-arrow">${isCollapsed ? '▶' : '▼'}</span>`;
-      title.onclick = () => toggleCategory(category);
-      section.appendChild(title);
-
-      if(isCollapsed){
-        container.appendChild(section);
-        return;
-      }
-
-      const grid = document.createElement('div');
-      grid.className = 'components-grid';
-
-      const alreadySpentElsewhere = totalSelected - Number(selectedComponents[category]?.prix_indicatif || 0);
-      const remainingForCategory = budgetMax !== null ? budgetMax - alreadySpentElsewhere : null;
-
-      const visibleItems = filterItems(items);
-
-      if(visibleItems.length === 0){
-        const empty = document.createElement('p');
-        empty.style.cssText = 'color:var(--text-dim); font-size:0.85rem; padding:10px 0;';
-        empty.textContent = 'Aucun composant ne correspond aux filtres dans cette catégorie.';
-        section.appendChild(empty);
-        container.appendChild(section);
-        return;
-      }
-
-      sortItems(visibleItems).forEach(item => {
-        const specs = item.specs || {};
-        const specsText = Object.entries(specs).map(([k,v]) => `${escapeHtml(k)}: ${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}`).join(' · ');
-
-        const isOverBudget = remainingForCategory !== null && item.prix_indicatif > remainingForCategory;
-        const isSelected = selectedComponents[category]?.id === item.id;
-
-        // Un <div> (pas <button>) car le bouton "Détail" imbriqué à
-        // l'intérieur ne serait pas valide dans un <button>.
-        const btn = document.createElement('div');
-        btn.className = `component-btn ${isSelected ? 'selected' : ''} ${isOverBudget ? 'over-budget' : ''}`;
-        btn.tabIndex = 0;
-        const imageHtml = item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="component-thumb" alt="" loading="lazy">` : '';
-        btn.innerHTML = `
-          ${imageHtml}
-          <span class="name">${escapeHtml(item.nom)}</span>
-          <span class="specs">${specsText}</span>
-          <span class="price">${item.prix_indicatif}€</span>
-          <button type="button" class="detail-btn">ⓘ Détail</button>
-        `;
-        btn.onclick = () => selectComponent(category, item);
-        btn.querySelector('.detail-btn').onclick = (event) => {
-          event.stopPropagation();
-          showComponentDetail(item.id);
-        };
-        grid.appendChild(btn);
-      });
-
-      section.appendChild(grid);
-      container.appendChild(section);
-    });
-  }
-
-  // Cliquer sur un composant déjà sélectionné le désélectionne plutôt que
-  // de le re-sélectionner sans effet visible.
-  function selectComponent(category, item){
-    if(selectedComponents[category]?.id === item.id){
-      delete selectedComponents[category];
-    }else{
-      selectedComponents[category] = item;
-    }
-    renderComponents(allComponents);
-    updateBuildPreview();
-    checkCompatibilityLive();
-    saveDraftToLocalStorage();
-  }
-
-  // Brouillon auto-sauvegardé dans ce navigateur : si la page est rechargée
-  // en plein milieu de la sélection (par accident, ou pour revenir plus
-  // tard), la config en cours n'est pas perdue. Purement local — jamais
-  // envoyé au serveur tant que "Sauvegarder" n'est pas cliqué explicitement.
-  const DRAFT_STORAGE_KEY = 'pc_configurator_draft';
-
-  function saveDraftToLocalStorage(){
-    try{
-      const composants_json = {};
-      Object.entries(selectedComponents).forEach(([cat, item]) => { composants_json[cat] = item.id; });
-      if(Object.keys(composants_json).length === 0){
-        localStorage.removeItem(DRAFT_STORAGE_KEY);
-      }else{
-        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(composants_json));
-      }
-    }catch(e){}
-  }
-
-  // N'est appelé qu'au chargement, et seulement si aucune suggestion IA,
-  // config partagée ou config à modifier n'a déjà été appliquée — sinon on
-  // écraserait ça avec un vieux brouillon local.
-  function restoreDraftIfAny(){
-    let raw;
-    try{ raw = localStorage.getItem(DRAFT_STORAGE_KEY); }catch(e){ raw = null; }
-    if(!raw) return;
-
-    let draft;
-    try{ draft = JSON.parse(raw); }catch(e){ return; }
-
-    let appliedCount = 0;
-    Object.entries(draft).forEach(([categorie, id]) => {
-      const item = allComponents.find(c => c.id === id);
-      if(item){ selectedComponents[categorie] = item; appliedCount++; }
-    });
-    if(appliedCount === 0) return;
-
-    renderComponents(allComponents);
-    updateBuildPreview();
-    const hint = document.getElementById('config-hint');
-    hint.textContent = "Ta sélection précédente a été restaurée automatiquement.";
-    hint.classList.add('show');
-    checkCompatibilityLive();
-  }
-
-  function showComponentDetail(id){
-    const item = allComponents.find(c => c.id === id);
-    if(!item) return;
-
-    const specs = item.specs || {};
-    const specsHtml = Object.entries(specs).map(([k, v]) => `
-      <div class="detail-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}</span></div>
-    `).join('') || '<p style="color:var(--text-dim); font-size:0.85rem;">Aucune spec enregistrée.</p>';
-
-    const prixMarche = (item.prix_marche || []).slice().sort((a, b) => a.prix - b.prix);
-    const pricesHtml = prixMarche.length
-      ? prixMarche.map(p => `
-          <div class="detail-row">
-            <span class="k">${escapeHtml(p.vendeur)}</span>
-            <span class="v">
-              ${p.prix}€
-              ${p.lien ? `<a href="${escapeHtml(withAffiliateTag(p.lien))}" target="_blank" rel="noopener noreferrer sponsored" style="margin-left:8px; color:var(--led);">Voir l'offre ↗</a>` : ''}
-            </span>
-          </div>
-        `).join('')
-      : '<p style="color:var(--text-dim); font-size:0.85rem;">Aucun prix de marché relevé — voir le <a href="/comparateur" style="color:var(--led);">comparateur</a>.</p>';
-
-    const imageHtml = item.image_url ? `<img src="${escapeHtml(item.image_url)}" class="detail-image" alt="">` : '';
-
-    const descriptionHtml = item.description
-      ? `<p style="color:var(--text-dim); font-size:0.88rem; margin-top:10px; line-height:1.5;">${escapeHtml(item.description)}</p>`
-      : '';
-
-    // Détails complets Amazon (mémoire, dimensions, poids...) — informatif,
-    // en plus des specs de compatibilité ci-dessus. Replié par défaut (peut
-    // faire plusieurs dizaines de lignes).
-    const amazonDetails = item.caracteristiques_amazon || [];
-    const amazonDetailsHtml = amazonDetails.length ? `
-      <details style="margin-top:14px;">
-        <summary style="cursor:pointer; color:var(--led);">Tous les détails</summary>
-        <div class="detail-specs" style="margin-top:8px;">
-          ${amazonDetails.map(d => `
-            <div class="detail-row"><span class="k">${escapeHtml(d.type)}</span><span class="v">${escapeHtml(d.value)}</span></div>
-          `).join('')}
-        </div>
-      </details>
-    ` : '';
-
-    document.getElementById('detail-modal-content').innerHTML = `
-      <span class="cat-badge">${escapeHtml(item.categorie)}</span>
-      <h3>${escapeHtml(item.nom)}</h3>
-      ${imageHtml}
-      <p class="detail-price-ref">Prix de référence : ${item.prix_indicatif}€</p>
-      ${descriptionHtml}
-      <div class="detail-specs">${specsHtml}</div>
-      <h4 style="margin-top:18px; margin-bottom:8px;">Prix relevés</h4>
-      <div class="detail-prices">${pricesHtml}</div>
-      ${amazonDetailsHtml}
-    `;
-    document.getElementById('detail-modal-overlay').classList.add('show');
-  }
-
-  function closeDetailModal(){
-    document.getElementById('detail-modal-overlay').classList.remove('show');
-  }
-
-  // Vérifie la compatibilité de la sélection en cours, dès qu'au moins 2
-  // composants sont choisis. Une sélection encore partielle n'est jamais
-  // signalée comme "incompatible" à tort — seules les paires réellement
-  // sélectionnées sont vérifiées.
-  async function checkCompatibilityLive(){
-    const compatBox = document.getElementById('compat-result');
-    const components = Object.values(selectedComponents);
-
-    if(components.length < 2){
-      compatBox.innerHTML = '';
-      return;
-    }
-
-    try{
-      const res = await fetch(API_BASE + '/api/check-compatibility', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ components }),
-      });
-      const data = await res.json();
-
-      if(data.compatible){
-        compatBox.innerHTML = `<div class="compat-result compat-ok">✓ Compatible avec les composants sélectionnés pour l'instant.</div>`;
-      }else{
-        const list = (data.erreurs || []).map(e => `<li>${e}</li>`).join('');
-        compatBox.innerHTML = `<div class="compat-result compat-fail">⚠ Incompatibilité détectée :<ul>${list}</ul></div>`;
-      }
-    }catch(e){
-      compatBox.innerHTML = '';
-    }
-  }
-
-  function updateBuildPreview(){
-    const content = document.getElementById('preview-content');
-    const entries = Object.entries(selectedComponents);
-    content.innerHTML = entries
-      .map(([cat, item]) => `<p><strong>${escapeHtml(cat)}:</strong> ${escapeHtml(item.nom)} — ${item.prix_indicatif}€</p>`)
-      .join('') || '<p>Aucun composant sélectionné</p>';
-
-    const total = entries.reduce((sum, [, item]) => sum + Number(item.prix_indicatif || 0), 0);
-    const summary = document.getElementById('budget-summary');
-
-    if(budgetMax === null){
-      summary.innerHTML = `<div class="total">Total : ${total.toFixed(2)}€</div>`;
-    }else{
-      const remaining = budgetMax - total;
-      const cls = remaining < 0 ? 'over' : 'ok';
-      const label = remaining < 0
-        ? `Dépassement : ${Math.abs(remaining).toFixed(2)}€`
-        : `Budget restant : ${remaining.toFixed(2)}€`;
-      summary.innerHTML = `<div class="total">Total : ${total.toFixed(2)}€</div><div class="remaining ${cls}">${label}</div>`;
-    }
-  }
-
-  // Affiche le bandeau d'aide si on arrive depuis le bouton "Intermédiaire" de l'accueil.
-  function checkHintParam(){
-    const params = new URLSearchParams(window.location.search);
-    if(params.get('hint') === 'intermediaire'){
-      const hint = document.getElementById('config-hint');
-      hint.textContent = "Personnalisez chaque composant, on vérifie la compatibilité pour vous automatiquement.";
-      hint.classList.add('show');
-    }
-  }
-
-  // Si on arrive depuis "Mon compte" pour modifier une config déjà
-  // sauvegardée (bouton "Modifier"), elle a été déposée dans sessionStorage
-  // avant la navigation. On l'applique et on bascule en mode édition :
-  // "Sauvegarder" mettra à jour cette configuration au lieu d'en créer une
-  // nouvelle (voir saveBuild()).
-  function applyIncomingEditBuild(){
-    const raw = sessionStorage.getItem('editBuild');
-    if(!raw) return false;
-    sessionStorage.removeItem('editBuild');
-
-    let edit;
-    try{ edit = JSON.parse(raw); }catch(e){ return false; }
-    if(!edit) return false;
-
-    editingBuildId = edit.id;
-    editingBuildNom = edit.nom;
-
-    let appliedCount = 0;
-    Object.entries(edit.composants_json || {}).forEach(([categorie, id]) => {
-      const item = allComponents.find(c => c.id === id);
-      if(item){
-        selectedComponents[categorie] = item;
-        appliedCount++;
-      }
-    });
-
-    renderComponents(allComponents);
-    updateBuildPreview();
-    saveDraftToLocalStorage();
-
-    const hint = document.getElementById('config-hint');
-    hint.textContent = `Modification de "${edit.nom}" — cliquer sur "Sauvegarder" mettra à jour cette configuration existante.`;
-    hint.classList.add('show');
-    checkCompatibilityLive();
-    return true;
-  }
-
-  // Si on arrive depuis l'assistant IA (bouton "Utiliser cette configuration"),
-  // la suggestion a été déposée dans sessionStorage avant la navigation.
-  // On l'applique ici, une seule fois, puis on nettoie.
-  function applyIncomingAISuggestion(){
-    if(applyIncomingEditBuild()) return;
-
-    const raw = sessionStorage.getItem('aiSuggestion');
-    if(raw){
-      sessionStorage.removeItem('aiSuggestion');
-      let suggestion;
-      try{ suggestion = JSON.parse(raw); }catch(e){ return; }
-
-      let appliedCount = 0;
-      Object.entries(FIELD_TO_CATEGORY).forEach(([field, category]) => {
-        const id = suggestion[field];
-        const item = allComponents.find(c => c.id === id);
-        if(item){
-          selectedComponents[category] = item;
-          appliedCount++;
-        }
-      });
-
-      renderComponents(allComponents);
-      updateBuildPreview();
-      saveDraftToLocalStorage();
-
-      const hint = document.getElementById('config-hint');
-      hint.textContent = appliedCount === Object.keys(FIELD_TO_CATEGORY).length
-        ? "Configuration proposée par l'assistant IA appliquée ci-dessous."
-        : `Configuration IA appliquée partiellement (${appliedCount}/${Object.keys(FIELD_TO_CATEGORY).length} composants trouvés).`;
-      hint.classList.add('show');
-      checkCompatibilityLive();
-      return;
-    }
-
-    // Sinon, une configuration partagée par lien a peut-être été déposée
-    // (depuis /build/{id}, bouton "Reprendre cette configuration").
-    const sharedRaw = sessionStorage.getItem('sharedBuild');
-    if(sharedRaw){
-      sessionStorage.removeItem('sharedBuild');
-      let shared;
-      try{ shared = JSON.parse(sharedRaw); }catch(e){ return; }
-
-      let appliedCount = 0;
-      Object.entries(shared).forEach(([categorie, id]) => {
-        const item = allComponents.find(c => c.id === id);
-        if(item){
-          selectedComponents[categorie] = item;
-          appliedCount++;
-        }
-      });
-
-      renderComponents(allComponents);
-      updateBuildPreview();
-      saveDraftToLocalStorage();
-
-      const hint = document.getElementById('config-hint');
-      hint.textContent = appliedCount > 0
-        ? "Configuration partagée appliquée ci-dessous — modifie-la comme tu veux."
-        : "Impossible de retrouver les composants de cette configuration partagée.";
-      hint.classList.add('show');
-      checkCompatibilityLive();
-      return;
-    }
-
-    // Aucune suggestion IA, config partagée, ni config à modifier : on
-    // restaure un éventuel brouillon local laissé par une visite précédente.
-    restoreDraftIfAny();
-  }
-
-  checkHintParam();
-  loadComponents();
-  updateBuildPreview();
-  loadAmazonTag();
-
-  // Sauvegarde la sélection en cours. Redirige vers /compte si personne
-  // n'est connecté — la sauvegarde côté serveur nécessite un compte.
-  async function saveBuild(){
-    if(Object.keys(selectedComponents).length === 0){
-      alert('Sélectionnez au moins un composant avant de sauvegarder.');
-      return;
-    }
-
-    const meRes = await fetch(API_BASE + '/api/auth/me', { credentials: 'include' });
-    const me = await meRes.json();
-
-    if(!me.logged_in){
-      sessionStorage.setItem('pendingBuild', JSON.stringify(selectedComponents));
-      window.location.href = '/compte';
-      return;
-    }
-
-    const nom = prompt('Nom de cette configuration :', editingBuildId ? editingBuildNom : 'Ma config');
-    if(!nom) return;
-
-    const composants_json = {};
-    Object.entries(selectedComponents).forEach(([cat, item]) => { composants_json[cat] = item.id; });
-
-    const isEditing = !!editingBuildId;
-    const confirmBox = document.getElementById('save-confirmation');
-    try{
-      const res = isEditing
-        ? await fetch(API_BASE + `/api/builds/${editingBuildId}`, {
-            method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
-            credentials: 'include',
-            body: JSON.stringify({ nom, composants_json }),
-          })
-        : await fetch(API_BASE + '/api/builds', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            credentials: 'include',
-            body: JSON.stringify({ nom, composants_json }),
-          });
-      if(res.ok){
-        const data = await res.json();
-        editingBuildId = data.id;
-        editingBuildNom = nom;
-        // Affiche la config sauvegardée directement ici, sans forcer à
-        // aller sur /compte pour la retrouver.
-        confirmBox.innerHTML = `
-          <div class="compat-result compat-ok">
-            ✓ Configuration "${nom}" ${isEditing ? 'mise à jour' : 'sauvegardée'}.
-            <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-              <a href="/build/${data.id}" target="_blank" class="btn btn-secondary" style="padding:8px 16px; font-size:0.8rem;">Voir la fiche partageable</a>
-              <a href="/compte" class="btn btn-secondary" style="padding:8px 16px; font-size:0.8rem;">Voir mes configurations</a>
-            </div>
-          </div>
-        `;
-      }else{
-        confirmBox.innerHTML = `<div class="compat-result compat-fail">Erreur lors de la sauvegarde.</div>`;
-      }
-    }catch(e){
-      confirmBox.innerHTML = `<div class="compat-result compat-fail">Erreur réseau lors de la sauvegarde.</div>`;
-    }
-  }
-</script>
-
-<script src="/static/grid-effect.js"></script>
+<script src="/static/pages/configurateur.js"></script>
+
+<script src="/static/nav-menu.js"></script>
+<script src="/static/effects.js"></script>
+<script src="/static/image-lightbox.js"></script>
 
 </body>
 </html>

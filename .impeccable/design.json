@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-16T00:00:00.000Z",
+  "title": "Design System: PC Radar",
+  "extensions": {
+    "colorMeta": {
+      "phosphor-signal": { "role": "primary", "displayName": "Phosphor Signal", "canonical": "#2dd4bf" },
+      "phosphor-signal-dim": { "role": "primary", "displayName": "Phosphor Signal Dim", "canonical": "#1a9c8a" },
+      "instrument-amber": { "role": "secondary", "displayName": "Instrument Amber", "canonical": "#c98a3d" },
+      "instrument-amber-bright": { "role": "secondary", "displayName": "Instrument Amber Bright", "canonical": "#e8a94f" },
+      "scope-black": { "role": "neutral", "displayName": "Scope Black", "canonical": "#0a0f0d" },
+      "panel": { "role": "neutral", "displayName": "Panel", "canonical": "#0f1a15" },
+      "panel-raised": { "role": "neutral", "displayName": "Panel Raised", "canonical": "#122019" },
+      "graticule-line": { "role": "neutral", "displayName": "Graticule Line", "canonical": "#1f3a2c" },
+      "text": { "role": "neutral", "displayName": "Text", "canonical": "#e5ede8" },
+      "text-dim": { "role": "neutral", "displayName": "Text Dim", "canonical": "#7d9186" },
+      "contact-lost-red": { "role": "neutral", "displayName": "Contact Lost Red", "canonical": "#ff5d5d" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Hero headline and large numerals (DotGothic16 dot-matrix face)." },
+      "body": { "displayName": "Body", "purpose": "All prose copy (Inter)." },
+      "label": { "displayName": "Label / Mono", "purpose": "Data and status tags only: radar blip tags, level tags, step markers (JetBrains Mono)." }
+    },
+    "shadows": [
+      { "name": "signal-glow", "value": "0 0 24px rgba(45,212,191,0.35)", "purpose": "Phosphor glow on the hero headline; signal-state only, never decorative." },
+      { "name": "blip-pulse", "value": "0 0 14px 4px rgba(45,212,191,0.75)", "purpose": "Detected radar blip pulse at its peak." }
+    ],
+    "motion": [
+      { "name": "radar-spin", "value": "conic-gradient sweep, 7s linear infinite, disabled under prefers-reduced-motion", "purpose": "Hero radar sweep animation." },
+      { "name": "radar-pulse", "value": "2.4s ease-in-out infinite box-shadow pulse", "purpose": "Detected blip's signal-lock pulse." }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "768px" },
+      { "name": "mobile", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one filled, solid action per view.",
+      "html": "<button class=\"ds-btn-primary\">Commencer un build</button>",
+      "css": ".ds-btn-primary { background: var(--phosphor-signal, #2dd4bf); color: var(--scope-black, #0a0f0d); font-weight: 600; font-size: 0.92rem; padding: 13px 30px; border: 1px solid transparent; clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); cursor: pointer; transition: filter 0.2s; } .ds-btn-primary:hover { filter: brightness(1.15); } .ds-btn-primary:focus-visible { outline: 2px solid var(--phosphor-signal, #2dd4bf); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Ghost action, brackets/border only.",
+      "html": "<button class=\"ds-btn-secondary\">Demander à l'IA</button>",
+      "css": ".ds-btn-secondary { background: transparent; color: var(--text, #e5ede8); font-weight: 600; font-size: 0.92rem; padding: 13px 30px; border: 1px solid var(--graticule-line, #1f3a2c); clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); cursor: pointer; transition: all 0.2s; } .ds-btn-secondary:hover { border-color: var(--phosphor-signal, #2dd4bf); color: var(--phosphor-signal, #2dd4bf); }"
+    },
+    {
+      "name": "Contact Card",
+      "kind": "card",
+      "refersTo": "chip-card",
+      "description": "The system's signature card: idle steel corner brackets that light up phosphor-green when hovered or active, like a radar contact locking on.",
+      "html": "<div class=\"ds-chip-card\"><h3>J'ai des bases</h3><p>Je veux choisir mes composants avec de l'aide.</p></div>",
+      "css": ".ds-chip-card { position: relative; background: var(--panel, #0f1a15); border: 1px solid var(--graticule-line, #1f3a2c); padding: 26px; } .ds-chip-card::before, .ds-chip-card::after { content: ''; position: absolute; width: 12px; height: 12px; border: 1px solid var(--graticule-line, #1f3a2c); opacity: 0.7; transition: border-color 0.2s, opacity 0.2s; } .ds-chip-card::before { top: -1px; left: -1px; border-right: none; border-bottom: none; } .ds-chip-card::after { bottom: -1px; right: -1px; border-left: none; border-top: none; } .ds-chip-card:hover::before, .ds-chip-card:hover::after { border-color: var(--phosphor-signal, #2dd4bf); opacity: 1; }"
+    },
+    {
+      "name": "Radar Blip Tag",
+      "kind": "custom",
+      "refersTo": "radar-blip",
+      "description": "A single detected-contact marker used in the hero radar scope: a dot plus a monospace data tag, with a distinct 'detected' (locked-on) state.",
+      "html": "<div class=\"ds-radar-blip ds-detected\"><span class=\"ds-radar-dot\"></span><span class=\"ds-radar-tag\">CARTE MÈRE · OK</span></div>",
+      "css": ".ds-radar-blip { display: flex; align-items: center; gap: 6px; } .ds-radar-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--phosphor-signal-dim, #1a9c8a); box-shadow: 0 0 6px 1px rgba(45,212,191,0.5); } .ds-radar-tag { font-family: 'JetBrains Mono', monospace; font-size: 0.66rem; letter-spacing: 0.4px; color: var(--text-dim, #7d9186); white-space: nowrap; } .ds-detected .ds-radar-dot { background: var(--phosphor-signal, #2dd4bf); animation: ds-radar-pulse 2.4s ease-in-out infinite; } .ds-detected .ds-radar-tag { color: var(--phosphor-signal, #2dd4bf); } @keyframes ds-radar-pulse { 0%, 100% { box-shadow: 0 0 6px 1px rgba(45,212,191,0.5); } 50% { box-shadow: 0 0 14px 4px rgba(45,212,191,0.75); } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Radar Room",
+    "overview": "PC Radar reads as an air-traffic-control scope, not a gadget showroom or a minimal SaaS dashboard. Every component a visitor adds is treated as a contact: it appears on the scope, gets a bearing and a data tag, and either locks on (compatible, phosphor-green) or drops off (incompatible). The metaphor is chosen deliberately because it does real work for the product — scanning for compatibility is the site's actual mechanism, not a decorative wrapper around it. The system stays dark and instrument-like at all times: a scope room is dim by design so the glowing signal reads clearly. Density is calm, not cluttered.",
+    "keyCharacteristics": [
+      "Near-black ground with exactly two accent registers: phosphor green (signal/primary/detection) and instrument amber (value/selection/warning)",
+      "Monospace type reserved for data and status labels, never used as a generic tech costume on body copy",
+      "Corner bracket reticles replace rounded corners and drop shadows as the primary shape language",
+      "Glow is a signal effect reserved for active/detected phosphor-green elements, never decorative"
+    ],
+    "rules": [
+      { "name": "The Two-Accent Rule", "body": "Only phosphor green and instrument amber ever carry meaning. A new feature needing an accent reuses one of these two by role rather than introducing a third.", "section": "colors" },
+      { "name": "The Signal Glow Rule", "body": "Glow is reserved for phosphor-green signal elements in an active state. It never decorates a neutral or amber element.", "section": "colors" },
+      { "name": "The Data-Only Mono Rule", "body": "Monospace type appears only on data, status, or measurement content, never as a stylistic label on ordinary UI copy.", "section": "typography" },
+      { "name": "The Flat-Scope Rule", "body": "Cards never lift on hover via shadow; a locked/selected state is shown by bracket color, not elevation.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep monospace exclusively for data/status content.",
+      "Do use the corner-bracket reticle as the one recurring shape signature across cards.",
+      "Do reserve glow for phosphor-green signal states only."
+    ],
+    "donts": [
+      "Don't add a kicker/eyebrow label above a section heading.",
+      "Don't add decorative sequence numbers to a set of cards that isn't a true ordered process.",
+      "Don't introduce a third accent color outside phosphor green and instrument amber."
+    ]
+  }
+}

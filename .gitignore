@@ -8,3 +8,13 @@ __pycache__/
 .github/hooks/
 .github/skills/
 graphify-out/
+aliexpress_tool/feed.csv
+aliexpress_tool/feed.csv.gz
+aliexpress_tool/feed_cpu_ram.csv
+data/aliexpress_cpu_ram.csv
+# Documents internes et fichiers générés (le dépôt est public)
+passation.md
+scratch_*.json
+*.zip
+*.deepnote
+skills-lock.json

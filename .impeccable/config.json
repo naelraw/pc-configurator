@@ -1,0 +1,488 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-16T13:51:25.191Z",
+        "reason": "Radar/CRT scope world (direction: Salle radar / tour de contrôle, static-index-html surface brief): phosphor glow on the hero heading and scope elements is the literal, domain-appropriate effect of the committed world, not a decorative AI-glow default."
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-16T15:57:39.963Z",
+        "reason": "Radar/CRT scope world (direction: Salle radar / tour de contrôle): the continuous sweep rotation is the literal, single authored signature motion of a radar scope, not a decorative auto-scroller — content does not scroll, it is a diagram's own mechanism. Already respects prefers-reduced-motion (freezes to a static bearing line)."
+      },
+      {
+        "rule": "wide-tracking",
+        "value": "*",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-16T15:58:09.685Z",
+        "reason": "radar-caption is a short, uppercase, monospace HUD-style micro-label inside the radar scope diagram (5 words, 0.66rem) — exactly the 'short uppercase label' exception the rule itself carves out, not paragraph body text."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-16T15:58:56.233Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Batch-applied across every page linking style.css to stop the recurring flag."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "roboto",
+        "files": [
+          "static/admin.html"
+        ],
+        "createdAt": "2026-09-16T16:19:10.236Z",
+        "reason": "admin.html is an intentionally separate internal tool with its own inline theme, never migrated to the public-site DESIGN.md/token system; pre-existing, not part of this redesign's scope."
+      },
+      {
+        "rule": "design-system-font",
+        "value": "consolas",
+        "files": [
+          "static/admin.html"
+        ],
+        "createdAt": "2026-09-16T16:19:10.301Z",
+        "reason": "Same as roboto above: admin.html pre-existing inline theme, out of scope for the public-site redesign."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/style.css"
+        ],
+        "createdAt": "2026-09-17T07:06:24.625Z",
+        "reason": "Radar/CRT scope world (direction: Salle radar / tour de contrôle): phosphor glow on headings/highlights is the shared, intentional effect of the committed design system, not decorative AI-glow. Previously scoped to index.html only; rescoping to the shared stylesheet since every page that links it re-triggers the same finding."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/comparateur.html"
+        ],
+        "createdAt": "2026-09-17T07:08:39.021Z",
+        "reason": "Inter is the site's pre-existing body font (var(--font-body) in style.css), set long before impeccable was installed — not an AI-default pattern here, just today's unrelated edit (removing the report-link button) re-triggering the scan. Not something to redesign unasked."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/style.css"
+        ],
+        "createdAt": "2026-09-17T07:08:47.538Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Scoping to the shared stylesheet since every page linking it re-triggers the same finding."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/style.css"
+        ],
+        "createdAt": "2026-09-17T07:16:33.791Z",
+        "reason": "Verified false positive: html/body use overflow-x:clip (not hidden), which per CSS Overflow spec does NOT force overflow-y to become non-visible (empirically confirmed in a live browser test: overflow-y computed stays 'visible', absolutely-positioned descendants are not clipped). The detector's static analysis doesn't seem to distinguish 'clip' from 'hidden' for this quirk."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/compte.html"
+        ],
+        "createdAt": "2026-09-17T07:21:48.769Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Batch-applied across every page linking style.css to stop the recurring flag."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/configurateur.html"
+        ],
+        "createdAt": "2026-09-17T07:21:48.853Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Batch-applied across every page linking style.css to stop the recurring flag."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/assistant.html"
+        ],
+        "createdAt": "2026-09-17T07:21:48.936Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Batch-applied across every page linking style.css to stop the recurring flag."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/estimer-fps.html"
+        ],
+        "createdAt": "2026-09-17T07:21:49.019Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Batch-applied across every page linking style.css to stop the recurring flag."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/build-view.html"
+        ],
+        "createdAt": "2026-09-17T07:21:49.105Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), set long before impeccable was installed. Batch-applied across every page linking style.css to stop the recurring flag."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "static/style.css"
+        ],
+        "createdAt": "2026-09-21T11:59:47.748Z",
+        "reason": "max-height transition on .nav (mobile dropdown, media max-width:860px) deliberately replaces grid-template-rows:0fr/1fr after diagnosing a real bug this session: that technique computed correct layout (box size, position) but failed to paint in testing, leaving the mobile nav menu invisible and mobile navigation completely unusable. max-height causes minor layout thrash but is accepted here for a small, infrequently-toggled nav overlay where reliability beats animation perf."
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "browser-extension/popup.html"
+        ],
+        "createdAt": "2026-09-21T15:08:56.881Z",
+        "reason": "preview-img starts with empty src by design (parent #preview is display:none until fetch-asin returns data, then JS sets the real src) — a standard dynamic-content preview pattern, not a broken/placeholder image"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "browser-extension/content.js"
+        ],
+        "createdAt": "2026-09-21T15:17:16.312Z",
+        "reason": "pcradar-preview-img has no src until JS populates it after fetch-asin succeeds (parent #pcradar-preview is display:none until then) — same dynamic-content pattern as popup.html, not a broken/placeholder image"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/mentions-legales.html"
+        ],
+        "createdAt": "2026-09-21T22:24:16.020Z",
+        "reason": "Same verified false positive as static/style.css: html/body use overflow-x:clip (not hidden), which does not force overflow-y non-visible — shared header/nav markup reused identically from index.html."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/mentions-legales.html"
+        ],
+        "createdAt": "2026-09-21T22:24:16.318Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), reused unchanged via the shared header/body markup on every page, not a new decorative addition."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/confidentialite.html"
+        ],
+        "createdAt": "2026-09-21T22:24:45.599Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — shared header/nav markup reused identically from index.html."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/confidentialite.html"
+        ],
+        "createdAt": "2026-09-21T22:24:45.923Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), reused unchanged via the shared header/body markup on every page."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/cgu.html"
+        ],
+        "createdAt": "2026-09-21T22:25:12.879Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — shared header/nav markup reused identically from index.html."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/cgu.html"
+        ],
+        "createdAt": "2026-09-21T22:25:13.162Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), reused unchanged via the shared header/body markup on every page."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/cookies.html"
+        ],
+        "createdAt": "2026-09-21T22:25:35.837Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — shared header/nav markup reused identically from index.html."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/cookies.html"
+        ],
+        "createdAt": "2026-09-21T22:25:36.105Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), reused unchanged via the shared header/body markup on every page."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/assistant.html"
+        ],
+        "createdAt": "2026-09-21T22:26:02.694Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/assistant.html"
+        ],
+        "createdAt": "2026-09-21T22:26:02.959Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), pre-existing on this page, not introduced by this footer edit."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-21T22:26:25.294Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/build-view.html"
+        ],
+        "createdAt": "2026-09-21T22:26:34.849Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/build-view.html"
+        ],
+        "createdAt": "2026-09-21T22:26:35.135Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), pre-existing on this page, not introduced by this footer edit."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/compte.html"
+        ],
+        "createdAt": "2026-09-21T22:26:48.971Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/compte.html"
+        ],
+        "createdAt": "2026-09-21T22:26:49.275Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), pre-existing on this page, not introduced by this footer edit."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/comparateur.html"
+        ],
+        "createdAt": "2026-09-21T22:27:01.923Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/comparateur.html"
+        ],
+        "createdAt": "2026-09-21T22:27:02.219Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), pre-existing on this page, not introduced by this footer edit."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/estimer-fps.html"
+        ],
+        "createdAt": "2026-09-21T22:27:02.547Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/estimer-fps.html"
+        ],
+        "createdAt": "2026-09-21T22:27:02.837Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), pre-existing on this page, not introduced by this footer edit."
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "static/configurateur.html"
+        ],
+        "createdAt": "2026-09-21T22:27:03.133Z",
+        "reason": "Same verified false positive as static/style.css: overflow-x:clip on html/body does not clip overflow-y — pre-existing shared header markup, not introduced by this footer edit."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "static/configurateur.html"
+        ],
+        "createdAt": "2026-09-21T22:27:03.447Z",
+        "reason": "grid-bg-glow is the site's established radar-scope background glow (see static/index.html ignore), pre-existing on this page, not introduced by this footer edit."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/mentions-legales.html"
+        ],
+        "createdAt": "2026-09-21T22:29:52.236Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), already accepted site-wide (see static/index.html ignore) — reused unchanged on this new legal page."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/confidentialite.html"
+        ],
+        "createdAt": "2026-09-21T22:29:52.474Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), already accepted site-wide (see static/index.html ignore) — reused unchanged on this new legal page."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/cgu.html"
+        ],
+        "createdAt": "2026-09-21T22:29:52.727Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), already accepted site-wide (see static/index.html ignore) — reused unchanged on this new legal page."
+      },
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "files": [
+          "static/cookies.html"
+        ],
+        "createdAt": "2026-09-21T22:29:52.980Z",
+        "reason": "Inter is the site's pre-existing body font (--font-body in style.css), already accepted site-wide (see static/index.html ignore) — reused unchanged on this new legal page."
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "static/admin.html"
+        ],
+        "createdAt": "2026-09-22T08:01:59.807Z",
+        "reason": "edit-image-preview has no src until updateImagePreview() populates it (parent .image-preview-wrap starts with class=hidden) — same dynamic-content pattern already established for browser-extension/popup.html and content.js, not a broken/placeholder image."
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "static/admin.html"
+        ],
+        "createdAt": "2026-09-22T08:02:00.112Z",
+        "reason": "admin.html is an intentionally separate internal tool (ADMIN_SECRET-gated, not part of the public site) with its own pre-existing inline theme, never migrated to the DESIGN.md token system — same pre-existing scope exception already recorded for design-system-font on this file."
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          "static/admin.html"
+        ],
+        "createdAt": "2026-09-22T08:11:49.622Z",
+        "reason": "Pre-existing (h1 directly followed by h3 throughout, no h2 anywhere in the file) — not touched by this session's heading-structure work, which was scoped to the public-facing site. admin.html is an intentionally separate internal tool (ADMIN_SECRET-gated, not visited by end users or AI agents), same out-of-scope exception already recorded for low-contrast/design-system-font on this file."
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "static/image-lightbox.js"
+        ],
+        "createdAt": "2026-09-22T08:48:28.932Z",
+        "reason": "image-lightbox-img has no src until open() populates it when the lightbox is actually triggered (overlay starts without .show class, display:none) — same dynamic-content pattern already established for browser-extension files and admin.html, not a broken/placeholder image."
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "createdAt": "2026-09-23T11:01:55.755Z",
+        "reason": "user confirmed: picked the 'Tech sombre sobre' direction whose preview specified Geist"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "createdAt": "2026-09-23T11:42:53.681Z",
+        "reason": "user confirmed: chose the 'Tech sombre sobre' direction whose preview specified Geist + Geist Mono for prices"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-23T19:45:24.246Z",
+        "reason": "user confirmed: asked for more effects 'comme cet effet', showing the emerald radial glow of the home CTA block"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "static/configurateur.html"
+        ],
+        "createdAt": "2026-09-23T19:45:24.521Z",
+        "reason": "user confirmed: asked for more effects 'comme cet effet', showing the emerald radial glow of the home CTA block"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "static/compte.html"
+        ],
+        "createdAt": "2026-09-23T19:45:24.773Z",
+        "reason": "user confirmed: asked for more effects 'comme cet effet', showing the emerald radial glow of the home CTA block"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "static/build-view.html"
+        ],
+        "createdAt": "2026-09-23T19:45:25.112Z",
+        "reason": "user confirmed: asked for more effects 'comme cet effet', showing the emerald radial glow of the home CTA block"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "static/comparateur.html"
+        ],
+        "createdAt": "2026-09-23T19:45:25.416Z",
+        "reason": "user confirmed: asked for more effects 'comme cet effet', showing the emerald radial glow of the home CTA block"
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
+  <title>PC Radar</title>
+  <!-- Monogramme P+R : le R réutilise le tracé du P (fût + boucle) et n'ajoute
+       qu'une jambe diagonale d'un seul trait, coupée à la ligne de base.
+       Le point émeraude est le "contact" détecté par le radar. -->
+  <defs><clipPath id="b"><rect width="64" height="49"/></clipPath></defs>
+  <rect width="64" height="64" rx="15" fill="#141517"/>
+  <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.25" fill="none" stroke="#35363c" stroke-width="1.5"/>
+  <g clip-path="url(#b)" transform="translate(0 1.5)" fill="none" stroke="#ececee" stroke-width="7">
+    <path d="M21 49V15h12.5a9.5 9.5 0 0 1 0 19H21"/>
+    <path d="M31.5 34 47.8 52.8"/>
+  </g>
+  <circle cx="50" cy="13" r="4.5" fill="#3ecf8e"/>
+</svg>

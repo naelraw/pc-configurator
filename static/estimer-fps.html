@@ -2,21 +2,34 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="theme-color" content="#0e0f11">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Estimer les FPS — PC Configurator</title>
+<title>Estimer les FPS de sa config PC — PC Radar</title>
+<meta name="description" content="Estimez gratuitement les FPS de votre configuration PC sur vos jeux préférés en 1080p et 1440p, et détectez les goulots d'étranglement CPU/GPU.">
+<link rel="canonical" href="https://pcradar.tech/estimer-fps">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pcradar.tech/estimer-fps">
+<meta property="og:site_name" content="PC Radar">
+<meta property="og:title" content="Estimer les FPS de sa config PC — PC Radar">
+<meta property="og:description" content="Estimez gratuitement les FPS de votre configuration PC sur vos jeux préférés, et détectez les goulots d'étranglement.">
+<meta property="og:image" content="https://pcradar.tech/static/favicon.png">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/csp-handlers.js"></script>
 </head>
 <body>
 
-<div class="grid-bg"></div>
-<div class="grid-bg-glow"></div>
-
 <header>
   <div class="nav-wrap">
-    <div class="logo">PC <span>CONFIGURATOR</span></div>
+    <a href="/" class="logo"><img src="/static/favicon.svg" alt="" width="22" height="22">PC Radar</a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <nav>
       <ul>
         <li><a href="/">Accueil</a></li>
@@ -30,23 +43,23 @@
   </div>
 </header>
 
+<main>
 <section id="estimer-fps" style="padding-top:56px;">
   <div class="section-title">
-    <span class="eyebrow">ESTIMATION FPS</span>
-    <h2>Combien de FPS pour votre config ?</h2>
+    <h1>Combien de FPS pour votre config ?</h1>
     <p>Choisissez une configuration ci-dessous, puis le ou les jeux à tester</p>
   </div>
 
   <div class="fps-config-columns">
     <div class="chip-card fps-config-col">
-      <h3>Mes configurations</h3>
+      <h2>Mes configurations</h2>
       <div id="my-builds-list">
         <p class="no-price">Connecte-toi pour voir tes configurations sauvegardées.</p>
       </div>
     </div>
 
     <div class="chip-card fps-config-col">
-      <h3>Configurations recommandées</h3>
+      <h2>Configurations recommandées</h2>
       <div id="recommended-builds-list">
         <p class="no-price">Chargement...</p>
       </div>
@@ -54,7 +67,7 @@
   </div>
 
   <div class="chip-card fps-selected-config hidden" id="selected-config-box">
-    <h3>Configuration choisie : <span id="selected-config-name"></span></h3>
+    <h2>Configuration choisie : <span id="selected-config-name"></span></h2>
     <div id="selected-config-detail"></div>
 
     <div class="fps-picker">
@@ -64,251 +77,42 @@
         <div class="search-results" id="fps-game-results"></div>
       </div>
       <div id="fps-selected-game" class="fps-selected-game hidden"></div>
-      <button class="btn btn-secondary use-config-btn" id="fps-estimate-btn" onclick="estimateFps()" disabled>Estimer les FPS</button>
+      <div class="fps-quality">
+        <label for="fps-quality">Réglages graphiques</label>
+        <select id="fps-quality">
+          <option value="ultra">Ultra</option>
+          <option value="eleve">Élevé</option>
+          <option value="moyen">Moyen</option>
+          <option value="bas">Bas / compétitif</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary use-config-btn" id="fps-estimate-btn" data-onclick="estimateFps()" disabled>Estimer les FPS</button>
     </div>
     <div id="fps-result"></div>
   </div>
 </section>
+</main>
 
 <footer>
-  <p>PC Configurator — Projet personnel · Compatibilité vérifiée côté serveur · Suggestions IA toujours validées avant affichage</p>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <strong>PC Radar</strong>
+      <span>Projet personnel et indépendant. Compatibilité vérifiée côté serveur, suggestions IA validées avant affichage.</span>
+    </div>
+    <div class="footer-legal-links">
+      <a href="/mentions-legales">Mentions légales</a>
+      <a href="/confidentialite">Confidentialité</a>
+      <a href="/cgu">CGU</a>
+      <a href="/cookies">Cookies</a>
+    </div>
+  </div>
 </footer>
 
-<script>
-  const API_BASE = window.location.origin;
-  let allComponents = [];
-  let selectedConfig = null; // { nom, composants_json }
+<script src="/static/pages/estimer-fps.js"></script>
 
-  const REQUIRED_BUILD_CATEGORIES = ["CPU", "Carte mère", "RAM", "GPU", "Alimentation", "Stockage", "Boîtier"];
-
-  async function loadComponents(){
-    try{
-      const res = await fetch(API_BASE + '/api/components');
-      const data = await res.json();
-      allComponents = Object.values(data.components || {}).flat();
-    }catch(e){
-      console.error('Erreur chargement composants', e);
-    }
-  }
-
-  // Les builds sont gardées ici et sélectionnées par index (jamais par nom
-  // interpolé dans un attribut onclick) : un nom de config est saisi
-  // librement par un utilisateur (prompt() lors de la sauvegarde), donc pas
-  // fiable tel quel dans du HTML/JS généré par innerHTML.
-  const buildListsBySource = {};
-
-  function escapeHtml(str){
-    const div = document.createElement('div');
-    div.textContent = str ?? '';
-    return div.innerHTML;
-  }
-
-  function renderBuildList(containerId, builds, emptyMessage){
-    const container = document.getElementById(containerId);
-    buildListsBySource[containerId] = builds || [];
-
-    if(!builds || builds.length === 0){
-      container.innerHTML = `<p class="no-price">${emptyMessage}</p>`;
-      return;
-    }
-    container.innerHTML = builds.map((b, i) => `
-      <div class="fps-build-row" onclick="selectConfigByIndex('${containerId}', ${i})">
-        <span class="nom">${escapeHtml(b.nom)}</span>
-        <span class="date">${new Date(b.date).toLocaleDateString('fr-FR')}</span>
-      </div>
-    `).join('');
-  }
-
-  function selectConfigByIndex(containerId, index){
-    const build = buildListsBySource[containerId]?.[index];
-    if(!build) return;
-    selectConfigFromData(build.nom, build.composants_json);
-  }
-
-  async function loadMyBuilds(){
-    try{
-      const meRes = await fetch(API_BASE + '/api/auth/me', { credentials: 'include' });
-      const me = await meRes.json();
-      if(!me.logged_in){
-        document.getElementById('my-builds-list').innerHTML =
-          '<p class="no-price">Connecte-toi pour voir tes configurations sauvegardées.</p>';
-        return;
-      }
-      const res = await fetch(API_BASE + '/api/builds', { credentials: 'include' });
-      const data = await res.json();
-      renderBuildList('my-builds-list', data.builds, 'Aucune configuration sauvegardée pour l\'instant.');
-    }catch(e){
-      document.getElementById('my-builds-list').innerHTML = '<p class="no-price">Erreur de chargement.</p>';
-    }
-  }
-
-  async function loadRecommendedBuilds(){
-    try{
-      const res = await fetch(API_BASE + '/api/builds/recommandees');
-      const data = await res.json();
-      renderBuildList('recommended-builds-list', data.builds, 'Aucune configuration recommandée pour l\'instant.');
-    }catch(e){
-      document.getElementById('recommended-builds-list').innerHTML = '<p class="no-price">Erreur de chargement.</p>';
-    }
-  }
-
-  function selectConfigFromData(nom, composants_json){
-    selectedConfig = { nom, composants_json };
-
-    document.getElementById('selected-config-box').classList.remove('hidden');
-    document.getElementById('selected-config-name').textContent = nom;
-
-    const entries = Object.entries(composants_json);
-    document.getElementById('selected-config-detail').innerHTML = entries.map(([cat, id]) => {
-      const item = allComponents.find(c => c.id === id);
-      return `<div class="build-detail-row"><span class="cat">${escapeHtml(cat)}</span><span class="nom">${escapeHtml(item ? item.nom : 'Composant introuvable')}</span></div>`;
-    }).join('');
-
-    document.getElementById('fps-result').innerHTML = '';
-    document.getElementById('selected-config-box').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  // --- Sélecteur de jeu (identique au configurateur / à la page de partage) ---
-
-  const POPULAR_GAMES = [
-    "Fortnite", "Valorant", "Counter-Strike 2", "League of Legends", "Apex Legends",
-    "Call of Duty: Warzone", "Call of Duty: Modern Warfare III", "Call of Duty: Black Ops 6",
-    "Overwatch 2", "Rainbow Six Siege", "PUBG: Battlegrounds", "Minecraft",
-    "Grand Theft Auto V", "Grand Theft Auto VI", "Cyberpunk 2077", "Red Dead Redemption 2",
-    "The Witcher 3", "Elden Ring", "Baldur's Gate 3", "Starfield", "Diablo IV",
-    "Rocket League", "Dota 2", "World of Warcraft", "Destiny 2", "Escape from Tarkov",
-    "Hogwarts Legacy", "Assassin's Creed Mirage", "Assassin's Creed Valhalla",
-    "Assassin's Creed Shadows", "Forza Horizon 5", "F1 24", "EA Sports FC 25",
-    "NBA 2K25", "Resident Evil 4", "Resident Evil Village", "Street Fighter 6",
-    "Tekken 8", "Black Myth: Wukong", "Helldivers 2", "Palworld", "Sea of Thieves",
-    "Fallout 4", "Fallout 76", "The Elder Scrolls V: Skyrim", "Terraria",
-    "Stardew Valley", "Among Us", "Fall Guys", "Genshin Impact", "Warframe",
-    "Path of Exile 2", "Final Fantasy XIV", "Monster Hunter Wilds",
-    "Dead by Daylight", "Left 4 Dead 2", "Team Fortress 2", "Battlefield 2042",
-    "Halo Infinite", "Doom Eternal", "Far Cry 6", "It Takes Two",
-    "Cities: Skylines II", "Total War: Warhammer III", "Marvel Rivals",
-    "Silent Hill 2", "Dragon's Dogma 2", "Star Wars Jedi: Survivor",
-    "God of War Ragnarök", "Horizon Forbidden West",
-  ];
-
-  const MAX_FPS_GAMES = 5;
-  let selectedFpsGames = [];
-
-  function renderFpsGameResults(matches){
-    const resultsBox = document.getElementById('fps-game-results');
-    if(matches.length === 0){
-      resultsBox.innerHTML = '<div class="search-result-item">Aucun jeu trouvé</div>';
-      resultsBox.classList.add('show');
-      return;
-    }
-    resultsBox.innerHTML = matches.map(g => `
-      <div class="search-result-item" onclick="selectFpsGame('${g.replace(/'/g, "\\'")}')">${g}</div>
-    `).join('');
-    resultsBox.classList.add('show');
-  }
-
-  function handleFpsGameSearch(){
-    const query = document.getElementById('fps-game-search').value.trim();
-    const resultsBox = document.getElementById('fps-game-results');
-    if(!query){
-      resultsBox.classList.remove('show');
-      resultsBox.innerHTML = '';
-      return;
-    }
-    const normalizedQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const matches = POPULAR_GAMES
-      .filter(g => !selectedFpsGames.includes(g))
-      .filter(g => g.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').includes(normalizedQuery))
-      .slice(0, 10);
-    renderFpsGameResults(matches);
-  }
-
-  function renderSelectedFpsGames(){
-    const selectedBox = document.getElementById('fps-selected-game');
-    if(selectedFpsGames.length === 0){
-      selectedBox.classList.add('hidden');
-      selectedBox.innerHTML = '';
-      return;
-    }
-    selectedBox.classList.remove('hidden');
-    selectedBox.innerHTML = selectedFpsGames.map(name => `
-      <span class="fps-game-chip">🎮 ${name} <button type="button" onclick="removeFpsGame('${name.replace(/'/g, "\\'")}')">✕</button></span>
-    `).join('');
-  }
-
-  function selectFpsGame(name){
-    if(selectedFpsGames.includes(name)) return;
-    if(selectedFpsGames.length >= MAX_FPS_GAMES){
-      alert(`Maximum ${MAX_FPS_GAMES} jeux à la fois.`);
-      return;
-    }
-    selectedFpsGames.push(name);
-    document.getElementById('fps-game-search').value = '';
-    document.getElementById('fps-game-results').classList.remove('show');
-    renderSelectedFpsGames();
-    document.getElementById('fps-estimate-btn').disabled = false;
-  }
-
-  function removeFpsGame(name){
-    selectedFpsGames = selectedFpsGames.filter(g => g !== name);
-    renderSelectedFpsGames();
-    document.getElementById('fps-estimate-btn').disabled = selectedFpsGames.length === 0;
-  }
-
-  document.getElementById('fps-game-search').addEventListener('input', handleFpsGameSearch);
-  document.addEventListener('click', (e) => {
-    if(!e.target.closest('#fps-search-box')){
-      document.getElementById('fps-game-results').classList.remove('show');
-    }
-  });
-
-  async function estimateFps(){
-    const fpsBox = document.getElementById('fps-result');
-    if(!selectedConfig) return;
-
-    if(selectedFpsGames.length === 0){
-      fpsBox.innerHTML = `<div class="compat-result compat-fail">Choisis d'abord au moins un jeu dans la liste.</div>`;
-      return;
-    }
-
-    const presentCategories = new Set(Object.keys(selectedConfig.composants_json));
-    const missing = REQUIRED_BUILD_CATEGORIES.filter(cat => !presentCategories.has(cat));
-    if(missing.length > 0){
-      fpsBox.innerHTML = `<div class="compat-result compat-fail">Cette configuration est incomplète pour estimer les FPS (il manque : ${missing.join(', ')}).</div>`;
-      return;
-    }
-
-    fpsBox.innerHTML = `<div class="compat-result">Recherche en cours pour ${selectedFpsGames.join(', ')} (peut prendre quelques secondes)...</div>`;
-
-    try{
-      const res = await fetch(API_BASE + '/api/estimate-fps', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ composants_json: selectedConfig.composants_json, jeux: selectedFpsGames }),
-      });
-      const data = await res.json();
-      if(data.status === 'ok'){
-        fpsBox.innerHTML = `
-          <div class="ai-verification">
-            <span class="ai-verification-label">🎮 Estimation FPS</span>
-            <p>${data.estimation.trim().replace(/\n/g, '<br>')}</p>
-          </div>
-        `;
-      }else{
-        fpsBox.innerHTML = `<div class="compat-result compat-fail">${data.message || data.detail || "Estimation indisponible."}</div>`;
-      }
-    }catch(e){
-      fpsBox.innerHTML = `<div class="compat-result compat-fail">Erreur réseau lors de l'estimation.</div>`;
-    }
-  }
-
-  (async function init(){
-    await loadComponents();
-    await Promise.all([loadMyBuilds(), loadRecommendedBuilds()]);
-  })();
-</script>
-
-<script src="/static/grid-effect.js"></script>
+<script src="/static/nav-menu.js"></script>
+<script src="/static/effects.js"></script>
+<script src="/static/fps-render.js"></script>
 
 </body>
 </html>

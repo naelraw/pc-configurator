@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>PC Radar</title>
+<style>
+  :root{
+    --bg:#0a0f0d; --panel:#0f1a15; --panel-raised:#122019; --border:#1f3a2c;
+    --copper:#c98a3d; --copper-bright:#e8a94f; --led:#2dd4bf; --led-dim:#1a9c8a;
+    --text:#e5ede8; --text-dim:#7d9186; --danger:#ff5d5d;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    width: 320px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background-color: var(--bg);
+    color: var(--text); padding: 0; margin: 0;
+  }
+  header{
+    display:flex; align-items:center; gap:8px;
+    padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
+  }
+  header .logo-mark{ flex-shrink:0; }
+  header h1{ font-size: 14px; margin:0; font-weight:700; letter-spacing:0.2px; }
+  header h1 .accent{ color: var(--copper-bright); }
+  main{ padding: 14px 16px 16px; }
+
+  label{ display:block; font-size: 11px; color:var(--text-dim); margin-top:10px; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px; }
+
+  input, select{
+    width:100%; padding:8px 9px; background:var(--panel); border:1px solid var(--border);
+    color:var(--text); font-size:13px; border-radius:5px; transition: border-color .15s ease;
+    font-family: inherit;
+  }
+  input:focus, select:focus{ outline:none; border-color: var(--led); }
+  select{ appearance:none; -webkit-appearance:none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237d9186'/></svg>");
+    background-repeat:no-repeat; background-position: right 10px center;
+  }
+
+  button{
+    width:100%; margin-top:10px; padding:9px; border:none; border-radius:5px;
+    font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;
+    transition: filter .15s ease, transform .1s ease, opacity .15s ease;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  button.primary{ background: var(--led); color:#06110d; }
+  button.primary:hover:not(:disabled){ filter:brightness(1.08); }
+  button.primary:active:not(:disabled){ transform: scale(0.98); }
+  button.secondary{ background:transparent; border:1px solid var(--border); color:var(--text); }
+  button.secondary:hover:not(:disabled){ border-color: var(--led); color: var(--led); }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  button.loading .btn-label::after{
+    content:""; width:12px; height:12px; margin-left:6px;
+    border:2px solid rgba(0,0,0,0.25); border-top-color:#06110d;
+    border-radius:50%; display:inline-block; animation: pcr-spin .7s linear infinite;
+  }
+  button.secondary.loading .btn-label::after{ border-color: rgba(229,237,232,0.25); border-top-color: var(--text); }
+  @keyframes pcr-spin{ to{ transform: rotate(360deg); } }
+
+  .asin-box{ font-size:11px; color:var(--text-dim); font-family:"JetBrains Mono", "DotGothic16", monospace; word-break:break-all; }
+
+  #catalog-status{
+    margin-top:8px; padding:8px 10px; border-radius:5px; font-size:12px; line-height:1.45;
+    background: var(--panel); border-left:3px solid var(--border); color:var(--text-dim);
+  }
+  #catalog-status.status-in{ border-left-color: var(--led); color: var(--text); }
+  #catalog-status.status-out{ border-left-color: var(--copper); color: var(--text); }
+
+  #preview{
+    margin-top:12px; display:none; border:1px solid var(--border); border-radius:6px;
+    padding:12px; background: var(--panel-raised);
+    animation: pcr-fade-in .18s ease;
+  }
+  #preview img{ max-width:100%; max-height:120px; display:block; margin:0 auto 8px; background:#fff; border-radius:4px; }
+  #preview .nom{ font-weight:600; font-size:13px; }
+  #preview .prix{ color: var(--copper-bright); font-size:14px; margin-top:4px; font-weight:600; }
+
+  #status{ margin-top:10px; font-size:12px; white-space:pre-wrap; min-height:14px; line-height:1.4; }
+  #status.is-error{ color: var(--danger); }
+  #status.is-ok{ color: var(--led); }
+
+  details#settings{ margin-top:16px; border-top:1px solid var(--border); padding-top:10px; }
+  details#settings summary{
+    cursor:pointer; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.4px;
+    list-style:none; display:flex; align-items:center; gap:5px; user-select:none;
+  }
+  details#settings summary::-webkit-details-marker{ display:none; }
+  details#settings summary::before{ content:"▸"; transition: transform .15s ease; font-size:10px; }
+  details#settings[open] summary::before{ transform: rotate(90deg); }
+
+  #no-asin{ font-size:12px; color:var(--danger); line-height:1.5; }
+
+  @keyframes pcr-fade-in{ from{ opacity:0; transform: translateY(-4px); } to{ opacity:1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+  <header>
+    <svg class="logo-mark" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="9" stroke="#2dd4bf" stroke-width="1.6" opacity="0.35"/>
+      <circle cx="12" cy="12" r="5.5" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
+      <circle cx="12" cy="12" r="1.8" fill="#2dd4bf"/>
+      <path d="M12 12 L18 6.5" stroke="#2dd4bf" stroke-width="1.6" stroke-linecap="round"/>
+    </svg>
+    <h1>PC <span class="accent">RADAR</span></h1>
+  </header>
+
+  <main>
+    <div id="no-asin" style="display:none;">
+      Aucun ASIN détecté sur cette page.<br>Ouvre une fiche produit Amazon (URL avec /dp/XXXXXXXXXX).
+    </div>
+
+    <div id="main-ui">
+      <div class="asin-box" id="asin-display"></div>
+      <div id="catalog-status"></div>
+
+      <label for="categorie-select">Catégorie</label>
+      <select id="categorie-select">
+        <option value="" id="categorie-auto-opt">Auto</option>
+        <option value="CPU">CPU</option>
+        <option value="Carte mère">Carte mère</option>
+        <option value="RAM">RAM</option>
+        <option value="Boîtier">Boîtier</option>
+        <option value="Alimentation">Alimentation</option>
+        <option value="GPU">GPU</option>
+        <option value="Stockage">Stockage</option>
+        <option value="Refroidissement">Refroidissement</option>
+        <option value="Accessoire">Accessoire</option>
+      </select>
+
+      <button id="fetch-btn" class="primary"><span class="btn-label">Ajouter au catalogue</span></button>
+
+      <div id="preview">
+        <img id="preview-img" alt="">
+        <div class="nom" id="preview-nom"></div>
+        <div class="prix" id="preview-prix"></div>
+        <button id="remove-btn" class="secondary"><span class="btn-label">Retirer</span></button>
+      </div>
+
+      <div id="status"></div>
+    </div>
+
+    <details id="settings">
+      <summary>Réglages</summary>
+      <label for="site-url">URL du site</label>
+      <input type="text" id="site-url" placeholder="https://pcradar.tech">
+      <label for="admin-secret">Clé admin (X-Admin-Secret)</label>
+      <input type="password" id="admin-secret" placeholder="••••••••">
+      <button id="save-settings-btn" class="secondary"><span class="btn-label">Enregistrer</span></button>
+    </details>
+  </main>
+
+  <script src="categorize.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

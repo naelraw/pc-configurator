@@ -3,20 +3,54 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PC Configurator - Créez le PC qui vous ressemble</title>
+<meta name="google-site-verification" content="uBfojXqDfLLYHLPhmVdBAdBk8G-6lJtDqtF8mX9RrVg" />
+<meta name="theme-color" content="#0e0f11">
+<title>PC Radar — Configurateur PC gratuit avec assistant IA</title>
+<meta name="description" content="Configurez votre PC sur mesure gratuitement : vérification de compatibilité automatique, assistant IA, comparateur de prix et estimation FPS. Sans inscription.">
+<link rel="canonical" href="https://pcradar.tech/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pcradar.tech/">
+<meta property="og:site_name" content="PC Radar">
+<meta property="og:title" content="PC Radar — Configurateur PC gratuit avec assistant IA">
+<meta property="og:description" content="Configurez votre PC sur mesure gratuitement : vérification de compatibilité automatique, assistant IA, comparateur de prix et estimation FPS.">
+<meta property="og:image" content="https://pcradar.tech/static/favicon.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="PC Radar — Configurateur PC gratuit avec assistant IA">
+<meta name="twitter:description" content="Configurez votre PC sur mesure gratuitement : vérification de compatibilité automatique, assistant IA, comparateur de prix et estimation FPS.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://m.media-amazon.com">
+<link rel="prefetch" href="/api/components" as="fetch" crossorigin="anonymous">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/style.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "PC Radar",
+  "url": "https://pcradar.tech/",
+  "description": "Configurateur PC gratuit avec vérification de compatibilité automatique, assistant IA, comparateur de prix et estimation FPS.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  }
+}
+</script>
+<script src="/static/csp-handlers.js"></script>
 </head>
 <body>
 
-<div class="grid-bg"></div>
-<div class="grid-bg-glow"></div>
-
 <header>
   <div class="nav-wrap">
-    <div class="logo">PC <span>CONFIGURATOR</span></div>
+    <a href="/" class="logo"><img src="/static/favicon.svg" alt="" width="22" height="22">PC Radar</a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <nav>
       <ul>
         <li><a href="/">Accueil</a></li>
@@ -31,103 +65,172 @@
   </div>
 </header>
 
-<section class="hero" id="accueil">
-  <div class="hero-inner">
-    <h1>Créez le PC qui vous ressemble</h1>
-    <p>Choisissez vos composants, on vérifie automatiquement la compatibilité. Besoin d'aide ? Notre assistant IA vous propose une config sur mesure.</p>
+<main>
+<section class="home-hero" id="accueil">
+  <div>
+    <h1>Créez le PC qui vous ressemble.</h1>
+    <p class="lede">Choisissez vos composants, on vérifie la compatibilité automatiquement. Besoin d'aide ? L'assistant IA vous propose une config.</p>
     <div class="hero-ctas">
-      <button class="btn btn-primary" onclick="location.href='/configurateur'">Commencer un build</button>
-      <button class="btn btn-secondary" onclick="location.href='/assistant'">Demander à l'IA</button>
-    </div>
-
-    <div class="levels">
-      <div class="level-card chip-card" onclick="location.href='/assistant?prefill=debutant'">
-        <span class="level-tag">01 · DÉBUTANT</span>
-        <h3>Je débute</h3>
-        <p>Je ne sais pas par où commencer, guidez-moi.</p>
-      </div>
-      <div class="level-card chip-card" onclick="location.href='/configurateur?hint=intermediaire'">
-        <span class="level-tag">02 · INTERMÉDIAIRE</span>
-        <h3>J'ai des bases</h3>
-        <p>Je veux choisir mes composants avec de l'aide.</p>
-      </div>
-      <div class="level-card chip-card" onclick="location.href='/configurateur'">
-        <span class="level-tag">03 · PRO</span>
-        <h3>Je sais ce qu'il faut</h3>
-        <p>Je sais ce que je veux, laissez-moi configurer.</p>
-      </div>
+      <a class="btn btn-primary" href="/configurateur">Commencer un build</a>
+      <a class="btn-link" href="/assistant">Demander à l'IA <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
     </div>
   </div>
+
+  <!-- Configs du moment : calculées côté serveur (/api/configs-vedette) à
+       partir du catalogue en stock et des prix actuels, compatibilité et
+       FPS estimés par les mêmes moteurs que le reste du site. -->
+  <aside class="build-demo" aria-label="Configurations recommandées du moment">
+    <div class="build-demo-head">
+      <span><strong>Configs du moment</strong></span>
+      <span class="build-demo-note">Prix mis à jour chaque jour</span>
+    </div>
+    <div class="demo-tabs" id="demo-tabs" role="tablist" aria-label="Budget"></div>
+    <p class="demo-usage" id="demo-usage">&nbsp;</p>
+    <ul class="build-demo-list is-compact" id="demo-list">
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+      <li class="build-demo-item"><span class="build-demo-thumb skel"></span><span class="skel" style="height:10px; width:70%;"></span><span class="skel" style="height:11px; width:85%;"></span><span class="skel" style="width:52px; height:11px;"></span></li>
+    </ul>
+    <div class="demo-fps" id="demo-fps" aria-live="polite"></div>
+    <div class="build-demo-foot">
+      <span class="demo-foot-info">
+        <span class="build-demo-total" id="demo-total"></span>
+        <span class="build-demo-status is-pending" id="demo-status"><i class="ph ph-circle-notch" aria-hidden="true"></i> Chargement…</span>
+      </span>
+      <button type="button" class="btn btn-primary" id="demo-open" disabled>Personnaliser</button>
+    </div>
+  </aside>
 </section>
 
-<section id="stats">
-  <div class="stats-strip chip-card">
-    <div class="stat"><span class="num">8</span><span class="label">Catégories de composants</span></div>
-    <div class="stat"><span class="num">100%</span><span class="label">Gratuit</span></div>
-    <div class="stat"><span class="num">7</span><span class="label">Points de compatibilité vérifiés</span></div>
-    <div class="stat"><span class="num">IA</span><span class="label">Assistant intégré</span></div>
+<section class="profiles" id="niveaux">
+  <div class="profiles-head">
+    <h2>Par où commencer ?</h2>
+  </div>
+  <div class="profile-list">
+    <a class="profile-row reveal" href="/assistant?prefill=debutant">
+      <h3>Je débute</h3>
+      <p>Je ne sais pas par où commencer. L'assistant pose les bonnes questions et propose une config complète.</p>
+      <span class="go"><span>Assistant IA</span> <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+    </a>
+    <a class="profile-row reveal" style="--i:1" href="/configurateur?hint=intermediaire">
+      <h3>J'ai des bases</h3>
+      <p>Je veux choisir mes composants moi-même, avec des repères pour ne pas me tromper.</p>
+      <span class="go"><span>Configurateur guidé</span> <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+    </a>
+    <a class="profile-row reveal" style="--i:2" href="/configurateur">
+      <h3>Je sais ce qu'il faut</h3>
+      <p>Filtres, tri par performance, budget. Je configure directement.</p>
+      <span class="go"><span>Configurateur</span> <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+    </a>
   </div>
 </section>
 
 <section id="fonctionnalites">
   <div class="section-title">
-    <span class="eyebrow">FONCTIONNALITÉS</span>
     <h2>Tout ce qu'il faut pour bien choisir</h2>
-    <p>Simple, fiable, sans mauvaise surprise à l'assemblage</p>
+    <p>Compatibilité, conseils, prix et performances au même endroit, sans mauvaise surprise à l'assemblage.</p>
   </div>
-  <div class="features-grid">
-    <div class="feature-card chip-card">
-      <span class="num-tag">01</span>
-      <h3>Configurateur manuel</h3>
-      <p>Sélectionnez chaque composant vous-même, en toute liberté.</p>
+  <div class="bento">
+    <div class="bento-cell bento-compat reveal">
+      <span class="icon"><i class="ph ph-plugs-connected" aria-hidden="true"></i></span>
+      <h3>Compatibilité vérifiée à chaque ajout</h3>
+      <p>Chaque pièce est confrontée aux autres dès que vous la sélectionnez. Un conflit s'affiche avant l'achat, pas au moment du montage.</p>
+      <ul class="check-list">
+        <li><i class="ph ph-check" aria-hidden="true"></i>Socket processeur</li>
+        <li><i class="ph ph-check" aria-hidden="true"></i>Type de mémoire</li>
+        <li><i class="ph ph-check" aria-hidden="true"></i>Format carte mère / boîtier</li>
+        <li><i class="ph ph-check" aria-hidden="true"></i>Puissance d'alimentation</li>
+        <li><i class="ph ph-check" aria-hidden="true"></i>Longueur de carte graphique</li>
+        <li><i class="ph ph-check" aria-hidden="true"></i>Stockage et ventirad</li>
+      </ul>
     </div>
-    <div class="feature-card chip-card">
-      <span class="num-tag">02</span>
+    <a href="/assistant" class="bento-cell bento-ai reveal" style="--i:1">
+      <span class="icon"><i class="ph ph-chat-circle-text" aria-hidden="true"></i></span>
       <h3>Assistant IA</h3>
-      <p>Décrivez votre besoin en langage naturel, recevez une suggestion.</p>
-    </div>
-    <div class="feature-card chip-card">
-      <span class="num-tag">03</span>
-      <h3>Compatibilité garantie</h3>
-      <p>Socket, format, wattage : tout est vérifié avant validation.</p>
-    </div>
-    <div class="feature-card chip-card">
-      <span class="num-tag">04</span>
-      <h3>Sauvegarde de builds</h3>
-      <p>Retrouvez vos configurations enregistrées à tout moment.</p>
-    </div>
+      <p>Décrivez votre besoin avec vos mots. Chaque suggestion passe par le même contrôle de compatibilité avant d'être affichée.</p>
+      <div class="ai-sample" aria-hidden="true">
+        <span class="ai-bubble user">Un PC pour jouer en 1440p, 1&nbsp;200&nbsp;€&nbsp;max</span>
+        <span class="ai-bubble bot">Voici une config équilibrée, compatible et dans le budget.</span>
+      </div>
+    </a>
+    <a href="/estimer-fps" class="bento-cell bento-fps reveal">
+      <span class="icon"><i class="ph ph-game-controller" aria-hidden="true"></i></span>
+      <h3>Estimateur FPS</h3>
+      <p>Les FPS estimés de votre config sur vos jeux, en 1080p comme en 1440p.</p>
+      <span class="more">Estimer <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+    </a>
+    <a href="/comparateur" class="bento-cell bento-compare reveal" style="--i:1">
+      <span class="icon"><i class="ph ph-scales" aria-hidden="true"></i></span>
+      <h3>Comparateur</h3>
+      <p>Deux composants face à face : score de performance, specs et prix relevés.</p>
+      <span class="stat-inline" id="catalog-count" aria-live="polite"></span>
+    </a>
+    <a href="/compte" class="bento-cell bento-save reveal" style="--i:2">
+      <span class="icon"><i class="ph ph-bookmark-simple" aria-hidden="true"></i></span>
+      <h3>Sauvegarde et partage</h3>
+      <p>Enregistrez vos builds, reprenez-les plus tard ou partagez-les par simple lien.</p>
+      <span class="more">Mon compte <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+    </a>
   </div>
 </section>
 
 <section id="comment-ca-marche">
   <div class="section-title">
-    <span class="eyebrow">PROCESSUS</span>
     <h2>Votre PC en 3 étapes</h2>
   </div>
-  <div class="steps chip-card">
-    <div class="step">
-      <span class="step-num">1</span>
+  <div class="flow">
+    <div class="flow-step reveal">
+      <span class="dot"><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
       <h3>Choisissez vos composants</h3>
-      <p>Manuellement ou avec l'aide de l'IA selon votre niveau.</p>
+      <p>Manuellement ou avec l'aide de l'IA, selon votre niveau.</p>
     </div>
-    <div class="step">
-      <span class="step-num">2</span>
+    <div class="flow-step reveal" style="--i:1">
+      <span class="dot"><i class="ph ph-list-checks" aria-hidden="true"></i></span>
       <h3>On vérifie tout</h3>
-      <p>Compatibilité socket, format boîtier, wattage : automatique.</p>
+      <p>Socket, format du boîtier, wattage : le contrôle est automatique.</p>
     </div>
-    <div class="step">
-      <span class="step-num">3</span>
+    <div class="flow-step reveal" style="--i:2">
+      <span class="dot"><i class="ph ph-floppy-disk" aria-hidden="true"></i></span>
       <h3>Sauvegardez votre build</h3>
       <p>Votre configuration reste accessible pour plus tard.</p>
     </div>
   </div>
 </section>
 
+<section style="padding-top:0;">
+  <div class="home-cta reveal">
+    <div>
+      <h2>Prêt à assembler votre config ?</h2>
+      <p>Gratuit, sans inscription pour commencer.</p>
+    </div>
+    <a class="btn btn-primary" href="/configurateur">Commencer un build</a>
+  </div>
+</section>
+</main>
+
 <footer>
-  <p>PC Configurator — Projet personnel · Compatibilité vérifiée côté serveur · Suggestions IA toujours validées avant affichage</p>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <strong>PC Radar</strong>
+      <span>Projet personnel et indépendant. Compatibilité vérifiée côté serveur, suggestions IA validées avant affichage.</span>
+    </div>
+    <div class="footer-legal-links">
+      <a href="/mentions-legales">Mentions légales</a>
+      <a href="/confidentialite">Confidentialité</a>
+      <a href="/cgu">CGU</a>
+      <a href="/cookies">Cookies</a>
+    </div>
+  </div>
 </footer>
 
-<script src="/static/grid-effect.js"></script>
+<script src="/static/nav-menu.js"></script>
+<script src="/static/effects.js"></script>
+<script src="/static/pages/index.js"></script>
 
 </body>
 </html>

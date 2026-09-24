@@ -1,0 +1,121 @@
+#pcradar-panel {
+  all: initial;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 2147483647;
+  width: 280px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #0a0f0d;
+  color: #e5ede8;
+  border: 1px solid #1f3a2c;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(45, 212, 191, 0.06);
+  font-size: 13px;
+  animation: pcradar-slide-in 0.22s ease;
+}
+@keyframes pcradar-slide-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+#pcradar-panel * { box-sizing: border-box; font-family: inherit; }
+
+#pcradar-header {
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  padding: 10px 12px; border-bottom: 1px solid #1f3a2c;
+}
+#pcradar-header-left { display: flex; align-items: center; gap: 7px; }
+#pcradar-title { font-weight: 700; color: #e5ede8; font-size: 13px; letter-spacing: 0.2px; }
+#pcradar-title .pcradar-accent { color: #e8a94f; }
+#pcradar-collapse {
+  background: transparent; border: 1px solid #1f3a2c; color: #e5ede8;
+  width: 22px; height: 22px; line-height: 1; cursor: pointer; border-radius: 4px; font-size: 14px;
+  transition: border-color .15s ease, color .15s ease;
+}
+#pcradar-collapse:hover { border-color: #2dd4bf; color: #2dd4bf; }
+
+#pcradar-body { padding: 12px; transition: opacity .15s ease; }
+#pcradar-panel.pcradar-collapsed #pcradar-body { display: none; }
+#pcradar-panel.pcradar-collapsed { animation: none; }
+
+#pcradar-status {
+  font-size: 12px; color: #7d9186; line-height: 1.45;
+  padding: 8px 10px; border-radius: 5px; background: #0f1a15; border-left: 3px solid #1f3a2c;
+}
+#pcradar-status.pcradar-status-in { border-left-color: #2dd4bf; color: #e5ede8; }
+#pcradar-status.pcradar-status-out { border-left-color: #c98a3d; color: #e5ede8; }
+
+#pcradar-controls { margin-top: 10px; }
+#pcradar-panel select {
+  width: 100%; padding: 7px 9px; background: #0f1a15; border: 1px solid #1f3a2c;
+  color: #e5ede8; font-size: 12px; border-radius: 5px; appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237d9186'/></svg>");
+  background-repeat: no-repeat; background-position: right 10px center;
+  transition: border-color .15s ease;
+}
+#pcradar-panel select:focus { outline: none; border-color: #2dd4bf; }
+
+#pcradar-panel button {
+  width: 100%; margin-top: 8px; padding: 9px; border: none; font-weight: 600;
+  cursor: pointer; font-size: 12px; border-radius: 5px;
+  transition: filter .15s ease, transform .1s ease, opacity .15s ease;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+#pcradar-panel button:not(.pcradar-secondary) { background: #2dd4bf; color: #06110d; }
+#pcradar-panel button:not(.pcradar-secondary):hover:not(:disabled) { filter: brightness(1.08); }
+#pcradar-panel button:not(.pcradar-secondary):active:not(:disabled) { transform: scale(0.98); }
+#pcradar-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+#pcradar-panel button.pcradar-secondary { background: transparent; border: 1px solid #1f3a2c; color: #e5ede8; }
+#pcradar-panel button.pcradar-secondary:hover:not(:disabled) { border-color: #2dd4bf; color: #2dd4bf; }
+#pcradar-panel button.pcradar-loading::after {
+  content: ""; width: 11px; height: 11px; border: 2px solid rgba(6,17,13,0.3);
+  border-top-color: #06110d; border-radius: 50%; display: inline-block; animation: pcradar-spin .7s linear infinite;
+}
+#pcradar-panel button.pcradar-secondary.pcradar-loading::after { border-color: rgba(229,237,232,0.3); border-top-color: #e5ede8; }
+@keyframes pcradar-spin { to { transform: rotate(360deg); } }
+
+#pcradar-result {
+  margin-top: 10px; border: 1px solid #1f3a2c; border-radius: 6px; padding: 10px;
+  background: #122019; animation: pcradar-fade-in .18s ease;
+}
+@keyframes pcradar-fade-in { from { opacity: 0; } to { opacity: 1; } }
+#pcradar-result img {
+  max-width: 100%; max-height: 110px; display: block; margin: 0 auto 8px;
+  background: #fff; border-radius: 4px;
+}
+#pcradar-result-nom { font-weight: 600; font-size: 12px; }
+#pcradar-result-prix { color: #e8a94f; font-size: 13px; margin-top: 4px; font-weight: 600; }
+
+#pcradar-msg { margin-top: 8px; font-size: 11px; min-height: 12px; line-height: 1.4; color: #7d9186; }
+#pcradar-msg.pcradar-msg-error { color: #ff5d5d; }
+#pcradar-msg.pcradar-msg-ok { color: #2dd4bf; }
+
+/* Bouton "+" injecté sur chaque carte produit des pages de résultats/listes. */
+.pcradar-card-btn {
+  all: initial;
+  position: absolute; top: 6px; right: 6px; z-index: 999999;
+  width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px; font-weight: 700; line-height: 1;
+  background: #0a0f0d; border: 1.5px solid #2dd4bf; color: #2dd4bf;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  transition: transform .12s ease, background .15s ease, border-color .15s ease;
+}
+.pcradar-card-btn:hover { transform: scale(1.1); }
+.pcradar-card-btn.pcradar-card-out::before { content: "+"; }
+.pcradar-card-btn.pcradar-card-in {
+  background: #2dd4bf; color: #06110d; border-color: #2dd4bf; cursor: default;
+}
+.pcradar-card-btn.pcradar-card-in::before { content: "✓"; font-size: 13px; }
+.pcradar-card-btn.pcradar-card-in:hover { transform: none; }
+.pcradar-card-btn.pcradar-card-error { background: #0a0f0d; border-color: #ff5d5d; color: #ff5d5d; }
+.pcradar-card-btn.pcradar-card-error::before { content: "!"; }
+.pcradar-card-btn.pcradar-card-loading::before { content: ""; }
+.pcradar-card-btn.pcradar-card-loading {
+  border-color: #2dd4bf; cursor: wait;
+}
+.pcradar-card-btn.pcradar-card-loading::after {
+  content: ""; width: 12px; height: 12px; border: 2px solid rgba(45,212,191,0.3);
+  border-top-color: #2dd4bf; border-radius: 50%; display: block; animation: pcradar-spin .7s linear infinite;
+}

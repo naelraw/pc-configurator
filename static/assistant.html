@@ -2,21 +2,34 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
+<meta name="theme-color" content="#0e0f11">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Assistant IA — PC Configurator</title>
+<title>Assistant IA pour configurer son PC — PC Radar</title>
+<meta name="description" content="Décrivez votre besoin (jeu, budget, usage) et laissez notre assistant IA vous proposer une configuration PC compatible et adaptée, gratuitement.">
+<link rel="canonical" href="https://pcradar.tech/assistant">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://pcradar.tech/assistant">
+<meta property="og:site_name" content="PC Radar">
+<meta property="og:title" content="Assistant IA pour configurer son PC — PC Radar">
+<meta property="og:description" content="Décrivez votre besoin et laissez notre assistant IA vous proposer une configuration PC compatible et adaptée, gratuitement.">
+<meta property="og:image" content="https://pcradar.tech/static/favicon.png">
+<meta name="twitter:card" content="summary">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="512x512" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/csp-handlers.js"></script>
 </head>
 <body>
 
-<div class="grid-bg"></div>
-<div class="grid-bg-glow"></div>
-
 <header>
   <div class="nav-wrap">
-    <div class="logo">PC <span>CONFIGURATOR</span></div>
+    <a href="/" class="logo"><img src="/static/favicon.svg" alt="" width="22" height="22">PC Radar</a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
     <nav>
       <ul>
         <li><a href="/">Accueil</a></li>
@@ -30,145 +43,47 @@
   </div>
 </header>
 
+<main>
 <section id="assistant-ia" style="padding-top:56px; border-top:none;">
   <div class="section-title">
-    <span class="eyebrow">ASSISTANT IA</span>
-    <h2>Décrivez votre besoin</h2>
-    <p>En langage naturel — l'IA propose, la compatibilité vérifie</p>
+    <h1>Décrivez votre besoin</h1>
+    <p>En langage naturel : l'IA propose, la compatibilité vérifie</p>
   </div>
   <div class="chat-box chip-card">
     <div class="chat-input-row">
-      <input type="text" id="ai-input" placeholder="Ex: Je veux jouer en 1440p avec un budget de 1200€..." onkeydown="if(event.key==='Enter') askAI()">
-      <button class="btn btn-primary" onclick="askAI()">Envoyer</button>
+      <label for="ai-input" class="visually-hidden">Décrivez le PC que vous cherchez</label>
+      <input type="text" id="ai-input" placeholder="Ex: Je veux jouer en 1440p avec un budget de 1200€..." data-onkeydown="if(event.key==='Enter') askAI()">
+      <button class="btn btn-primary" data-onclick="askAI()">Envoyer</button>
     </div>
     <div class="chat-response" id="ai-response"></div>
+    <div class="chat-input-row chat-refine-row hidden" id="chat-refine-row">
+      <label for="ai-refine-input" class="visually-hidden">Demander un conseil ou une modification de cette configuration</label>
+      <input type="text" id="ai-refine-input" placeholder="Ex: remplace le GPU par moins cher, ou quel ventirad me conseilles-tu ?" data-onkeydown="if(event.key==='Enter') refineAI()">
+      <button class="btn btn-secondary" data-onclick="refineAI()">Demander</button>
+    </div>
   </div>
 </section>
+</main>
 
 <footer>
-  <p>PC Configurator — Projet personnel · Compatibilité vérifiée côté serveur · Suggestions IA toujours validées avant affichage</p>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <strong>PC Radar</strong>
+      <span>Projet personnel et indépendant. Compatibilité vérifiée côté serveur, suggestions IA validées avant affichage.</span>
+    </div>
+    <div class="footer-legal-links">
+      <a href="/mentions-legales">Mentions légales</a>
+      <a href="/confidentialite">Confidentialité</a>
+      <a href="/cgu">CGU</a>
+      <a href="/cookies">Cookies</a>
+    </div>
+  </div>
 </footer>
 
-<script>
-  const API_BASE = window.location.origin;
-  let allComponents = [];       // nécessaire pour afficher les noms/prix de la suggestion
-  let lastAISuggestion = null;
+<script src="/static/pages/assistant.js"></script>
 
-  // Échappe une valeur pour l'insérer comme texte affiché — le nom d'un
-  // composant peut venir d'une recherche IA, et le texte de vérification est
-  // généré par l'IA à partir de résultats web réels : jamais fiables tels
-  // quels dans du innerHTML.
-  function escapeHtml(str){
-    return String(str ?? '')
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
-
-  const FIELD_TO_CATEGORY = {
-    cpu_id: 'CPU',
-    motherboard_id: 'Carte mère',
-    ram_id: 'RAM',
-    gpu_id: 'GPU',
-    psu_id: 'Alimentation',
-    storage_id: 'Stockage',
-    case_id: 'Boîtier',
-  };
-
-  async function loadComponents(){
-    try{
-      const res = await fetch(API_BASE + '/api/components');
-      const data = await res.json();
-      allComponents = Object.values(data.components || {}).flat();
-    }catch(e){
-      console.error('Erreur chargement composants', e);
-    }
-  }
-
-  // Si on arrive depuis le bouton "Débutant" de l'accueil, on pré-remplit
-  // la question pour la personne.
-  function checkPrefillParam(){
-    const params = new URLSearchParams(window.location.search);
-    if(params.get('prefill') === 'debutant'){
-      const input = document.getElementById('ai-input');
-      input.value = "Je débute, je ne connais rien aux composants PC, aidez-moi à choisir une config adaptée à mon usage.";
-      input.focus();
-    }
-  }
-
-  async function askAI(){
-    const input = document.getElementById('ai-input');
-    const responseBox = document.getElementById('ai-response');
-    const text = input.value.trim();
-    if(!text) return;
-
-    responseBox.classList.remove('error');
-    responseBox.classList.add('show');
-    responseBox.innerHTML = 'L\'assistant réfléchit...';
-
-    try{
-      const res = await fetch(API_BASE + '/suggest-config', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({user_input: text})
-      });
-      const data = await res.json();
-
-      if(data.status === 'ok' && data.suggestion){
-        lastAISuggestion = data.suggestion;
-        renderAISuggestion(data.suggestion, data.verification);
-      }else{
-        lastAISuggestion = null;
-        responseBox.classList.add('error');
-        responseBox.textContent = data.message || data.detail || 'L\'assistant n\'a pas pu proposer de configuration.';
-      }
-    }catch(e){
-      lastAISuggestion = null;
-      responseBox.classList.add('error');
-      responseBox.textContent = 'Erreur lors de la requête à l\'assistant IA.';
-    }
-  }
-
-  function renderAISuggestion(suggestion, verification){
-    const responseBox = document.getElementById('ai-response');
-    let total = 0;
-    let rowsHtml = '';
-
-    Object.entries(FIELD_TO_CATEGORY).forEach(([field, category]) => {
-      const id = suggestion[field];
-      const item = allComponents.find(c => c.id === id);
-      const label = item ? item.nom : 'Composant introuvable';
-      if(item) total += Number(item.prix_indicatif) || 0;
-      rowsHtml += `<li><span class="cat">${escapeHtml(category)}</span><span class="val">${escapeHtml(label)}</span></li>`;
-    });
-
-    const verificationHtml = verification
-      ? `<div class="ai-verification"><span class="ai-verification-label">🔎 Vérifié avec une recherche web</span><p>${escapeHtml(verification)}</p></div>`
-      : '';
-
-    responseBox.innerHTML = `
-      <ul class="suggestion-list">${rowsHtml}</ul>
-      <div class="suggestion-total"><span>Total estimé</span><span>${total.toFixed(2)}€</span></div>
-      ${verificationHtml}
-      <button class="btn btn-primary use-config-btn" onclick="useAISuggestion()">Utiliser cette configuration</button>
-    `;
-  }
-
-  // On dépose la suggestion en sessionStorage puis on redirige vers la page
-  // du configurateur, qui l'appliquera automatiquement à son chargement.
-  function useAISuggestion(){
-    if(!lastAISuggestion) return;
-    sessionStorage.setItem('aiSuggestion', JSON.stringify(lastAISuggestion));
-    window.location.href = '/configurateur';
-  }
-
-  checkPrefillParam();
-  loadComponents();
-</script>
-
-<script src="/static/grid-effect.js"></script>
+<script src="/static/nav-menu.js"></script>
+<script src="/static/effects.js"></script>
 
 </body>
 </html>

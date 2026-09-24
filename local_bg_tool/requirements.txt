@@ -1,0 +1,9 @@
+rembg
+onnxruntime
+pillow
+numpy
+scipy
+requests
+libsql_client
+python-dotenv
+pystray

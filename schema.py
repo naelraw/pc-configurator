@@ -47,6 +47,14 @@ REQUIRED_FIELDS = {
         "sockets_supportes": "list[str]",
         "hauteur_mm": "number",
     },
+    # Catégorie "périphériques/accessoires" unique : n'entre dans aucune
+    # vérification de compatibility.py (pas de champ requis), sert juste à
+    # cataloguer et comparer les prix de tout ce qui s'achète autour d'un PC
+    # sans être une pièce interne (écran, clavier, souris, casque...) —
+    # une seule catégorie plutôt qu'une par type d'accessoire, pour rester
+    # simple tant que le site ne vend pas des dizaines de références de
+    # chaque type.
+    "Accessoire": {},
 }
 
 VALID_STOCKAGE_TYPES = {"NVMe", "SATA"}
