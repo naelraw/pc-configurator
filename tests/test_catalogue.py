@@ -1,0 +1,63 @@
+import pytest
+
+from compatibility import verifier_compatibilite
+from conftest import component
+
+
+def test_catalogue_compresse_et_cache(client, catalog):
+    r = client.get("/api/components", headers={"Accept-Encoding": "gzip"})
+    assert r.headers["content-encoding"] == "gzip"
+    assert client.get("/api/components", headers={"If-None-Match": r.headers["etag"]}).status_code == 304
+    assert len(catalog) == 16
+    assert all(c["page"].startswith(f"/composant/{c['id']}-") for c in catalog)
+
+
+def test_compatibilite():
+    cpu = {"socket": "AM4", "tdp": 65}
+    mb = {"socket": "AM4", "ram_type": "DDR4", "format": "ATX", "m2_slots": 2, "sata_ports": 4}
+    ram = {"type": "DDR4"}
+    case = {"formats_supportes": ["ATX"], "gpu_max_length_mm": 300}
+    psu = {"wattage": 650}
+    gpu = {"tdp": 200, "longueur_mm": 250}
+    cooler = {"sockets_supportes": ["AM4"], "hauteur_mm": 150}
+    assert verifier_compatibilite(cpu, mb, ram, case, psu, gpu, [{"type": "NVMe"}], cooler) == []
+    assert verifier_compatibilite({**cpu, "socket": "AM5"}, mb, ram, case, psu, gpu, [], cooler)
+    assert verifier_compatibilite(cpu, mb, {"type": "DDR5"}, case, psu, gpu, [], cooler)
+    assert verifier_compatibilite(cpu, mb, ram, case, {"wattage": 300}, gpu, [], cooler)
+    assert verifier_compatibilite(cpu, mb, ram, case, psu, {**gpu, "longueur_mm": 350}, [], cooler)
+
+
+@pytest.mark.parametrize("titre, attendu", [
+    ("【DDR4 RAM】 GIGASTONE Game Pro 32Go Kit(4x8Go) DDR4 3200MHz Intel XMP 2.0 AMD Ryzen", "RAM"),
+    ("ASRock X870E Challenger WiFi", "Carte mère"),
+    ("Intel Arc A770 16 Go carte graphique", "GPU"),
+    ("AMD Ryzen 7 7700X processeur Radeon Graphics", "CPU"),
+    ("ARCTIC Liquid Freezer III Pro 360", "Refroidissement"),
+    ("Thermalright A70 ARGB Boîtier PC Verre Trempé", "Boîtier"),
+    ("ASUS TUF Gaming - 1200W Gold, Alimentation modulaire", "Alimentation"),
+])
+def test_categorie_devinee_a_l_import(app_main, titre, attendu):
+    assert app_main.guess_categorie_from_amazon(titre, []) == attendu
+
+
+@pytest.mark.parametrize("nom, go, mhz", [
+    ("Corsair Vengeance LPX 16 Go DDR4 3200 MHz", 16, 3200),
+    ("Kingston FURY Beast 32 Go 6000 MT/s DDR5", 32, 6000),
+    ("Corsair Vengeance RGB 32 Go DDR5 6000", 32, 6000),
+])
+def test_frequence_ram_reconnue(app_main, nom, go, mhz):
+    assert app_main._parse_ram_specs(nom) == {"capacite_go": go, "frequence_mhz": mhz}
+
+
+def test_comparateur_refuse_le_meme_composant(client, catalog):
+    gpu = component(catalog, "RTX 4060")
+    assert client.get(f"/api/compare-performance?id_a={gpu['id']}&id_b={gpu['id']}").status_code == 400
+    autre = component(catalog, "RX 7600")
+    assert client.get(f"/api/compare-performance?id_a={gpu['id']}&id_b={autre['id']}").status_code == 200
+
+
+def test_estimation_fps(client, catalog):
+    ids = {"CPU": component(catalog, "Ryzen 5 5600")["id"], "GPU": component(catalog, "RTX 4060")["id"]}
+    r = client.post("/api/estimate-fps", json={"composants_json": ids, "jeux": ["Fortnite", "Cyberpunk 2077"]})
+    assert r.status_code == 200
+    assert all(res["couvert"] for res in r.json()["resultats"])

@@ -1297,7 +1297,7 @@ def delete_my_account(request: Request, user=Depends(require_login)):
         statements += [("DELETE FROM build_alerts WHERE build_id = ?", [bid]) for bid in build_ids]
         if _table_exists(client, "link_corrections"):
             statements.append(
-                ("UPDATE link_corrections SET user_id = NULL, user_email = NULL WHERE user_id = ?", [user["id"]])
+                ("UPDATE link_corrections SET user_id = 0, user_email = 'compte supprimé' WHERE user_id = ?", [user["id"]])
             )
         client.batch(statements)
     finally:
