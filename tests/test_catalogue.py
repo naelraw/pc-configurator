@@ -25,6 +25,13 @@ def test_compatibilite():
     assert verifier_compatibilite(cpu, mb, {"type": "DDR5"}, case, psu, gpu, [], cooler)
     assert verifier_compatibilite(cpu, mb, ram, case, {"wattage": 300}, gpu, [], cooler)
     assert verifier_compatibilite(cpu, mb, ram, case, psu, {**gpu, "longueur_mm": 350}, [], cooler)
+    # Watercooling (pas de hauteur) : le socket est quand même vérifié.
+    aio = {"sockets_supportes": ["AM5"]}
+    assert verifier_compatibilite(cpu, mb, ram, case, psu, gpu, [], aio)
+    # Carte mère sans slots M.2 connus : les ports SATA sont quand même vérifiés.
+    mb_sata = {k: v for k, v in mb.items() if k != "m2_slots"}
+    assert verifier_compatibilite(cpu, mb_sata, ram, case, psu, gpu, [{"type": "SATA"}] * 5, cooler)
+    assert verifier_compatibilite(cpu, mb_sata, ram, case, psu, gpu, [{"type": "NVMe"}] * 5, cooler) == []
 
 
 @pytest.mark.parametrize("titre, attendu", [

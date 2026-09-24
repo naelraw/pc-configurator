@@ -40,25 +40,26 @@ def check_gpu_boitier(gpu, boitier):
 
 
 def check_stockage(carte_mere, stockages):
-	if "m2_slots" not in carte_mere or "sata_ports" not in carte_mere:
-		return True, "OK"
+	# Chaque vérification ne dépend que de sa propre donnée : une carte mère
+	# dont on connaît les ports SATA mais pas les slots M.2 est quand même
+	# contrôlée côté SATA.
 	if any("type" not in s for s in stockages):
 		return True, "OK"
 	nb_nvme = sum(1 for s in stockages if s["type"] == "NVMe")
 	nb_sata = sum(1 for s in stockages if s["type"] == "SATA")
-	if nb_nvme > carte_mere["m2_slots"]:
+	if "m2_slots" in carte_mere and nb_nvme > carte_mere["m2_slots"]:
 		return False, f"Trop de disques NVMe ({nb_nvme}) pour les slots M.2 disponibles ({carte_mere['m2_slots']})."
-	if nb_sata > carte_mere["sata_ports"]:
+	if "sata_ports" in carte_mere and nb_sata > carte_mere["sata_ports"]:
 		return False, f"Trop de disques SATA ({nb_sata}) pour les ports disponibles ({carte_mere['sata_ports']})."
 	return True, "OK"
 
 
 def check_refroidissement(cpu, boitier, cooler):
-	if "socket" not in cpu or "sockets_supportes" not in cooler or "hauteur_mm" not in cooler or "cpu_cooler_max_height_mm" not in boitier:
-		return True, "OK"
-	if cpu["socket"] not in cooler["sockets_supportes"]:
+	# Socket et hauteur sont vérifiés séparément : un watercooling n'a pas de
+	# hauteur de ventirad, mais son socket doit quand même correspondre.
+	if "socket" in cpu and "sockets_supportes" in cooler and cpu["socket"] not in cooler["sockets_supportes"]:
 		return False, "Le refroidisseur ne supporte pas le socket du CPU."
-	if cooler["hauteur_mm"] > boitier["cpu_cooler_max_height_mm"]:
+	if "hauteur_mm" in cooler and "cpu_cooler_max_height_mm" in boitier and cooler["hauteur_mm"] > boitier["cpu_cooler_max_height_mm"]:
 		return False, "Le refroidisseur est trop haut pour le boîtier."
 	return True, "OK"
 
