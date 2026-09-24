@@ -28,6 +28,42 @@
     }catch(e){ /* compteur simplement masqué */ }
   }
 
+  // Statistiques de visite (journaux du serveur, voir site_stats.py).
+  async function loadSiteStats(){
+    const el = document.getElementById('stats-content');
+    try{
+      const res = await fetch(API_BASE + '/api/admin/stats', { headers: { 'X-Admin-Secret': adminSecret } });
+      if(!res.ok) throw new Error();
+      const s = await res.json();
+      const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+      const max = Math.max(1, ...s.jours.map(j => j.visiteurs));
+      const bars = s.jours.map(j => `
+        <div class="stats-bar" title="${esc(j.date)} : ${j.visiteurs} visiteurs, ${j.pages_vues} pages vues">
+          <span style="height:${Math.round(j.visiteurs / max * 100)}%"></span>
+          <small>${esc(j.date.slice(8, 10))}</small>
+        </div>`).join('');
+      const list = (rows, label, value) => rows.length
+        ? rows.map(r => `<li><span>${esc(r[label])}</span><b>${r[value]}</b></li>`).join('')
+        : '<li><span>Pas encore de données</span></li>';
+      const total = Object.values(s.appareils).reduce((a, b) => a + b, 0) || 1;
+      const devices = Object.entries(s.appareils).map(([k, v]) => `${esc(k)} ${Math.round(v / total * 100)} %`).join(' · ') || '—';
+      el.innerHTML = `
+        <div class="stats-kpis">
+          <div><b>${s.semaine.visiteurs}</b><span>visiteurs (7 jours)</span></div>
+          <div><b>${s.semaine.pages_vues}</b><span>pages vues (7 jours)</span></div>
+          <div><b>${s.jours[s.jours.length - 1].visiteurs}</b><span>visiteurs aujourd'hui</span></div>
+        </div>
+        <div class="stats-chart" aria-label="Visiteurs par jour sur 14 jours">${bars}</div>
+        <div class="stats-cols">
+          <div><h4>Pages les plus vues</h4><ul class="stats-list">${list(s.pages, 'page', 'vues')}</ul></div>
+          <div><h4>Provenance</h4><ul class="stats-list">${list(s.provenance, 'source', 'visites')}</ul>
+            <h4>Appareils</h4><p class="field-hint">${devices}</p></div>
+        </div>`;
+    }catch(e){
+      el.innerHTML = '<p class="field-hint">Statistiques indisponibles pour le moment.</p>';
+    }
+  }
+
   function revealAdminUI(){
     document.getElementById('login-card').classList.add('hidden');
     document.getElementById('browse-card').classList.remove('hidden');
@@ -35,12 +71,14 @@
     document.getElementById('link-check-controls').classList.remove('hidden');
     document.getElementById('link-corrections-card').classList.remove('hidden');
     document.getElementById('recommended-builds-card').classList.remove('hidden');
+    document.getElementById('stats-card').classList.remove('hidden');
     document.getElementById('logout-btn').classList.remove('hidden');
     loadAllComponentsForEdit();
     loadBrokenLinksBanner();
     loadLinkCorrections();
     loadAdminBuilds();
     loadQuotas();
+    loadSiteStats();
     // Faire apparaître/disparaître toutes ces cartes d'un coup change
     // beaucoup la hauteur de page — sans ça, la page peut rester scrollée
     // au milieu/en bas là où elle était pendant l'écran de connexion.

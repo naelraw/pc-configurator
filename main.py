@@ -49,6 +49,7 @@ import featured_builds
 import guides
 import component_pages
 import comparisons
+import site_stats
 
 try:
     from google import genai as genai_new
@@ -3375,6 +3376,20 @@ def refresh_allowance(provider: str, per_day: bool = True) -> int:
 def brightdata_remaining_total() -> int:
     """Fiches Bright Data restantes ce mois, réserve comprise (ajouts)."""
     return max(0, BRIGHTDATA_MONTHLY_QUOTA - api_usage_this_month("brightdata"))
+
+
+_STATS_CACHE = {"at": 0.0, "data": None}
+
+
+@app.get("/api/admin/stats")
+def admin_site_stats(_admin=Depends(require_admin)):
+    """
+    Statistiques de visite des 14 derniers jours, tirées des journaux nginx
+    (voir site_stats.py) : aucune donnée collectée en plus. Cache 10 min.
+    """
+    if _STATS_CACHE["data"] is None or time.time() - _STATS_CACHE["at"] > 600:
+        _STATS_CACHE.update(at=time.time(), data=site_stats.compute(excluded_ips={"127.0.0.1", "10.0.0.79", "88.96.49.31"}))
+    return _STATS_CACHE["data"]
 
 
 @app.get("/api/admin/quotas")

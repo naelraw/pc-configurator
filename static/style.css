@@ -1402,3 +1402,19 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   .comp-image{ width:160px; height:160px; }
 }
 .comp-fps td.is-win{ color:var(--accent); font-weight:600; }
+/* Statistiques de visite (admin) */
+.stats-kpis{ display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin:12px 0 16px; }
+.stats-kpis div{ padding:12px 14px; border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface-2); }
+.stats-kpis b{ display:block; font-family:var(--font-mono); font-size:1.4rem; font-weight:500; color:var(--text); }
+.stats-kpis span{ font-size:0.78rem; color:var(--text-3); }
+.stats-chart{ display:flex; align-items:flex-end; gap:4px; height:120px; margin-bottom:18px; }
+.stats-bar{ flex:1; height:100%; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
+.stats-bar span{ display:block; width:100%; min-height:2px; border-radius:4px 4px 0 0; background:var(--accent); opacity:.85; }
+.stats-bar small{ font-size:0.66rem; color:var(--text-3); font-family:var(--font-mono); }
+.stats-cols{ display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:20px; }
+.stats-cols h4{ font-size:0.85rem; margin:0 0 8px; color:var(--text); }
+.stats-list{ list-style:none; margin:0 0 14px; padding:0; font-size:0.82rem; }
+.stats-list li{ display:flex; justify-content:space-between; gap:10px; padding:5px 0; border-bottom:1px solid var(--line); color:var(--text-2); }
+.stats-list li span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stats-list b{ font-family:var(--font-mono); font-weight:500; color:var(--text); }
+@media (max-width:640px){ .stats-kpis, .stats-cols{ grid-template-columns:1fr; } }
