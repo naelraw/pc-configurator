@@ -56,3 +56,10 @@ def test_plan_du_site(client, catalog):
 def test_favicon_ico(client):
     r = client.get("/favicon.ico")
     assert r.status_code == 200 and r.headers["content-type"] == "image/x-icon"
+
+
+def test_application_installable(client):
+    r = client.get("/sw.js")
+    assert r.status_code == 200 and "javascript" in r.headers["content-type"]
+    html = client.get("/").text
+    assert 'rel="manifest"' in html and "/static/pwa.js" in html

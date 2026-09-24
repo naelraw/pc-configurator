@@ -1,0 +1,21 @@
+{
+  "name": "PC Radar — Configurateur PC",
+  "short_name": "PC Radar",
+  "description": "Configurateur PC gratuit : compatibilité vérifiée, prix du jour, FPS estimés.",
+  "lang": "fr",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e0f11",
+  "theme_color": "#0e0f11",
+  "icons": [
+    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/favicon.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/static/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Configurateur", "url": "/configurateur" },
+    { "name": "Comparateur", "url": "/comparateur" },
+    { "name": "Mon compte", "url": "/compte" }
+  ]
+}

@@ -689,6 +689,12 @@ def favicon():
     return FileResponse("static/favicon.ico", media_type="image/x-icon")
 
 
+@app.get("/sw.js")
+def service_worker():
+    """Servi à la racine : un service worker ne contrôle que les pages sous son propre dossier."""
+    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Cache-Control": "no-cache"})
+
+
 SITE_URL = "https://pcradar.tech"
 
 # IndexNow (Bing, Yandex...) : ce fichier public prouve que le site est bien le
