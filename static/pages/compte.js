@@ -464,8 +464,14 @@
   }
 
   async function refreshView(){
-    const res = await fetch(API_BASE + '/api/auth/me', { credentials: 'include' });
-    const data = await res.json();
+    let data = { logged_in: false };
+    try{
+      const res = await fetch(API_BASE + '/api/auth/me', { credentials: 'include' });
+      data = await res.json();
+    }catch(e){
+      // Réseau indisponible : on montre le formulaire plutôt qu'une page vide.
+    }
+    document.getElementById('account-loading').hidden = true;
 
     if(data.logged_in){
       document.getElementById('guest-view').style.display = 'none';

@@ -1121,6 +1121,8 @@ footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:14px 24px
 .oauth-divider::before, .oauth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
 
 .account-section{ margin-top:40px; }
+.account-loading{ max-width:720px; }
+.account-loading[hidden]{ display:none; }
 .account-section h2{ font-size:1.2rem; font-weight:600; letter-spacing:-0.02em; margin-bottom:4px; }
 .account-section-sub{ color:var(--text-2); font-size:0.9rem; margin-bottom:16px; max-width:65ch; }
 .account-section-sub a{ color:var(--text); text-decoration:underline; text-underline-offset:2px; }
