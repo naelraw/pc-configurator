@@ -182,6 +182,7 @@ app.add_middleware(
     secret_key=SESSION_SECRET,
     https_only=os.getenv("SESSION_HTTPS_ONLY", "1") != "0",
     same_site="lax",
+    max_age=30 * 24 * 3600,  # rester connecté 30 jours
 )
 # /api/components pèse ~2,8 Mo en JSON brut : compressé, il transite
 # plusieurs fois plus vite. Seuil bas pour couvrir aussi les autres routes JSON.

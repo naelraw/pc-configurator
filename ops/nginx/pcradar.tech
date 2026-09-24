@@ -1,0 +1,95 @@
+server {
+    server_name pcradar.tech www.pcradar.tech;
+
+    # Une seule adresse : www redirige vers pcradar.tech. Sinon le cookie de
+    # connexion posé sur l'une n'est pas envoyé à l'autre (déconnexion
+    # apparente), et Google voit chaque page en double.
+    if ($host = www.pcradar.tech) {
+        return 301 https://pcradar.tech$request_uri;
+    }
+
+    client_max_body_size 30M;
+    limit_conn pcradar_lim_conn 200;
+
+    # Fichiers statiques servis directement par nginx (sans passer par Python).
+    # "no-cache" = le navigateur revalide à chaque visite (réponse 304 très
+    # rapide) : un déploiement est vu tout de suite, comme avant.
+    location /static/ {
+        alias /home/ubuntu/pc-configurator/static/;
+        add_header Cache-Control "no-cache" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        access_log off;
+    }
+
+    # Catalogue complet : mis en cache 30 s par nginx.
+    location = /api/components {
+        limit_req zone=pcradar_lim_api burst=40 nodelay;
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+        include /etc/nginx/snippets/pcradar-cache.inc;
+        proxy_cache_valid 200 30s;
+    }
+
+    # Images des composants : identiques pour tout le monde, cache 7 jours.
+    location ~ ^/api/components/\d+/image$ {
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+        include /etc/nginx/snippets/pcradar-cache.inc;
+        proxy_cache_valid 200 301 302 7d;
+        proxy_cache_valid 404 1m;
+        access_log off;
+    }
+
+    # Configs du moment et configs recommandées : cache 60 s.
+    location ~ ^/api/(configs-vedette|builds/recommandees)$ {
+        limit_req zone=pcradar_lim_api burst=40 nodelay;
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+        include /etc/nginx/snippets/pcradar-cache.inc;
+        proxy_cache_valid 200 60s;
+    }
+
+    # Assistant IA : appels coûteux, limités par IP.
+    location ~ ^/(suggest-config|api/refine-config)$ {
+        limit_req zone=pcradar_lim_ia burst=5 nodelay;
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+    }
+
+    # Connexion / inscription : freine le devinage de mots de passe.
+    location ~ ^/api/auth/(login|register)$ {
+        limit_req zone=pcradar_lim_auth burst=10 nodelay;
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+    }
+
+    # Reste de l'API : jamais mis en cache (données par utilisateur).
+    location /api/ {
+        limit_req zone=pcradar_lim_api burst=120 nodelay;
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+    }
+
+    # Pages du site : identiques pour tous, cache court de 10 s. nginx ne met
+    # jamais en cache une réponse qui pose un cookie (Set-Cookie).
+    location / {
+        limit_req zone=pcradar_lim_api burst=120 nodelay;
+        include /etc/nginx/snippets/pcradar-proxy.inc;
+        include /etc/nginx/snippets/pcradar-cache.inc;
+        proxy_cache_valid 200 10s;
+    }
+
+    listen 443 ssl http2; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/pcradar.tech/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/pcradar.tech/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
+}
+server {
+    if ($host = www.pcradar.tech) {
+        return 301 https://pcradar.tech$request_uri;
+    } # managed by Certbot
+
+    if ($host = pcradar.tech) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+    listen 80;
+    server_name pcradar.tech www.pcradar.tech;
+    return 404; # managed by Certbot
+}
