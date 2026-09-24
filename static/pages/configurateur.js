@@ -53,7 +53,9 @@
       });
     }
     else sorted.sort((a, b) => a.nom.localeCompare(b.nom));
-    return sorted;
+    // Les produits épuisés (visibles seulement si la case est cochée) passent
+    // toujours en fin de liste, quel que soit le tri choisi.
+    return sorted.filter(i => i.en_stock !== false).concat(sorted.filter(i => i.en_stock === false));
   }
 
   // La "marque" n'est pas un champ à part dans la base — on la déduit du
