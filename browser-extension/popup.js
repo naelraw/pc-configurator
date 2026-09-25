@@ -56,7 +56,7 @@ async function refreshCatalogStatus() {
       el.className = 'status-in';
       el.innerHTML =
         '✓ Déjà dans le catalogue : <strong>' + escapeHtml(c.nom) + '</strong> (' + escapeHtml(c.categorie) + ')' +
-        (c.en_stock === false ? ' — <span style="color:#ff5d5d;">épuisé</span>' : ' — ' + c.prix_indicatif + '€');
+        (c.en_stock === false ? ' — <span style="color:#f07171;">épuisé</span>' : ' — ' + c.prix_indicatif + '€');
     } else {
       lastComponentId = null;
       el.className = 'status-out';

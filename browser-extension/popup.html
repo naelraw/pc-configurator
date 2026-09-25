@@ -4,109 +4,102 @@
 <meta charset="UTF-8">
 <title>PC Radar</title>
 <style>
+  /* Même système visuel que le site (DESIGN.md) : anthracite, accent émeraude unique. */
   :root{
-    --bg:#0a0f0d; --panel:#0f1a15; --panel-raised:#122019; --border:#1f3a2c;
-    --copper:#c98a3d; --copper-bright:#e8a94f; --led:#2dd4bf; --led-dim:#1a9c8a;
-    --text:#e5ede8; --text-dim:#7d9186; --danger:#ff5d5d;
+    --bg:#0e0f11; --surface:#141517; --surface-2:#1a1b1e; --surface-3:#222327;
+    --line:#26272b; --line-strong:#35363c;
+    --text:#ececee; --text-2:#a3a3ab; --text-3:#81828a;
+    --accent:#3ecf8e; --accent-hover:#5fdba3; --accent-soft:rgba(62,207,142,0.1); --accent-line:rgba(62,207,142,0.38);
+    --ink:#05140d; --danger:#f07171;
+    --font:'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono:'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   }
   *{ box-sizing:border-box; }
-  body{
-    width: 320px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background-color: var(--bg);
-    color: var(--text); padding: 0; margin: 0;
-  }
-  header{
-    display:flex; align-items:center; gap:8px;
-    padding: 14px 16px 12px; border-bottom: 1px solid var(--border);
-  }
-  header .logo-mark{ flex-shrink:0; }
-  header h1{ font-size: 14px; margin:0; font-weight:700; letter-spacing:0.2px; }
-  header h1 .accent{ color: var(--copper-bright); }
-  main{ padding: 14px 16px 16px; }
+  body{ width:320px; margin:0; padding:0; font-family:var(--font); font-size:13px; line-height:1.5; background:var(--surface); color:var(--text); }
+  header{ display:flex; align-items:center; gap:9px; padding:14px 16px 12px; border-bottom:1px solid var(--line); }
+  header .logo-mark{ flex-shrink:0; display:block; }
+  header h1{ font-size:14px; margin:0; font-weight:650; letter-spacing:-0.01em; }
+  main{ padding:14px 16px 16px; }
 
-  label{ display:block; font-size: 11px; color:var(--text-dim); margin-top:10px; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px; }
-
+  label{ display:block; font-size:12px; color:var(--text-2); margin:12px 0 6px; }
   input, select{
-    width:100%; padding:8px 9px; background:var(--panel); border:1px solid var(--border);
-    color:var(--text); font-size:13px; border-radius:5px; transition: border-color .15s ease;
-    font-family: inherit;
+    width:100%; padding:8px 10px; background:var(--bg); border:1px solid var(--line-strong);
+    color:var(--text); font-size:13px; border-radius:8px; font-family:inherit; transition:border-color .15s ease;
   }
-  input:focus, select:focus{ outline:none; border-color: var(--led); }
+  input:focus, select:focus{ outline:none; border-color:var(--accent-line); }
   select{ appearance:none; -webkit-appearance:none;
-    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237d9186'/></svg>");
-    background-repeat:no-repeat; background-position: right 10px center;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%2381828a'/></svg>");
+    background-repeat:no-repeat; background-position:right 10px center;
   }
 
   button{
-    width:100%; margin-top:10px; padding:9px; border:none; border-radius:5px;
-    font-weight:600; cursor:pointer; font-size:13px; font-family:inherit;
-    transition: filter .15s ease, transform .1s ease, opacity .15s ease;
+    width:100%; margin-top:10px; padding:9px 12px; border:1px solid transparent; border-radius:8px;
+    font-weight:560; cursor:pointer; font-size:13px; font-family:inherit;
+    transition:background-color .2s ease, border-color .2s ease, color .2s ease;
     display:flex; align-items:center; justify-content:center; gap:6px;
   }
-  button.primary{ background: var(--led); color:#06110d; }
-  button.primary:hover:not(:disabled){ filter:brightness(1.08); }
-  button.primary:active:not(:disabled){ transform: scale(0.98); }
-  button.secondary{ background:transparent; border:1px solid var(--border); color:var(--text); }
-  button.secondary:hover:not(:disabled){ border-color: var(--led); color: var(--led); }
-  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  button.primary{ background:var(--accent); color:var(--ink); }
+  button.primary:hover:not(:disabled){ background:var(--accent-hover); }
+  button.secondary{ background:var(--surface-2); border-color:var(--line-strong); color:var(--text); }
+  button.secondary:hover:not(:disabled){ background:var(--surface-3); }
+  button:disabled{ opacity:0.45; cursor:not-allowed; }
   button.loading .btn-label::after{
     content:""; width:12px; height:12px; margin-left:6px;
-    border:2px solid rgba(0,0,0,0.25); border-top-color:#06110d;
-    border-radius:50%; display:inline-block; animation: pcr-spin .7s linear infinite;
+    border:2px solid rgba(5,20,13,0.3); border-top-color:var(--ink);
+    border-radius:50%; display:inline-block; animation:pcr-spin .7s linear infinite; vertical-align:-2px;
   }
-  button.secondary.loading .btn-label::after{ border-color: rgba(229,237,232,0.25); border-top-color: var(--text); }
-  @keyframes pcr-spin{ to{ transform: rotate(360deg); } }
+  button.secondary.loading .btn-label::after{ border-color:rgba(236,236,238,0.3); border-top-color:var(--text); }
+  @keyframes pcr-spin{ to{ transform:rotate(360deg); } }
 
-  .asin-box{ font-size:11px; color:var(--text-dim); font-family:"JetBrains Mono", "DotGothic16", monospace; word-break:break-all; }
+  .asin-box{ font-size:11.5px; color:var(--text-3); font-family:var(--mono); word-break:break-all; }
 
   #catalog-status{
-    margin-top:8px; padding:8px 10px; border-radius:5px; font-size:12px; line-height:1.45;
-    background: var(--panel); border-left:3px solid var(--border); color:var(--text-dim);
+    margin-top:8px; padding:9px 10px; border-radius:8px; font-size:12px; line-height:1.45;
+    background:var(--surface-2); border:1px solid var(--line); color:var(--text-2);
   }
-  #catalog-status.status-in{ border-left-color: var(--led); color: var(--text); }
-  #catalog-status.status-out{ border-left-color: var(--copper); color: var(--text); }
+  #catalog-status:empty{ display:none; }
+  #catalog-status.status-in{ border-color:var(--accent-line); background:var(--accent-soft); color:var(--text); }
+  #catalog-status.status-out{ color:var(--text); }
 
-  #preview{
-    margin-top:12px; display:none; border:1px solid var(--border); border-radius:6px;
-    padding:12px; background: var(--panel-raised);
-    animation: pcr-fade-in .18s ease;
-  }
-  #preview img{ max-width:100%; max-height:120px; display:block; margin:0 auto 8px; background:#fff; border-radius:4px; }
+  #preview{ margin-top:12px; display:none; border:1px solid var(--line); border-radius:12px; padding:12px; background:var(--surface-2); }
+  #preview img{ max-width:100%; max-height:120px; display:block; margin:0 auto 8px; background:#f4f4f5; border-radius:6px; }
   #preview .nom{ font-weight:600; font-size:13px; }
-  #preview .prix{ color: var(--copper-bright); font-size:14px; margin-top:4px; font-weight:600; }
+  #preview .prix{ font-family:var(--mono); font-size:14px; margin-top:4px; }
 
-  #status{ margin-top:10px; font-size:12px; white-space:pre-wrap; min-height:14px; line-height:1.4; }
-  #status.is-error{ color: var(--danger); }
-  #status.is-ok{ color: var(--led); }
+  #status{ margin-top:10px; font-size:12px; white-space:pre-wrap; min-height:14px; line-height:1.4; color:var(--text-2); }
+  #status.is-error{ color:var(--danger); }
+  #status.is-ok{ color:var(--accent); }
 
-  details#settings{ margin-top:16px; border-top:1px solid var(--border); padding-top:10px; }
+  .tip{ margin-top:12px; font-size:11.5px; color:var(--text-3); line-height:1.45; }
+
+  details#settings{ margin-top:16px; border-top:1px solid var(--line); padding-top:10px; }
   details#settings summary{
-    cursor:pointer; font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.4px;
-    list-style:none; display:flex; align-items:center; gap:5px; user-select:none;
+    cursor:pointer; font-size:12px; color:var(--text-2); list-style:none; display:flex; align-items:center; gap:6px; user-select:none;
   }
   details#settings summary::-webkit-details-marker{ display:none; }
-  details#settings summary::before{ content:"▸"; transition: transform .15s ease; font-size:10px; }
-  details#settings[open] summary::before{ transform: rotate(90deg); }
+  details#settings summary::before{ content:"›"; font-size:14px; transition:transform .15s ease; }
+  details#settings[open] summary::before{ transform:rotate(90deg); }
 
-  #no-asin{ font-size:12px; color:var(--danger); line-height:1.5; }
-
-  @keyframes pcr-fade-in{ from{ opacity:0; transform: translateY(-4px); } to{ opacity:1; transform: translateY(0); } }
+  #no-asin{ font-size:12.5px; color:var(--text-2); line-height:1.5; }
 </style>
 </head>
 <body>
   <header>
-    <svg class="logo-mark" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="9" stroke="#2dd4bf" stroke-width="1.6" opacity="0.35"/>
-      <circle cx="12" cy="12" r="5.5" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
-      <circle cx="12" cy="12" r="1.8" fill="#2dd4bf"/>
-      <path d="M12 12 L18 6.5" stroke="#2dd4bf" stroke-width="1.6" stroke-linecap="round"/>
+    <svg class="logo-mark" width="22" height="22" viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="15" fill="#141517"/>
+      <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.25" fill="none" stroke="#35363c" stroke-width="1.5"/>
+      <g transform="translate(0 1.5)" fill="none" stroke="#ececee" stroke-width="7">
+        <path d="M21 49V15h12.5a9.5 9.5 0 0 1 0 19H21"/><path d="M31.5 34 44.6 49"/>
+      </g>
+      <circle cx="50" cy="13" r="4.5" fill="#3ecf8e"/>
     </svg>
-    <h1>PC <span class="accent">RADAR</span></h1>
+    <h1>PC Radar</h1>
   </header>
 
   <main>
     <div id="no-asin" style="display:none;">
-      Aucun ASIN détecté sur cette page.<br>Ouvre une fiche produit Amazon (URL avec /dp/XXXXXXXXXX).
+      Ouvre une fiche produit Amazon pour l'ajouter au catalogue.
+      <p class="tip">Sur une page de résultats, chaque produit affiche son état PC Radar, et la barre en bas à gauche permet d'ajouter une sélection ou de mettre à jour plusieurs prix d'un coup.</p>
     </div>
 
     <div id="main-ui">
@@ -143,7 +136,7 @@
       <summary>Réglages</summary>
       <label for="site-url">URL du site</label>
       <input type="text" id="site-url" placeholder="https://pcradar.tech">
-      <label for="admin-secret">Clé admin (X-Admin-Secret)</label>
+      <label for="admin-secret">Mot de passe admin</label>
       <input type="password" id="admin-secret" placeholder="••••••••">
       <button id="save-settings-btn" class="secondary"><span class="btn-label">Enregistrer</span></button>
     </details>

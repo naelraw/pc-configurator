@@ -202,6 +202,21 @@ async function similarProducts(titre, categorie) {
   return res.json();
 }
 
+// Page de résultats Amazon : état de tous les produits affichés en une seule
+// requête (au catalogue ou non, prix du catalogue, produit proche...).
+async function analysePage(items) {
+  const settings = await getSettings();
+  if (!settings.adminSecret) throw new Error('NO_SECRET');
+  const res = await fetch(settings.siteUrl + '/api/admin/analyse-page', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': settings.adminSecret },
+    body: JSON.stringify({ items }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(res.status === 401 ? 'Clé admin refusée' : (data.detail || ('Erreur ' + res.status)));
+  return data.resultats || {};
+}
+
 // Met à jour le prix Amazon d'un composant avec celui lu sur la page produit.
 async function updatePrice(componentId, prix, asin) {
   const settings = await getSettings();
@@ -242,6 +257,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         case 'QUICK_ADD':
           sendResponse({ ok: true, data: await quickAdd(message.asin, message.categorie, message.quickData) });
+          break;
+        case 'ANALYSE_PAGE':
+          sendResponse({ ok: true, data: await analysePage(message.items) });
           break;
         case 'SIMILAR':
           sendResponse({ ok: true, data: await similarProducts(message.titre, message.categorie) });

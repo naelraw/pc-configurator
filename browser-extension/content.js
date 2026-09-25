@@ -23,11 +23,13 @@
 
   const CATEGORIES = ['CPU', 'Carte mère', 'RAM', 'Boîtier', 'Alimentation', 'GPU', 'Stockage', 'Refroidissement', 'Accessoire'];
   const LOGO_SVG = `
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="12" cy="12" r="9" stroke="#2dd4bf" stroke-width="1.6" opacity="0.35"/>
-      <circle cx="12" cy="12" r="5.5" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
-      <circle cx="12" cy="12" r="1.8" fill="#2dd4bf"/>
-      <path d="M12 12 L18 6.5" stroke="#2dd4bf" stroke-width="1.6" stroke-linecap="round"/>
+    <svg class="pcradar-logo" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="15" fill="#141517"/>
+      <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.25" fill="none" stroke="#35363c" stroke-width="1.5"/>
+      <g transform="translate(0 1.5)" fill="none" stroke="#ececee" stroke-width="7">
+        <path d="M21 49V15h12.5a9.5 9.5 0 0 1 0 19H21"/><path d="M31.5 34 44.6 49"/>
+      </g>
+      <circle cx="50" cy="13" r="4.5" fill="#3ecf8e"/>
     </svg>`;
 
   function extractPageAsin() {
@@ -48,7 +50,7 @@
       <div id="pcradar-header">
         <div id="pcradar-header-left">
           ${LOGO_SVG}
-          <span id="pcradar-title">PC <span class="pcradar-accent">RADAR</span></span>
+          <span id="pcradar-title">PC Radar</span>
         </div>
         <button id="pcradar-collapse" title="Réduire">–</button>
       </div>
@@ -189,7 +191,7 @@
           statusEl.className = 'pcradar-status-in';
           statusEl.innerHTML =
             '✓ Déjà dans le catalogue : <strong>' + escapeHtml(c.nom) + '</strong> (' + escapeHtml(c.categorie) + ')' +
-            (c.en_stock === false ? ' — <span style="color:#ff5d5d;">épuisé</span>' : ' — ' + c.prix_indicatif + '€');
+            (c.en_stock === false ? ' — <span style="color:#f07171;">épuisé</span>' : ' — ' + c.prix_indicatif + '€');
           controlsEl.style.display = 'block';
           panel.querySelector('#pcradar-fetch .pcradar-btn-label').textContent = 'Rafraîchir depuis Amazon';
           renderKnownInfo(c);
@@ -259,109 +261,290 @@
   }
 
   // ---------------------------------------------------------------------
-  // Boutons "+" sur chaque carte produit des pages de résultats/listes
-  // (recherche, catégorie, "vu précédemment"...) — Amazon marque chaque
-  // carte avec un attribut data-asin sur son conteneur, qu'elle soit dans
-  // une recherche, un carrousel ou une grille de catégorie : un seul
-  // sélecteur générique couvre tous ces cas sans dépendre d'une mise en
-  // page Amazon précise (qui change régulièrement).
+  // Pages de résultats et listes (recherche, catégorie, carrousels) : une
+  // étiquette sur chaque produit (au catalogue avec son prix, pas encore
+  // catalogué, ou proche d'un produit existant) et une barre d'actions
+  // groupées. Amazon marque chaque carte produit d'un attribut data-asin.
+  // Tout l'état de la page est demandé au site en UNE requête
+  // (/api/admin/analyse-page), pas une par produit.
   // ---------------------------------------------------------------------
-  const injectedCards = new WeakSet();
+  const entries = [];              // { asin, card, pill, categorie, data, state, selected }
+  const seenCards = new WeakSet();
+  const pending = new Set();
+  let analyseTimer = null;
+  let secretMissing = false;
+  let hideKnown = false;
+  let bar = null;
+  let busy = false;
 
-  function guessCategorieForCard(card) {
-    const titleText = card.querySelector('h2')?.innerText || card.innerText.slice(0, 300);
-    return pcradarGuessCategorie('', titleText);
+  const euros = (v) => Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  const cardTitle = (card) => (card.querySelector('h2')?.innerText || '').replace(/\s+/g, ' ').trim();
+
+  function priceGap(entry) {
+    const c = entry.data && entry.data.catalogue;
+    const pagePrice = pcradarExtractQuickData(entry.card).prix;
+    const catalogPrice = c ? Number(c.prix_indicatif) || 0 : 0;
+    if (!c || !pagePrice || !catalogPrice) return null;
+    return Math.abs(pagePrice - catalogPrice) / catalogPrice > 0.01 ? pagePrice : null;
   }
 
-  function setCardBtnState(btn, state, label) {
-    btn.className = 'pcradar-card-btn pcradar-card-' + state;
-    btn.title = label || '';
+  function registerCard(card) {
+    const asin = (card.getAttribute('data-asin') || '').toUpperCase();
+    if (!/^[A-Z0-9]{10}$/.test(asin) || seenCards.has(card)) return;
+    // Pas de titre = widget interne (bouton panier, vignette), pas une vraie carte produit.
+    if (!card.querySelector('h2')) return;
+    seenCards.add(card);
+    if (window.getComputedStyle(card).position === 'static') card.style.position = 'relative';
+    const pill = document.createElement('div');
+    pill.className = 'pcradar-pill pcradar-pill-loading';
+    pill.innerHTML = '<span class="pcradar-pill-spin"></span>';
+    card.appendChild(pill);
+    const entry = { asin, card, pill, categorie: pcradarGuessCategorie('', cardTitle(card)), data: null, state: 'loading', selected: false };
+    entries.push(entry);
+    pill.addEventListener('click', (e) => onPillClick(e, entry));
+    pill.addEventListener('change', (e) => onPillChange(e, entry));
+    pending.add(asin);
+    scheduleAnalyse();
   }
 
-  async function fetchAndAddFromCard(cardAsin, btn) {
-    if (btn.classList.contains('pcradar-card-loading') || btn.classList.contains('pcradar-card-in')) return;
-    setCardBtnState(btn, 'loading', 'Ajout en cours…');
+  function scheduleAnalyse() {
+    clearTimeout(analyseTimer);
+    analyseTimer = setTimeout(runAnalyse, 250);
+  }
+
+  async function runAnalyse() {
+    if (!pending.size) return;
+    const asins = [...pending].slice(0, 60);
+    asins.forEach((a) => pending.delete(a));
+    const items = asins.map((asin) => {
+      const e = entries.find((x) => x.asin === asin);
+      return { asin, titre: e ? cardTitle(e.card) : '', categorie: e ? e.categorie : '' };
+    });
     try {
-      const card = btn.closest('[data-asin]');
-      const categorie = guessCategorieForCard(card);
-      const quickData = pcradarExtractQuickData(card);
-      const { fetched } = await sendMessage({ type: 'QUICK_ADD', asin: cardAsin, categorie, quickData });
-      setCardBtnState(btn, 'in', '✓ Ajouté : ' + (fetched.nom || cardAsin));
-    } catch (e) {
-      setCardBtnState(btn, 'error', 'Erreur : ' + e.message);
-      setTimeout(() => setCardBtnState(btn, 'out', 'Ajouter à PC Radar'), 2500);
+      const resultats = await sendMessage({ type: 'ANALYSE_PAGE', items });
+      entries.filter((e) => asins.includes(e.asin)).forEach((e) => {
+        e.data = resultats[e.asin] || { catalogue: null, proche: null };
+        e.state = e.data.catalogue ? 'in' : 'out';
+        renderPill(e);
+      });
+    } catch (err) {
+      secretMissing = err.message === 'NO_SECRET';
+      entries.filter((e) => asins.includes(e.asin)).forEach((e) => {
+        e.state = 'error';
+        e.error = secretMissing ? 'Clé admin manquante' : err.message;
+        renderPill(e);
+      });
+    }
+    if (pending.size) scheduleAnalyse();
+    renderBar();
+  }
+
+  function categorySelect(entry) {
+    return '<select class="pcradar-pill-cat" title="Catégorie">' + CATEGORIES.map((c) =>
+      '<option value="' + escapeHtml(c) + '"' + (c === entry.categorie ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('') + '</select>';
+  }
+
+  function renderPill(entry) {
+    const pill = entry.pill;
+    const c = entry.data && entry.data.catalogue;
+    pill.className = 'pcradar-pill pcradar-pill-' + entry.state;
+    entry.card.classList.toggle('pcradar-hidden-card', hideKnown && entry.state === 'in');
+    if (entry.state === 'in') {
+      const gap = priceGap(entry);
+      pill.innerHTML =
+        '<span class="pcradar-pill-row">'
+        + '<span class="pcradar-pill-check" aria-hidden="true">✓</span>'
+        + '<b>' + euros(c.prix_indicatif) + '</b>'
+        + (c.en_stock === false ? '<span class="pcradar-pill-muted">épuisé</span>' : '')
+        + (c.prix_suspect ? '<span class="pcradar-pill-flag" title="Prix signalé suspect dans le catalogue">!</span>' : '')
+        + (c.page ? '<a class="pcradar-pill-link" href="https://pcradar.tech' + escapeHtml(c.page) + '" target="_blank" rel="noopener" title="Voir la fiche PC Radar">↗</a>' : '')
+        + '</span>'
+        + (c.nb_variantes > 1 ? '<span class="pcradar-pill-sub">' + escapeHtml(c.variante || '') + ' · ' + c.nb_variantes + ' variantes</span>' : '')
+        + (gap ? '<button class="pcradar-pill-btn" data-act="price" title="Remplacer le prix du catalogue par celui de cette page">Prix Amazon : ' + euros(gap) + ' · mettre à jour</button>' : '');
+    } else if (entry.state === 'out') {
+      const p = entry.data && entry.data.proche;
+      pill.innerHTML =
+        '<span class="pcradar-pill-row">'
+        + '<input type="checkbox" class="pcradar-pill-select" title="Sélectionner pour un ajout groupé"' + (entry.selected ? ' checked' : '') + '>'
+        + '<button class="pcradar-pill-btn pcradar-pill-add" data-act="add">+ Ajouter</button>'
+        + categorySelect(entry)
+        + '</span>'
+        + (p ? '<a class="pcradar-pill-sub pcradar-pill-near" href="https://pcradar.tech' + escapeHtml(p.page || '') + '" target="_blank" rel="noopener" title="Produit proche déjà au catalogue : si c\'est le même, l\'ajouter en fera une variante">≈ ' + escapeHtml(p.nom) + (p.nb_variantes > 1 ? ' (' + p.nb_variantes + ' variantes)' : '') + '</a>' : '');
+    } else if (entry.state === 'busy') {
+      pill.innerHTML = '<span class="pcradar-pill-spin"></span><span>' + escapeHtml(entry.busyText || 'En cours…') + '</span>';
+    } else if (entry.state === 'error') {
+      pill.innerHTML = '<span class="pcradar-pill-flag">!</span><span>' + escapeHtml(entry.error || 'Erreur') + '</span>'
+        + (secretMissing ? '' : '<button class="pcradar-pill-btn" data-act="retry">Réessayer</button>');
     }
   }
 
-  function buildCardButton(cardAsin) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    setCardBtnState(btn, 'out', 'Ajouter à PC Radar');
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      fetchAndAddFromCard(cardAsin, btn);
-    });
-
-    // Vérifie discrètement si le produit est déjà catalogué, pour afficher
-    // directement l'état "✓" plutôt qu'un "+" trompeur.
-    sendMessage({ type: 'CHECK_ASIN', asin: cardAsin }).then((result) => {
-      if (result.exists) setCardBtnState(btn, 'in', 'Déjà dans le catalogue : ' + result.component.nom);
-    }).catch(() => {});
-
-    return btn;
+  function onPillClick(e, entry) {
+    // Les cartes Amazon sont des liens : un clic dans l'étiquette ne doit pas ouvrir le produit.
+    e.stopPropagation();
+    const link = e.target.closest('a');
+    if (link) return;
+    if (e.target.closest('select, input')) return;
+    e.preventDefault();
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'add') addEntry(entry).then(renderBar);
+    else if (act === 'price') updateEntryPrice(entry).then(renderBar);
+    else if (act === 'retry') { entry.state = 'loading'; renderPill(entry); pending.add(entry.asin); scheduleAnalyse(); }
   }
 
-  function tryInjectCard(card) {
-    const cardAsin = card.getAttribute('data-asin');
-    if (!cardAsin || !/^[A-Z0-9]{10}$/i.test(cardAsin)) return;
-    if (injectedCards.has(card)) return;
-    // Pas de titre exploitable = pas la vraie carte produit (juste un
-    // widget interne comme le bouton "Ajouter au panier", ou une vignette
-    // du panier sur le côté) : on ignore plutôt que de deviner une
-    // catégorie au hasard sur du texte non pertinent (c'est ce qui causait
-    // un classement systématique en "Accessoire").
-    if (!card.querySelector('h2')) return;
-    injectedCards.add(card);
-
-    const style = window.getComputedStyle(card);
-    if (style.position === 'static') card.style.position = 'relative';
-    card.appendChild(buildCardButton(cardAsin.toUpperCase()));
+  function onPillChange(e, entry) {
+    e.stopPropagation();
+    if (e.target.classList.contains('pcradar-pill-cat')) entry.categorie = e.target.value;
+    if (e.target.classList.contains('pcradar-pill-select')) { entry.selected = e.target.checked; renderBar(); }
   }
 
-  function injectCardButtons(root) {
+  async function addEntry(entry) {
+    if (entry.state !== 'out') return false;
+    entry.state = 'busy';
+    entry.busyText = 'Ajout…';
+    renderPill(entry);
+    try {
+      await sendMessage({ type: 'QUICK_ADD', asin: entry.asin, categorie: entry.categorie, quickData: pcradarExtractQuickData(entry.card) });
+      entry.selected = false;
+      entry.state = 'loading';
+      renderPill(entry);
+      pending.add(entry.asin);
+      scheduleAnalyse();
+      return true;
+    } catch (err) {
+      entry.state = 'error';
+      entry.error = err.message === 'NO_SECRET' ? 'Clé admin manquante' : err.message;
+      renderPill(entry);
+      return false;
+    }
+  }
+
+  async function updateEntryPrice(entry) {
+    const prix = priceGap(entry);
+    if (!prix) return false;
+    const c = entry.data.catalogue;
+    entry.state = 'busy';
+    entry.busyText = 'Mise à jour du prix…';
+    renderPill(entry);
+    try {
+      await sendMessage({ type: 'UPDATE_PRICE', componentId: c.id, prix, asin: entry.asin });
+      c.prix_indicatif = prix;
+      entry.state = 'in';
+      renderPill(entry);
+      return true;
+    } catch (err) {
+      entry.state = 'in';
+      renderPill(entry);
+      setBarMsg('Erreur : ' + err.message, true);
+      return false;
+    }
+  }
+
+  // Deux à la fois : chaque ajout lance ensuite un enrichissement (specs, nom
+  // nettoyé) côté site, inutile de saturer.
+  async function runBatch(list, action, label) {
+    if (busy || !list.length) return;
+    busy = true;
+    let done = 0, ok = 0, next = 0;
+    const worker = async () => {
+      while (next < list.length) {
+        const e = list[next++];
+        if (await action(e)) ok++;
+        done++;
+        setBarMsg(label + ' ' + done + '/' + list.length + '…');
+      }
+    };
+    await Promise.all([worker(), worker()]);
+    busy = false;
+    setBarMsg(ok + ' sur ' + list.length + ' : ' + (label === 'Ajout' ? 'ajouté(s) au catalogue.' : 'prix mis à jour.'), ok < list.length);
+    renderBar();
+  }
+
+  function setBarMsg(text, isError) {
+    if (!bar) return;
+    const el = bar.querySelector('.pcradar-bar-msg');
+    el.textContent = text || '';
+    el.classList.toggle('pcradar-bar-error', !!isError);
+  }
+
+  function isListingPage() {
+    return !!document.querySelector('div[data-component-type="s-search-result"]') || !extractPageAsin();
+  }
+
+  function renderBar() {
+    if (!isListingPage() || entries.length < 2) return;
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'pcradar-bar';
+      bar.innerHTML = '<div class="pcradar-bar-head">' + LOGO_SVG + '<span class="pcradar-bar-title">PC Radar</span>'
+        + '<span class="pcradar-bar-counts"></span><button class="pcradar-bar-toggle" data-act="collapse" title="Réduire">–</button></div>'
+        + '<div class="pcradar-bar-body"><div class="pcradar-bar-actions"></div><div class="pcradar-bar-msg"></div></div>';
+      document.documentElement.appendChild(bar);
+      bar.addEventListener('click', onBarClick);
+    }
+    const unique = (list) => [...new Map(list.map((e) => [e.asin, e])).values()];
+    const known = unique(entries.filter((e) => e.state === 'in'));
+    const fresh = unique(entries.filter((e) => e.state === 'out'));
+    const selected = unique(entries.filter((e) => e.state === 'out' && e.selected));
+    const gaps = unique(known.filter((e) => priceGap(e)));
+    bar.querySelector('.pcradar-bar-counts').textContent =
+      known.length + ' au catalogue · ' + fresh.length + ' nouveaux' + (gaps.length ? ' · ' + gaps.length + ' prix différents' : '');
+    const actions = secretMissing
+      ? '<span class="pcradar-bar-note">Clé admin manquante : clique sur l\'icône de l\'extension pour la renseigner.</span>'
+      : '<button data-act="select-all"' + (fresh.length ? '' : ' disabled') + '>' + (selected.length && selected.length === fresh.length ? 'Tout désélectionner' : 'Sélectionner les nouveaux') + '</button>'
+        + '<button class="pcradar-primary" data-act="add-selected"' + (selected.length && !busy ? '' : ' disabled') + '>Ajouter la sélection (' + selected.length + ')</button>'
+        + '<button data-act="update-prices"' + (gaps.length && !busy ? '' : ' disabled') + '>Mettre à jour ' + gaps.length + ' prix</button>'
+        + '<button data-act="hide-known"' + (known.length ? '' : ' disabled') + '>' + (hideKnown ? 'Afficher' : 'Masquer') + ' ceux déjà au catalogue</button>';
+    bar.querySelector('.pcradar-bar-actions').innerHTML = actions;
+  }
+
+  function onBarClick(e) {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (!act) return;
+    const fresh = entries.filter((x) => x.state === 'out');
+    if (act === 'collapse') {
+      const collapsed = bar.classList.toggle('pcradar-bar-collapsed');
+      e.target.textContent = collapsed ? '+' : '–';
+    } else if (act === 'select-all') {
+      const all = fresh.length && fresh.every((x) => x.selected);
+      fresh.forEach((x) => { x.selected = !all; renderPill(x); });
+      renderBar();
+    } else if (act === 'add-selected') {
+      const seen = new Set();
+      const list = fresh.filter((x) => x.selected && !seen.has(x.asin) && seen.add(x.asin));
+      runBatch(list, addEntry, 'Ajout');
+    } else if (act === 'update-prices') {
+      const seen = new Set();
+      const list = entries.filter((x) => x.state === 'in' && priceGap(x) && !seen.has(x.asin) && seen.add(x.asin));
+      runBatch(list, updateEntryPrice, 'Mise à jour');
+    } else if (act === 'hide-known') {
+      hideKnown = !hideKnown;
+      entries.forEach((x) => x.card.classList.toggle('pcradar-hidden-card', hideKnown && x.state === 'in'));
+      renderBar();
+    }
+  }
+
+  function scanCards(root) {
     const scope = root || document;
-
-    // Vraies cartes de résultats de recherche : Amazon les marque avec ce
-    // data-component-type précis, structure fiable avec un h2 titre —
-    // sélecteur à privilégier avant le repli générique ci-dessous.
-    scope.querySelectorAll('div[data-component-type="s-search-result"][data-asin]').forEach(tryInjectCard);
-
-    // Repli générique pour les autres types de pages (carrousels "vu avec
-    // cet article", grilles de catégorie...) qui n'ont pas ce marqueur —
-    // en excluant tout ce que le sélecteur précis a déjà couvert, et tout
-    // conteneur qui imbrique lui-même un [data-asin] enfant (widget interne
-    // plutôt que vraie carte produit, comme découvert avec le bug ci-dessus).
+    // Vraies cartes de résultats de recherche : marquage fiable, à privilégier.
+    scope.querySelectorAll('div[data-component-type="s-search-result"][data-asin]').forEach(registerCard);
+    // Repli pour les autres listes (carrousels, grilles de catégorie), en excluant
+    // les conteneurs qui imbriquent eux-mêmes un [data-asin] (widgets internes).
     scope.querySelectorAll('[data-asin]').forEach((card) => {
       if (card.matches('div[data-component-type="s-search-result"]')) return;
       if (card.closest('div[data-component-type="s-search-result"]')) return;
       if (card.querySelector('[data-asin]')) return;
-      tryInjectCard(card);
+      registerCard(card);
     });
   }
 
-  injectCardButtons();
-  // Les résultats de recherche se chargent aussi en scroll infini /
-  // pagination AJAX sur certaines pages Amazon : on observe le DOM plutôt
-  // que de ne scanner qu'une fois au chargement. Amazon déclenche BEAUCOUP
-  // de petites mutations mineures en continu (images lazy-load, compteurs...) :
-  // un débounce évite de rescanner tout le document à chaque micro-mutation.
+  scanCards();
+  // Résultats chargés au fil du défilement : on observe le DOM, avec un délai
+  // pour ne pas rescanner à chaque petite mutation d'Amazon.
   let rescanTimer = null;
-  const observer = new MutationObserver(() => {
+  new MutationObserver(() => {
     clearTimeout(rescanTimer);
-    rescanTimer = setTimeout(() => injectCardButtons(), 200);
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
+    rescanTimer = setTimeout(() => scanCards(), 250);
+  }).observe(document.body, { childList: true, subtree: true });
 
   const pageAsin = extractPageAsin();
   if (pageAsin) initProductPanel(pageAsin);

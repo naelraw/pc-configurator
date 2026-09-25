@@ -76,3 +76,17 @@ def test_prix_amazon_depuis_l_extension(client, catalog):
     maj = next(c for c in client.get("/components").json()["components"] if c["id"] == ssd["id"])
     assert maj["prix_indicatif"] == 64.9
     assert client.post(f"/api/admin/components/{ssd['id']}/prix-amazon", json={"prix": -1}, headers=ADMIN).status_code == 400
+
+
+def test_analyse_d_une_page_amazon(client, catalog):
+    gpu = component(catalog, "RTX 4060")
+    assert client.post("/api/admin/analyse-page", json={"items": []}).status_code == 401
+    r = client.post("/api/admin/analyse-page", headers=ADMIN, json={"items": [
+        {"asin": gpu["asin"] or "B000000000", "titre": gpu["nom"]},
+        {"asin": "B0INCONNU1", "titre": "Produit sans rapport", "categorie": "GPU"},
+    ]})
+    assert r.status_code == 200
+    res = r.json()["resultats"]
+    if gpu["asin"]:
+        assert res[gpu["asin"].upper()]["catalogue"]["id"] == gpu["id"]
+    assert res["B0INCONNU1"] == {"catalogue": None, "proche": None}

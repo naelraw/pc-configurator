@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PC Radar - Ajout rapide Amazon",
-  "version": "1.2",
-  "description": "Ajoute un composant au catalogue PC Radar depuis une page produit Amazon, signale les produits déjà catalogués sous une autre annonce et met à jour le prix en un clic.",
+  "version": "1.3",
+  "description": "Gère le catalogue PC Radar depuis Amazon : état de chaque produit sur les pages de résultats, ajout groupé, mise à jour des prix en un clic, détection des doublons.",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {

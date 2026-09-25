@@ -6148,18 +6148,16 @@ async def start_controle_catalogue_loop():
         asyncio.create_task(controle_catalogue_loop())
 
 
-@app.get("/api/admin/produits-proches")
-def admin_produits_proches(titre: str, categorie: str = "", _admin=Depends(require_admin)):
+def _produits_proches(titre, categorie="", catalog=None, limite=3):
     """
-    Pour l'extension : un produit Amazon pas encore catalogué ressemble-t-il à un
-    produit qu'on a déjà (autre annonce du même modèle, autre couleur, autre
-    capacité) ? Tous les mots du nom catalogué — numéros de modèle compris —
-    doivent se retrouver dans le titre Amazon.
+    Produits déjà catalogués qui ressemblent à un titre Amazon (autre annonce du
+    même modèle, autre couleur, autre capacité) : tous les mots du nom catalogué,
+    numéros de modèle compris, doivent se retrouver dans le titre.
     """
     titre_mots = set(variantes._mots(titre, sans_marque=False))
     titre_bas = titre.lower()
     produits, mots_produit = {}, {}
-    for c in get_catalog():
+    for c in catalog if catalog is not None else get_catalog():
         if categorie and categorie != "Accessoire" and c["categorie"] != categorie:
             continue
         if (c.get("marque") or "").lower() not in titre_bas:
@@ -6176,12 +6174,54 @@ def admin_produits_proches(titre: str, categorie: str = "", _admin=Depends(requi
     # « Vengeance » et « Vengeance RGB » trouvés pour un kit RGB : on ne garde que
     # le produit le plus précis (dont les mots contiennent ceux de l'autre).
     precis = [g for g in produits if not any(mots_produit[g] < mots_produit[o] for o in produits if o != g)]
-    proches = sorted((produits[g] for g in precis), key=lambda c: -len(mots_produit[c.get("groupe_id", c["id"])]))[:3]
-    return {"proches": [
+    proches = sorted((produits[g] for g in precis), key=lambda c: -len(mots_produit[c.get("groupe_id", c["id"])]))[:limite]
+    return [
         {"id": c["id"], "nom": c["nom"], "categorie": c["categorie"], "prix_indicatif": c.get("prix_indicatif"),
          "nb_variantes": c.get("nb_variantes") or 1, "page": c.get("page")}
         for c in proches
-    ]}
+    ]
+
+
+@app.get("/api/admin/produits-proches")
+def admin_produits_proches(titre: str, categorie: str = "", _admin=Depends(require_admin)):
+    """Pour l'extension, sur une fiche produit Amazon pas encore cataloguée."""
+    return {"proches": _produits_proches(titre, categorie)}
+
+
+class ArticlePage(BaseModel):
+    asin: str
+    titre: str = ""
+    categorie: str = ""
+
+
+class AnalysePageRequest(BaseModel):
+    items: list[ArticlePage]
+
+
+@app.post("/api/admin/analyse-page")
+def admin_analyse_page(request: AnalysePageRequest, _admin=Depends(require_admin)):
+    """
+    Pour l'extension, sur une page de résultats Amazon : en une seule requête,
+    pour chaque produit affiché, sa fiche au catalogue (prix, variante, prix
+    suspect) ou, s'il n'y est pas, le produit catalogué le plus proche.
+    """
+    catalog = get_catalog()
+    par_asin = {(c.get("asin") or "").upper(): c for c in catalog if c.get("asin")}
+    suspects = {s["id"]: s for s in _controle_courant()["prix_suspects"]}
+    resultats = {}
+    for item in request.items[:80]:
+        asin = item.asin.strip().upper()
+        c = par_asin.get(asin)
+        if c:
+            resultats[asin] = {"catalogue": {
+                "id": c["id"], "nom": c["nom"], "categorie": c["categorie"], "prix_indicatif": c.get("prix_indicatif"),
+                "en_stock": c.get("en_stock"), "variante": c.get("variante"), "nb_variantes": c.get("nb_variantes") or 1,
+                "page": c.get("page"), "prix_suspect": suspects.get(c["id"]),
+            }, "proche": None}
+        else:
+            proches = _produits_proches(item.titre, item.categorie, catalog, limite=1) if item.titre else []
+            resultats[asin] = {"catalogue": None, "proche": proches[0] if proches else None}
+    return {"resultats": resultats}
 
 
 class PrixAmazonRequest(BaseModel):
