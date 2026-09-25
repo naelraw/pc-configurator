@@ -951,6 +951,51 @@ REFROIDISSEMENTS = {
 for cid, (nom, valeurs) in REFROIDISSEMENTS.items():
     UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)
 
+# Boîtiers : ventilateurs fournis et plus grand radiateur accepté (msi.com, corsair.com,
+# support.nzxt.com, asus.com, thermalright.com, fractal-design.com, lian-li.com, marsgaming.eu).
+BOITIERS = {
+    2574: ("MSI MAG PANO 110R PZ Boît", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2575: ("MSI MAG PANO M100L PZ Mic", {"radiateur_max_mm": 360, "ventilateurs_inclus": 0}),
+    2576: ("MSI MAG Forge 112R Boîtie", {"radiateur_max_mm": 240, "ventilateurs_inclus": 4}),
+    2577: ("MSI MAG Forge 120A Airflo", {"radiateur_max_mm": 240, "ventilateurs_inclus": 6}),
+    2578: ("MSI MAG Forge 100R ATX", {"radiateur_max_mm": 240, "ventilateurs_inclus": 3}),
+    2579: ("MSI MAG Forge 100M Verre ", {"radiateur_max_mm": 240, "ventilateurs_inclus": 3}),
+    2580: ("MSI MAG PANO 100R PZ Pano", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2581: ("MSI MAG Forge 321R Airflo", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2582: ("MSI MPG Gungnir 110R", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2583: ("MSI MPG GUNGNIR 300R Airf", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2584: ("MSI MAG Forge 320R Airflo", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2585: ("MSI MAG Forge M100R", {"radiateur_max_mm": 240, "ventilateurs_inclus": 4}),
+    2586: ("Corsair FRAME 4000D RS AR", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2587: ("Corsair 3500X LX-R RGB Pa", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2588: ("Corsair Frame 4000D Modul", {"radiateur_max_mm": 360, "ventilateurs_inclus": 0}),
+    2589: ("Corsair FRAME 4500X RS-R", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2590: ("Corsair Frame 4500X RS-R", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2591: ("Corsair 3500X RS-R ARGB", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2592: ("Corsair 3200D RS Moyen To", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2593: ("Corsair AIR 5400 RS-R ARG", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2594: ("Corsair Frame 4000D Wood ", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2595: ("Thermalright A70 Verre Tr", {"radiateur_max_mm": 360, "ventilateurs_inclus": 0}),
+    2596: ("NZXT H5 Flow 2024", {"radiateur_max_mm": 360, "ventilateurs_inclus": 2}),
+    2597: ("NZXT H3 Flow Micro-ATX Ai", {"radiateur_max_mm": 280, "ventilateurs_inclus": 1}),
+    2598: ("ASUS Prime AP202 ARGB Noi", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2599: ("MSI MAG Forge 110R", {"radiateur_max_mm": 240, "ventilateurs_inclus": 1}),
+    2824: ("ASUS TUF Gaming GT502 Hor", {"radiateur_max_mm": 360}),
+    2828: ("ASUS TUF Gaming GT502 Plu", {"radiateur_max_mm": 360, "ventilateurs_inclus": 7}),
+    2832: ("ASUS TUF Gaming GT502 Plu", {"radiateur_max_mm": 360, "ventilateurs_inclus": 7}),
+    2867: ("Mars Gaming MC-VIEW3 Verr", {"radiateur_max_mm": 240}),
+    2868: ("Thermalright A70 ARGB", {"radiateur_max_mm": 360, "ventilateurs_inclus": 0}),
+    2869: ("MSI MAG Forge 320R Airflo", {"radiateur_max_mm": 360, "ventilateurs_inclus": 4}),
+    2870: ("Lian Li O11 Dynamic Mini ", {"radiateur_max_mm": 360, "ventilateurs_inclus": 5}),
+    2871: ("Fractal Design North XL T", {"radiateur_max_mm": 420, "ventilateurs_inclus": 3}),
+    2872: ("NZXT H6 Flow Boîtier PC C", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+    2873: ("Mars Gaming MC-CURV Tripl", {"radiateur_max_mm": 240}),
+    2874: ("Mars Gaming MC-3TCORELCD ", {"radiateur_max_mm": 360}),
+    2875: ("NZXT H6 Flow", {"radiateur_max_mm": 360, "ventilateurs_inclus": 3}),
+}
+for cid, (nom, valeurs) in BOITIERS.items():
+    UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)
+
 # Fiche 1936 : nommée « 32 Go » mais l'annonce vend 1 barrette de 8 Go -> nom corrigé.
 RENOMMER = {1936: ("Lexar THOR Z Series OC 32 Go DDR5 6000", "Lexar THOR Z Series OC 8 Go DDR5 6000")}
 

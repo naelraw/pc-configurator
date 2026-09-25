@@ -45,12 +45,13 @@ SPEC_LABELS = {
     "certification": "Certification", "modularite": "Câbles", "format_alim": "Format",
     "connecteur_12v_2x6": "Connecteur 12V-2x6 (16 broches)", "norme_atx": "Norme",
     "type_refroidissement": "Type", "radiateur_mm": "Radiateur", "ventilateurs": "Ventilateurs",
+    "ventilateurs_inclus": "Ventilateurs fournis", "radiateur_max_mm": "Radiateur max.",
 }
 SPEC_UNITS = {"tdp": " W", "wattage": " W", "gpu_max_length_mm": " mm", "cpu_cooler_max_height_mm": " mm",
               "longueur_mm": " mm", "hauteur_mm": " mm", "frequence_base_ghz": " GHz",
               "frequence_boost_ghz": " GHz", "cache_l3_mo": " Mo", "vram_go": " Go",
               "bus_memoire_bits": " bits", "capacite_go": " Go", "frequence_mt_s": " MT/s",
-              "lecture_mo_s": " Mo/s", "ecriture_mo_s": " Mo/s", "radiateur_mm": " mm"}
+              "lecture_mo_s": " Mo/s", "ecriture_mo_s": " Mo/s", "radiateur_mm": " mm", "radiateur_max_mm": " mm"}
 FPS_GAMES = ["Cyberpunk 2077", "Fortnite", "Counter-Strike 2", "Black Myth Wukong", "Baldur's Gate 3"]
 
 
