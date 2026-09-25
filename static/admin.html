@@ -3,456 +3,214 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0e0f11">
 <title>Admin — PC Radar</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-<style>
-  * { margin:0; padding:0; box-sizing:border-box; }
-  :root{
-    --bg:#0d1117; --bg-alt:#161b22; --border:#30363d;
-    --text:#e6edf3; --text-dim:#8b949e;
-    --accent:#3fb950; --accent-dim:#2ea043; --accent2:#58a6ff; --danger:#f85149;
-  }
-  body{
-    background:var(--bg); color:var(--text);
-    font-family:'Segoe UI',Roboto,Arial,sans-serif; line-height:1.5;
-    min-height:100vh; display:flex; align-items:flex-start; justify-content:center;
-    padding:40px 20px;
-  }
-  html{ scrollbar-width:thin; scrollbar-color:var(--border) var(--bg); }
-  ::-webkit-scrollbar{ width:10px; height:10px; }
-  ::-webkit-scrollbar-track{ background:var(--bg); }
-  ::-webkit-scrollbar-thumb{ background:var(--border); border:2px solid var(--bg); background-clip:padding-box; }
-  ::-webkit-scrollbar-thumb:hover{ background:var(--accent-dim); }
-  ::-webkit-scrollbar-corner{ background:var(--bg); }
-
-  .wrap{ width:100%; max-width:900px; }
-  h1{ font-size:1.4rem; margin-bottom:6px; }
-  .sub{ color:var(--text-dim); font-size:0.9rem; margin-bottom:28px; }
-
-  .card{
-    background:var(--bg-alt); border:1px solid var(--border); border-radius:12px;
-    padding:24px; margin-bottom:20px;
-  }
-  label{ display:block; font-size:0.85rem; color:var(--text-dim); margin-bottom:8px; }
-  input[type=password], input[type=text], input[type=number], input[type=date], textarea, select{
-    width:100%; background:var(--bg); border:1px solid var(--border); border-radius:8px;
-    color:var(--text); padding:12px 14px; font-size:0.9rem; font-family:inherit;
-  }
-  textarea{ font-family:'Consolas',monospace; min-height:280px; resize:vertical; }
-  input:focus, textarea:focus, select:focus{ outline:none; border-color:var(--accent2); }
-  select{ cursor:pointer; }
-
-  .btn{
-    padding:12px 24px; border-radius:8px; font-weight:600; font-size:0.9rem;
-    cursor:pointer; border:none; background:var(--accent); color:#0d1117;
-    margin-top:14px;
-  }
-  .btn:hover{ background:var(--accent-dim); }
-  .btn:disabled{ opacity:0.5; cursor:not-allowed; }
-
-  .hidden{ display:none; }
-
-  .result{ margin-top:16px; padding:14px; border-radius:8px; font-size:0.88rem; white-space:pre-wrap; }
-  .result.ok{ background:rgba(63,185,80,0.1); border:1px solid var(--accent); color:var(--accent); }
-  .result.error{ background:rgba(248,81,73,0.1); border:1px solid var(--danger); color:var(--danger); }
-
-  .hint{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
-  .hint code{ background:var(--bg); padding:1px 5px; border-radius:4px; }
-
-  .drop-zone{
-    border:2px dashed var(--border); border-radius:10px; padding:28px 20px;
-    text-align:center; color:var(--text-dim); font-size:0.9rem; transition:all .15s;
-  }
-  .drop-zone.drag-over{ border-color:var(--accent2); background:rgba(88,166,255,0.06); color:var(--text); }
-  .drop-zone code{ background:var(--bg); padding:1px 5px; border-radius:4px; }
-  .link-btn{
-    background:none; border:none; color:var(--accent2); cursor:pointer;
-    font-size:inherit; text-decoration:underline; padding:0;
-  }
-  .link-btn:hover{ color:var(--accent); }
-
-  .edit-panel{ margin-top:20px; display:none; }
-  .edit-panel.show{ display:block; }
-  .edit-panel h3{ font-size:1rem; margin-bottom:4px; }
-  .price-row{
-    display:grid; grid-template-columns:1fr 100px 1fr 130px 36px; gap:8px;
-    margin-bottom:8px; align-items:center;
-  }
-  .price-row input{
-    background:var(--bg); border:1px solid var(--border); border-radius:6px;
-    color:var(--text); padding:8px 10px; font-size:0.85rem; font-family:inherit;
-  }
-  .price-row button{
-    background:transparent; border:1px solid var(--danger); color:var(--danger);
-    border-radius:6px; cursor:pointer; padding:8px;
-  }
-  .add-price-btn{
-    background:transparent; border:1px dashed var(--border); color:var(--text-dim);
-    border-radius:8px; padding:10px; width:100%; cursor:pointer; font-size:0.85rem; margin-top:4px;
-  }
-  .add-price-btn:hover{ border-color:var(--accent2); color:var(--accent2); }
-
-  .banner-danger{
-    border:1px solid var(--danger); background:rgba(248,81,73,0.08);
-  }
-  .banner-danger h3{ color:var(--danger); font-size:1rem; margin-bottom:10px; }
-  .banner-danger .broken-item{
-    padding:8px 0; border-bottom:1px solid rgba(248,81,73,0.25); font-size:0.85rem;
-  }
-  .banner-danger .broken-item:last-child{ border-bottom:none; }
-  .banner-danger .broken-item a{ color:var(--danger); }
-
-  .image-preview-row{ display:flex; align-items:center; gap:12px; }
-  .image-preview{
-    width:56px; height:56px; border:1px solid var(--border);
-    border-radius:6px; background:#ffffff; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center; overflow:hidden;
-  }
-  .image-preview img{
-    max-width:100%; max-height:100%; object-fit:contain;
-    mix-blend-mode:multiply;
-  }
-  .btn-secondary-admin{
-    background:transparent; border:1px solid var(--accent2); color:var(--accent2);
-    padding:9px 16px; border-radius:8px; font-size:0.82rem; cursor:pointer; margin-top:10px;
-  }
-  .btn-secondary-admin:hover{ background:rgba(88,166,255,0.1); }
-  .btn-secondary-admin:disabled{ opacity:0.5; cursor:not-allowed; }
-
-  .correction-item{
-    padding:14px; border:1px solid var(--border); border-radius:8px; margin-bottom:10px;
-  }
-  .correction-item .meta{ font-size:0.8rem; color:var(--text-dim); margin-bottom:8px; }
-  .correction-item .links{ font-size:0.85rem; margin-bottom:10px; word-break:break-all; }
-  .correction-item .links .old{ color:var(--danger); text-decoration:line-through; display:block; }
-  .correction-item .links .new{ color:var(--accent); display:block; margin-top:4px; }
-  .correction-item .actions{ display:flex; gap:8px; }
-  .correction-item .actions button{
-    padding:8px 16px; border-radius:6px; font-size:0.8rem; cursor:pointer; border:1px solid var(--border);
-    background:transparent; color:var(--text);
-  }
-  .correction-item .actions .approve{ border-color:var(--accent); color:var(--accent); }
-  .correction-item .actions .approve:hover{ background:rgba(63,185,80,0.1); }
-  .correction-item .actions .reject{ border-color:var(--danger); color:var(--danger); }
-  .correction-item .actions .reject:hover{ background:rgba(248,81,73,0.1); }
-
-  .admin-build-row{
-    display:flex; justify-content:space-between; align-items:center; gap:12px;
-    padding:12px 14px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px;
-  }
-  .admin-build-row.official{ border-color:var(--accent); background:rgba(63,185,80,0.06); }
-  .admin-build-row .meta{ font-size:0.85rem; }
-  .admin-build-row .meta .nom{ font-weight:600; display:block; }
-  .admin-build-row .meta .sub{ color:var(--text-dim); font-size:0.76rem; }
-  .admin-build-row button{
-    padding:8px 14px; border-radius:6px; font-size:0.8rem; cursor:pointer;
-    border:1px solid var(--border); background:transparent; color:var(--text); white-space:nowrap;
-  }
-  .admin-build-row button.is-official{ border-color:var(--accent); color:var(--accent); }
-  .admin-build-row button:hover{ border-color:var(--accent2); color:var(--accent2); }
-
-  /* Éditeur de specs dynamique (clé/valeur libres) */
-  .spec-row{
-    display:grid; grid-template-columns:1fr 1fr 36px; gap:8px;
-    margin-bottom:8px; align-items:center;
-  }
-  .spec-row input{ margin:0; }
-  .spec-row button{
-    background:transparent; border:1px solid var(--danger); color:var(--danger);
-    border-radius:6px; cursor:pointer; padding:8px;
-  }
-  .field-hint{ font-size:0.78rem; color:var(--text-dim); margin:-4px 0 12px; }
-
-  .btn-danger{ background:var(--danger); color:#fff; }
-  .btn-danger:hover{ background:#e5443d; }
-
-  /* Catalogue complet (parcours + édition rapide) */
-  .browse-toolbar{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; }
-  .browse-toolbar h3{ font-size:1rem; white-space:nowrap; }
-  .browse-toolbar input{ max-width:260px; }
-
-  .card-header{
-    display:flex; justify-content:space-between; align-items:center; gap:12px;
-    margin-bottom:14px;
-  }
-  .card-header h3{ margin-bottom:0; }
-  .card-toggle-btn{
-    background:transparent; border:1px solid var(--border); border-radius:6px;
-    color:var(--text-dim); width:28px; height:28px; flex:none; cursor:pointer;
-    font-size:0.85rem; line-height:1;
-  }
-  .card-toggle-btn:hover{ border-color:var(--accent2); color:var(--accent2); }
-  .browse-category{ margin-bottom:6px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-  .browse-category-header{
-    display:flex; justify-content:space-between; align-items:center; cursor:pointer;
-    padding:12px 14px; background:var(--bg); font-weight:600; font-size:0.88rem; user-select:none;
-  }
-  .browse-category-header .count{ color:var(--text-dim); font-weight:400; font-size:0.8rem; }
-  .browse-category-body{ display:none; }
-  .browse-category-body.show{ display:block; }
-  .browse-row{
-    display:flex; justify-content:space-between; align-items:center; gap:12px;
-    padding:10px 14px; border-top:1px solid var(--border); font-size:0.86rem;
-  }
-  .browse-row:hover{ background:var(--bg); }
-  .browse-row.active{ background:rgba(88,166,255,0.08); }
-  .browse-row .nom{ font-weight:500; }
-  .browse-row .prix{ color:var(--text-dim); font-size:0.8rem; white-space:nowrap; }
-  .epuise-badge{
-    display:inline-block; margin-left:6px; padding:1px 6px; border-radius:3px;
-    background:var(--danger); color:#fff; font-size:0.68rem; font-weight:600;
-    text-transform:uppercase; letter-spacing:0.3px; vertical-align:middle;
-  }
-  .browse-row .row-actions{ display:flex; gap:6px; flex-shrink:0; }
-  .browse-row .row-actions button{
-    background:transparent; border:1px solid var(--border); color:var(--text-dim);
-    border-radius:6px; cursor:pointer; padding:6px 10px; font-size:0.78rem;
-  }
-  .browse-row .row-actions .edit-btn:hover{ border-color:var(--accent2); color:var(--accent2); }
-  .browse-row .row-actions .delete-btn:hover{ border-color:var(--danger); color:var(--danger); }
-  .browse-row .variante{ color:var(--accent2); font-size:0.76rem; margin-left:6px; }
-  .suspect-badge{
-    display:inline-block; margin-left:6px; padding:1px 6px; border-radius:3px;
-    background:#d29922; color:#0d1117; font-size:0.68rem; font-weight:600; vertical-align:middle;
-  }
-
-  /* Bloc « À surveiller » */
-  .watch-total{
-    display:inline-block; min-width:22px; padding:1px 7px; border-radius:10px; margin-left:6px;
-    background:#d29922; color:#0d1117; font-size:0.75rem; text-align:center; vertical-align:middle;
-  }
-  .watch-total:empty{ display:none; }
-  .watch-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
-  .watch-tab{
-    background:transparent; border:1px solid var(--border); color:var(--text-dim);
-    border-radius:20px; padding:6px 14px; font-size:0.82rem; cursor:pointer;
-  }
-  .watch-tab.active{ border-color:var(--accent2); color:var(--text); background:rgba(88,166,255,0.08); }
-  .watch-tab .n{ color:var(--text-dim); margin-left:4px; }
-  .watch-item{ padding:12px 14px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; font-size:0.86rem; }
-  .watch-item .t{ font-weight:600; }
-  .watch-item .why{ color:var(--text-dim); font-size:0.8rem; margin:4px 0 8px; }
-  .watch-item .why b{ color:#d29922; }
-  .watch-item .actions{ display:flex; gap:6px; flex-wrap:wrap; }
-  .watch-item .actions button, .watch-item .actions a{
-    background:transparent; border:1px solid var(--border); color:var(--text);
-    border-radius:6px; padding:6px 11px; font-size:0.78rem; cursor:pointer; text-decoration:none;
-  }
-  .watch-item .actions button:hover, .watch-item .actions a:hover{ border-color:var(--accent2); color:var(--accent2); }
-  .watch-item .actions .danger:hover{ border-color:var(--danger); color:var(--danger); }
-  .watch-item .actions .ok{ border-color:var(--accent); color:var(--accent); }
-  .missing{ display:inline-block; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:0 6px; margin:2px 4px 0 0; font-size:0.74rem; color:var(--text-dim); }
-</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="/static/admin.css">
 <script src="/static/csp-handlers.js"></script>
 </head>
 <body>
 
-<div class="wrap">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-    <div>
-      <h1>Admin — Gestion des composants</h1>
-      <p class="sub">Accès restreint. Ajoute en masse, parcours, modifie ou supprime n'importe quel composant.</p>
-    </div>
-    <button class="btn-secondary-admin hidden" id="logout-btn" data-onclick="logout()" style="white-space:nowrap;">Se déconnecter</button>
-  </div>
-
-  <div class="card" id="login-card">
-    <label for="secret-input">Mot de passe admin</label>
-    <input type="password" id="secret-input" placeholder="•••••••••" data-onkeydown="if(event.key==='Enter') login()">
-    <button class="btn" id="login-btn" data-onclick="login()">Entrer</button>
-    <div id="login-result" class="result hidden"></div>
-  </div>
-
-  <div class="card hidden" id="watch-card">
-    <div class="card-header">
-      <div>
-        <h3 style="margin-bottom:4px;">À surveiller <span id="watch-total" class="watch-total"></span></h3>
-        <p style="color:var(--text-dim); font-size:0.82rem;">Contrôle automatique du catalogue (recalculé à chaque visite, e-mail quotidien pour les nouveaux prix suspects).</p>
-      </div>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▾</button>
-    </div>
-    <div class="card-body">
-      <div class="watch-tabs" role="tablist">
-        <button class="watch-tab active" data-onclick="showWatchTab('prix')" id="watch-tab-prix">Prix suspects</button>
-        <button class="watch-tab" data-onclick="showWatchTab('isolees')" id="watch-tab-isolees">Annonces à rattacher</button>
-        <button class="watch-tab" data-onclick="showWatchTab('incompletes')" id="watch-tab-incompletes">Fiches incomplètes</button>
-      </div>
-      <div id="watch-content"><p class="field-hint">Chargement…</p></div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="edit-card">
-    <div class="card-header">
-      <h3>Ajouter ou corriger un composant</h3>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▾</button>
-    </div>
-    <div class="card-body">
-    <div id="edit-empty-hint" style="color:var(--text-dim); font-size:0.9rem;">
-      Sélectionne un composant dans la liste plus bas pour le modifier, ou clique "Nouveau composant".
-    </div>
-    <button class="btn btn-secondary-admin" data-onclick="startNewComponent()">+ Nouveau composant</button>
-
-    <div class="edit-panel" id="edit-panel">
-      <div id="categorie-field">
-        <label for="edit-categorie">Catégorie</label>
-        <select id="edit-categorie" data-onchange="onCategorieChange()">
-          <option value="CPU">CPU</option>
-          <option value="Carte mère">Carte mère</option>
-          <option value="RAM">RAM</option>
-          <option value="Boîtier">Boîtier</option>
-          <option value="Alimentation">Alimentation</option>
-          <option value="GPU">GPU</option>
-          <option value="Stockage">Stockage</option>
-          <option value="Refroidissement">Refroidissement</option>
-          <option value="Accessoire">Accessoire</option>
-        </select>
-      </div>
-
-      <p id="categorie-auto-hint" class="field-hint hidden">Catégorie détectée automatiquement depuis Amazon pour chaque ASIN — ou choisis-en une ci-dessous si tout le lot est de la même catégorie.</p>
-
-      <div id="batch-categorie-field" class="hidden">
-        <label for="batch-categorie-select">Catégorie pour tout le lot (optionnel)</label>
-        <select id="batch-categorie-select">
-          <option value="">— Détection automatique par produit —</option>
-          <option value="CPU">CPU</option>
-          <option value="Carte mère">Carte mère</option>
-          <option value="RAM">RAM</option>
-          <option value="Boîtier">Boîtier</option>
-          <option value="Alimentation">Alimentation</option>
-          <option value="GPU">GPU</option>
-          <option value="Stockage">Stockage</option>
-          <option value="Refroidissement">Refroidissement</option>
-          <option value="Accessoire">Accessoire</option>
-        </select>
-      </div>
-
-      <label for="edit-asin-input" id="edit-asin-label">ASIN, lien Amazon ou nom du produit (un ou plusieurs, un par ligne)</label>
-      <textarea id="edit-asin-input" rows="3" placeholder="Ex: B0FG33PH79, une URL Amazon complète, ou juste « Corsair Vengeance LPX 32 Go DDR5 6000 » — colle-en plusieurs, un par ligne, pour tout ajouter d'un coup"></textarea>
-      <button class="btn btn-secondary-admin" id="fetch-asin-btn" data-onclick="fetchAsinInfo()">
-        🔎 Récupérer depuis Amazon (nom, prix, image, specs, catégorie)
-      </button>
-      <button class="btn btn-secondary-admin hidden" id="pause-import-btn" data-onclick="pauseResumeImport()" style="margin-left:8px;">⏸ Pause</button>
-      <button class="btn btn-danger hidden" id="cancel-import-btn" data-onclick="cancelImport()" style="margin-left:8px;">⏹ Annuler</button>
-      <div id="fetch-asin-result" class="result hidden"></div>
-      <p id="quota-info" class="field-hint" style="margin-top:10px;"></p>
-
-      <div id="full-edit-fields" class="hidden">
-        <label for="edit-nom-input" style="margin-top:18px;">Nom (rempli automatiquement depuis Amazon)</label>
-        <input type="text" id="edit-nom-input" placeholder="Rempli après avoir cliqué sur le bouton ci-dessus">
-
-        <label for="edit-prix-indicatif" style="margin-top:18px;">Prix indicatif</label>
-        <input type="number" id="edit-prix-indicatif" step="0.01" min="0">
-
-        <label style="margin-top:18px;">Specs techniques (champs libres)</label>
-        <p class="field-hint" id="specs-required-hint"></p>
-        <div id="specs-rows"></div>
-        <button class="add-price-btn" data-onclick="addSpecRow('', '')">+ Ajouter un champ spec</button>
-
-        <label style="margin-top:18px;">Image du produit</label>
-        <div class="image-preview-row">
-          <div id="edit-image-preview-wrap" class="image-preview hidden">
-            <img id="edit-image-preview" alt="Aperçu">
-          </div>
-          <input type="text" id="edit-image-url" placeholder="URL de l'image (ou utilise la recherche IA)" data-oninput="updateImagePreview()">
-        </div>
-        <button class="btn btn-secondary-admin" id="find-image-btn" data-onclick="findImageWithAI()">🔎 Trouver une image (IA)</button>
-        <div id="find-image-result" class="result hidden"></div>
-        <button class="btn btn-secondary-admin" id="remove-bg-btn" data-onclick="removeBackgroundFromImage()" style="margin-top:8px;">✂️ Détourer l'image (retirer le fond)</button>
-        <div id="remove-bg-result" class="result hidden"></div>
-        <button class="btn btn-secondary-admin" id="regenerate-image-btn" data-onclick="regenerateImage()" style="margin-top:8px;">🔄 Régénérer l'image (nouvelle photo Amazon)</button>
-        <p class="field-hint">Récupère une image Amazon fraîche pour cet ASIN, puis la détoure automatiquement (via la surveillance locale) dans les secondes qui suivent — utile si l'image actuelle a un problème.</p>
-        <div id="regenerate-image-result" class="result hidden"></div>
-
-        <div id="price-rows"></div>
-        <button class="add-price-btn" data-onclick="addPriceRow()">+ Ajouter une ligne vide</button>
-
-        <div class="image-preview-row" style="margin-top:10px;">
-          <input type="text" id="aliexpress-search-input" placeholder="Chercher sur AliExpress (CPU et RAM uniquement) — ex: Ryzen 7 9800X3D">
-          <button class="btn btn-secondary-admin" data-onclick="searchAliexpress()">🔍 Chercher</button>
-        </div>
-        <p class="field-hint">Ne couvre que les CPU et la RAM — AliExpress ne vend quasiment jamais de GPU/cartes mères de marque, chercher ces catégories ne donnera rien.</p>
-        <div id="aliexpress-search-result" class="result hidden"></div>
-
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
-          <button class="btn" id="save-edit-btn" data-onclick="saveEdit()">Enregistrer les modifications</button>
-          <button class="btn btn-danger" id="delete-btn" data-onclick="deleteCurrentComponent()">Supprimer ce composant</button>
-        </div>
-        <div id="edit-result" class="result hidden"></div>
-      </div>
-    </div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="link-check-controls">
-    <div class="card-header">
-      <div>
-        <h3 style="margin-bottom:4px;">Vérification des liens de prix</h3>
-        <p style="color:var(--text-dim); font-size:0.82rem;">Automatique une fois par jour. Tu peux aussi la relancer maintenant.</p>
-      </div>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▸</button>
-    </div>
-    <div class="card-body hidden">
-      <button class="btn-secondary-admin" data-onclick="checkLinksNow()">🔎 Vérifier les liens maintenant</button>
-    </div>
-  </div>
-
-  <div class="card hidden banner-danger" id="broken-links-banner"></div>
-
-  <div class="card hidden" id="link-corrections-card">
-    <div class="card-header">
-      <h3>Corrections de liens proposées</h3>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▸</button>
-    </div>
-    <div class="card-body hidden">
-      <div id="link-corrections-list"></div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="stats-card">
-    <div class="card-header">
-      <h3>Statistiques de visite</h3>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▾</button>
-    </div>
-    <div class="card-body">
-      <p class="field-hint">Tirées des journaux du serveur (14 jours), sans cookie ni script de suivi. Robots et tests exclus.</p>
-      <div id="stats-content"><p class="field-hint">Chargement…</p></div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="recommended-builds-card">
-    <div class="card-header">
-      <h3>Configurations recommandées</h3>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▸</button>
-    </div>
-    <div class="card-body hidden">
-      <p class="field-hint">Choisis parmi les configs déjà sauvegardées (par n'importe quel compte) lesquelles mettre en avant sur /estimer-fps.</p>
-      <div id="admin-builds-list"></div>
-    </div>
-  </div>
-
-  <div class="card hidden" id="browse-card">
-    <div class="card-header browse-toolbar">
-      <h3>Tous les composants (<span id="browse-count">0</span>)</h3>
-      <input type="text" id="browse-search" placeholder="Filtrer par nom..." autocomplete="off">
-      <button class="btn btn-secondary-admin" id="refresh-prices-btn" data-onclick="refreshAllPrices()">
-        🔄 Rafraîchir tous les prix (Amazon)
-      </button>
-      <button class="btn btn-danger" id="delete-all-btn" data-onclick="deleteAllComponents()">
-        🗑️ Tout supprimer
-      </button>
-      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▸</button>
-    </div>
-    <div class="card-body hidden">
-      <div id="refresh-prices-result" class="result hidden"></div>
-      <div id="delete-all-result" class="result hidden"></div>
-      <div id="browse-list"></div>
-    </div>
-  </div>
-
+<!-- Connexion -->
+<div class="login" id="login-view">
+  <form class="login-box" data-onsubmit="event.preventDefault(); login()">
+    <div class="brand"><img src="/static/favicon.svg" alt=""> PC Radar <small>administration</small></div>
+    <h1>Connexion</h1>
+    <label class="field">
+      <span>Mot de passe admin</span>
+      <input type="password" id="secret-input" autocomplete="current-password" required>
+    </label>
+    <button class="btn btn-primary" id="login-btn" type="submit">Entrer</button>
+    <p class="login-error" id="login-error" hidden></p>
+  </form>
 </div>
 
-<script src="/static/pages/admin.js"></script>
+<div class="app" id="app" hidden>
+  <aside class="side">
+    <div class="brand"><img src="/static/favicon.svg" alt=""> PC Radar <small>admin</small></div>
+    <nav class="nav" aria-label="Sections">
+      <button data-view="dashboard" data-onclick="showView('dashboard')"><i class="ph ph-squares-four"></i><span class="lbl">Tableau de bord</span></button>
+      <button data-view="watch" data-onclick="showView('watch')"><i class="ph ph-warning-circle"></i><span class="lbl">À surveiller</span><span class="count" id="nav-watch"></span></button>
+      <button data-view="catalog" data-onclick="showView('catalog')"><i class="ph ph-cpu"></i><span class="lbl">Catalogue</span><span class="count" id="nav-catalog"></span></button>
+      <button data-view="add" data-onclick="showView('add')"><i class="ph ph-plus-circle"></i><span class="lbl">Ajouter</span></button>
+      <button data-view="links" data-onclick="showView('links')"><i class="ph ph-link"></i><span class="lbl">Liens</span><span class="count" id="nav-links"></span></button>
+      <button data-view="stats" data-onclick="showView('stats')"><i class="ph ph-chart-bar"></i><span class="lbl">Statistiques</span></button>
+      <button data-view="builds" data-onclick="showView('builds')"><i class="ph ph-star"></i><span class="lbl">Configurations</span></button>
+    </nav>
+    <div class="side-foot nav">
+      <button data-onclick="openSite()"><i class="ph ph-arrow-square-out"></i><span class="lbl">Voir le site</span></button>
+      <button data-onclick="logout()"><i class="ph ph-sign-out"></i><span class="lbl">Se déconnecter</span></button>
+    </div>
+  </aside>
 
+  <main class="main">
+
+    <!-- Tableau de bord -->
+    <section data-section="dashboard">
+      <div class="view-head">
+        <div><h2>Tableau de bord</h2><p id="dash-date"></p></div>
+        <button class="btn btn-primary" data-onclick="showView('add')"><i class="ph ph-plus"></i>Ajouter des produits</button>
+      </div>
+      <div class="kpis" id="dash-kpis"></div>
+      <div class="panel">
+        <div class="panel-head"><h3>À traiter</h3><button class="btn btn-ghost btn-sm" data-onclick="showView('watch')">Tout voir</button></div>
+        <div id="dash-todo"><p class="empty">Chargement…</p></div>
+      </div>
+    </section>
+
+    <!-- À surveiller -->
+    <section data-section="watch" hidden>
+      <div class="view-head">
+        <div><h2>À surveiller</h2><p>Contrôle automatique du catalogue, recalculé à chaque visite. Les nouveaux prix suspects arrivent aussi par e-mail chaque jour.</p></div>
+      </div>
+      <div class="panel">
+        <div class="tabs" role="tablist">
+          <button id="watch-tab-prix" data-onclick="showWatchTab('prix')">Prix suspects</button>
+          <button id="watch-tab-isolees" data-onclick="showWatchTab('isolees')">Annonces à rattacher</button>
+          <button id="watch-tab-incompletes" data-onclick="showWatchTab('incompletes')">Fiches incomplètes</button>
+        </div>
+        <div id="watch-content"><p class="empty">Chargement…</p></div>
+      </div>
+    </section>
+
+    <!-- Catalogue -->
+    <section data-section="catalog" hidden>
+      <div class="view-head">
+        <div><h2>Catalogue</h2><p id="catalog-summary"></p></div>
+        <button class="btn btn-secondary" data-onclick="openNewComponent()"><i class="ph ph-plus"></i>Créer à la main</button>
+      </div>
+      <div class="toolbar">
+        <label class="search"><i class="ph ph-magnifying-glass"></i><input type="search" id="catalog-search" placeholder="Rechercher un produit (touche /)" autocomplete="off" aria-label="Rechercher"></label>
+        <select id="catalog-category" aria-label="Catégorie"><option value="">Toutes les catégories</option></select>
+        <select id="catalog-filter" aria-label="Filtre">
+          <option value="">Tous les produits</option>
+          <option value="stock">En stock</option>
+          <option value="epuise">Épuisés</option>
+          <option value="suspect">Prix suspects</option>
+          <option value="variantes">Avec variantes</option>
+          <option value="sans-image">Sans image</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="list">
+          <thead><tr><th style="width:46px"></th><th>Produit</th><th class="hide-sm">Catégorie</th><th class="num">Prix</th><th class="hide-sm">État</th></tr></thead>
+          <tbody id="catalog-rows"></tbody>
+        </table>
+        <div class="more-row" id="catalog-more" hidden><button class="btn btn-ghost btn-sm" data-onclick="showMoreRows()">Afficher plus</button></div>
+      </div>
+    </section>
+
+    <!-- Ajouter -->
+    <section data-section="add" hidden>
+      <div class="view-head">
+        <div><h2>Ajouter des produits</h2><p>Colle des ASIN, des liens Amazon ou des noms de produits, un par ligne. Nom, prix, image, caractéristiques et catégorie sont récupérés automatiquement.</p></div>
+      </div>
+      <div class="panel">
+        <label class="field"><span>Produits à importer</span>
+          <textarea id="import-input" rows="7" placeholder="B0FG33PH79&#10;https://www.amazon.fr/dp/B0DTQR695X&#10;Corsair Vengeance RGB 32 Go DDR5 6000"></textarea>
+        </label>
+        <div class="toolbar" style="margin:12px 0 0;">
+          <select id="import-category" aria-label="Catégorie du lot"><option value="">Catégorie détectée automatiquement</option></select>
+          <button class="btn btn-primary" id="import-btn" data-onclick="startImport()"><i class="ph ph-download-simple"></i>Importer</button>
+          <button class="btn btn-secondary" id="import-pause" data-onclick="pauseImport()" hidden>Pause</button>
+          <button class="btn btn-danger" id="import-cancel" data-onclick="cancelImport()" hidden>Annuler</button>
+          <span class="faint" id="quota-info"></span>
+        </div>
+        <div class="progress" id="import-progress" hidden><span></span></div>
+        <ul class="import-log" id="import-log"></ul>
+      </div>
+    </section>
+
+    <!-- Liens -->
+    <section data-section="links" hidden>
+      <div class="view-head">
+        <div><h2>Liens des marchands</h2><p id="links-status">Vérifiés automatiquement une fois par jour.</p></div>
+        <button class="btn btn-secondary" id="check-links-btn" data-onclick="checkLinksNow()"><i class="ph ph-arrows-clockwise"></i>Vérifier maintenant</button>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Liens morts</h3></div>
+        <div id="broken-links"><p class="empty">Chargement…</p></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Corrections proposées par les visiteurs</h3></div>
+        <div id="link-corrections"><p class="empty">Chargement…</p></div>
+      </div>
+    </section>
+
+    <!-- Statistiques -->
+    <section data-section="stats" hidden>
+      <div class="view-head">
+        <div><h2>Statistiques de visite</h2><p>Tirées des journaux du serveur sur 14 jours, sans cookie ni script de suivi. Robots exclus.</p></div>
+      </div>
+      <div id="stats-content"><p class="empty">Chargement…</p></div>
+    </section>
+
+    <!-- Configurations recommandées -->
+    <section data-section="builds" hidden>
+      <div class="view-head">
+        <div><h2>Configurations recommandées</h2><p>Les configurations mises en avant sur la page « Estimer mes FPS ».</p></div>
+      </div>
+      <div class="panel"><div id="builds-list"><p class="empty">Chargement…</p></div></div>
+    </section>
+  </main>
+</div>
+
+<!-- Tiroir d'édition d'un composant -->
+<div class="drawer-backdrop" id="drawer-backdrop" data-onclick="closeDrawer()" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Édition du composant" hidden>
+  <div class="drawer-head">
+    <h3 id="drawer-title">Composant</h3>
+    <a class="icon-btn" id="drawer-page" target="_blank" rel="noopener" title="Voir la fiche sur le site"><i class="ph ph-arrow-square-out"></i></a>
+    <button class="icon-btn" data-onclick="closeDrawer()" title="Fermer (Échap)"><i class="ph ph-x"></i></button>
+  </div>
+  <div class="drawer-body">
+    <div id="drawer-note" hidden></div>
+    <div class="form-grid">
+      <label class="field wide"><span>Nom</span><input type="text" id="f-nom"></label>
+      <label class="field"><span>Catégorie</span><select id="f-categorie" data-onchange="renderRequiredHint()"></select></label>
+      <label class="field"><span>Prix affiché (€)</span><input type="number" id="f-prix" step="0.01" min="0"></label>
+      <label class="field"><span>ASIN Amazon</span><input type="text" id="f-asin" placeholder="B0…"></label>
+      <div class="field"><span>&nbsp;</span><button class="btn btn-secondary" id="f-refetch" data-onclick="refetchFromAmazon()"><i class="ph ph-arrows-clockwise"></i>Reprendre depuis Amazon</button></div>
+    </div>
+
+    <div>
+      <div class="section-title">Image</div>
+      <div class="image-line" style="margin-top:8px;">
+        <div class="preview" id="f-preview"><i class="ph ph-image muted"></i></div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:6px; min-width:0;">
+          <input type="text" id="f-image" placeholder="URL de l'image" data-oninput="updatePreview()">
+          <button class="btn btn-ghost btn-sm" id="f-regen" data-onclick="regenerateImage()" style="align-self:flex-start;"><i class="ph ph-camera-rotate"></i>Nouvelle photo Amazon</button>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Caractéristiques <button class="btn btn-ghost btn-sm" data-onclick="addSpecRow('', '')"><i class="ph ph-plus"></i>Champ</button></div>
+      <p class="faint" id="f-required" style="margin-top:4px;"></p>
+      <div class="rows" id="f-specs"></div>
+    </div>
+
+    <div>
+      <div class="section-title">Prix relevés <button class="btn btn-ghost btn-sm" data-onclick="addPriceRow()"><i class="ph ph-plus"></i>Marchand</button></div>
+      <div class="rows" id="f-prices"></div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-primary" id="f-save" data-onclick="saveComponent()"><i class="ph ph-check"></i>Enregistrer</button>
+    <button class="btn btn-ghost" id="f-separate" data-onclick="separateCurrent()" hidden title="Ce n'est pas le même produit que ses variantes">Séparer de ses variantes</button>
+    <span class="spacer"></span>
+    <button class="btn btn-danger" id="f-delete" data-onclick="deleteCurrent()"><i class="ph ph-trash"></i>Supprimer</button>
+  </div>
+</aside>
+
+<datalist id="spec-keys"></datalist>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="/static/pages/admin.js"></script>
 </body>
 </html>
