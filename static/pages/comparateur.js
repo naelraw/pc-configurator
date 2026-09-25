@@ -245,6 +245,8 @@
     type_memoire: 'Type de mémoire vidéo', bus_memoire_bits: 'Bus mémoire', chipset: 'Chipset',
     capacite_go: 'Capacité', frequence_mt_s: 'Fréquence', barrettes: 'Barrettes', latence_cl: 'Latence (CL)',
     interface: 'Interface', lecture_mo_s: 'Lecture séquentielle', ecriture_mo_s: 'Écriture séquentielle',
+    certification: 'Certification', modularite: 'Câbles', format_alim: 'Format',
+    connecteur_12v_2x6: 'Connecteur 12V-2x6 (16 broches)', norme_atx: 'Norme',
   };
   const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm', frequence_base_ghz: ' GHz', frequence_boost_ghz: ' GHz', cache_l3_mo: ' Mo', vram_go: ' Go', bus_memoire_bits: ' bits', capacite_go: ' Go', frequence_mt_s: ' MT/s', lecture_mo_s: ' Mo/s', ecriture_mo_s: ' Mo/s' };
   const TYPE_RANK = { DDR3: 1, DDR4: 2, DDR5: 3, SATA: 1, NVMe: 2 };
@@ -262,6 +264,11 @@
       score = v => Array.isArray(v) ? v.length : 0;              // plus compatible = mieux
     }else if(key === 'type' || key === 'ram_type'){
       score = v => TYPE_RANK[v] || 0;                            // DDR5 > DDR4, NVMe > SATA
+    }else if(key === 'certification'){
+      const rang = ['Standard', 'White', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Titanium'];
+      score = v => rang.findIndex(r => String(v).includes(r)) + 1;
+    }else if(key === 'modularite'){
+      score = v => ({'Non modulaire': 1, 'Semi-modulaire': 2, 'Entièrement modulaire': 3})[v] || 0;
     }else if(key === 'latence_cl'){
       score = v => -Number(v);                                   // latence : moins = mieux
     }else if(key === 'tdp'){

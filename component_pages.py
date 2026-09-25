@@ -42,6 +42,8 @@ SPEC_LABELS = {
     "type_memoire": "Type de mémoire vidéo", "bus_memoire_bits": "Bus mémoire", "chipset": "Chipset",
     "capacite_go": "Capacité", "frequence_mt_s": "Fréquence", "barrettes": "Barrettes", "latence_cl": "Latence (CL)",
     "interface": "Interface", "lecture_mo_s": "Lecture séquentielle", "ecriture_mo_s": "Écriture séquentielle",
+    "certification": "Certification", "modularite": "Câbles", "format_alim": "Format",
+    "connecteur_12v_2x6": "Connecteur 12V-2x6 (16 broches)", "norme_atx": "Norme",
 }
 SPEC_UNITS = {"tdp": " W", "wattage": " W", "gpu_max_length_mm": " mm", "cpu_cooler_max_height_mm": " mm",
               "longueur_mm": " mm", "hauteur_mm": " mm", "frequence_base_ghz": " GHz",
