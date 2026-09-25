@@ -210,6 +210,7 @@
       { key: 'vram', label: 'Mémoire vidéo (VRAM)', kind: 'select' },
       { key: 'tdp', label: 'TDP maximum (W)', kind: 'max' },
       { key: 'longueur_mm', label: 'Longueur maximum (mm)', kind: 'max' },
+      { key: 'connecteur_alim', label: 'Câble d\'alimentation', kind: 'select' },
       { key: 'couleur', label: 'Couleur', kind: 'select' },
     ],
     'Stockage': [
