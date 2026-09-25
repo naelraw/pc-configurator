@@ -187,6 +187,8 @@
       { key: 'ram_type', label: 'Type de RAM', kind: 'select' },
       { key: 'm2_slots', label: 'Slots M.2 minimum', kind: 'min' },
       { key: 'sata_ports', label: 'Ports SATA minimum', kind: 'min' },
+      { key: 'slots_ram', label: 'Emplacements RAM minimum', kind: 'min' },
+      { key: 'wifi', label: 'Wi-Fi', kind: 'select' },
     ],
     'RAM': [
       { key: 'type', label: 'Type', kind: 'select' },

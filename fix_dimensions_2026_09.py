@@ -321,6 +321,30 @@ GPUS = {
     2571: ("GIGABYTE Radeon RX 6400 E", 192),
     2572: ("PowerColor Hellhound Rade", 220),
     2573: ("Gigabyte Radeon RX 6500 X", 192),
+    # Lot 4 (2026-09-25) : cartes restantes, base TechPowerUp (dimensions fabricant)
+    # et titre/fiche de l'annonce Amazon pour savoir de quel modèle exact il s'agit.
+    2315: ("ASUS Dual GeForce RTX 507", 249),
+    2350: ("EVGA GeForce RTX 3070 XC3", 285),
+    2403: ("EVGA GeForce RTX 2060 SC ", 190),
+    2438: ("EVGA GeForce RTX 3090 Ti ", 289),     # Kingpin Hybrid
+    2323: ("INNO3D GeForce RTX 3050 T", 240),
+    2313: ("INNO3D GeForce RTX 3050 T", 220),     # Twin X2 V2 6 Go (fiche INNO3D : 220 mm)
+    2447: ("INNO3D GeForce RTX 5050 T", 225),
+    2452: ("INNO3D GeForce RTX 5060 T", 250),
+    2306: ("MAXSUN GeForce RTX 3050 6", 169),
+    2496: ("Acer Nitro Radeon RX 9070", 297),
+    2412: ("PNY GeForce RTX 5060 OC 8", 200),
+    2465: ("PNY GeForce RTX 5070 Ti 1", 290),     # Slim OC
+    2474: ("PNY GeForce RTX 5080 16Go", 300),     # Slim OC Dual Fan
+    2308: ("Palit GeForce RTX 3050 St", 162),     # StormX 6 Go
+    2529: ("PowerColor Red Devil Rade", 338),     # RX 7900 XT (348 relevé à tort)
+    2517: ("XFX Swift RX 9060 XT 8 Go", 290),     # version Triple Ventilateur
+    2395: ("ZOTAC GEFORCE RTX 4080 Su", 307),     # Trinity Black
+    2321: ("ZOTAC Gaming GeForce RTX ", 222),     # RTX 3050 ECO 8 Go (ZT-A30500K-10M)
+    2443: ("ZOTAC Gaming GeForce RTX ", 221),     # RTX 5050 Twin Edge
+    2475: ("ZOTAC Gaming GeForce RTX ", 330),     # RTX 5080 Solid OC
+    2484: ("ZOTAC Gaming GeForce RTX ", 330),     # RTX 5090 Solid
+    2446: ("ZOTAC Gaming RTX 5050 SOL", 165),
 }
 for cid, (nom, longueur) in GPUS.items():
     UPDATES.setdefault(cid, (nom, {}))[1]["longueur_mm"] = longueur

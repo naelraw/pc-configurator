@@ -46,6 +46,7 @@ SPEC_LABELS = {
     "connecteur_12v_2x6": "Connecteur 12V-2x6 (16 broches)", "norme_atx": "Norme",
     "type_refroidissement": "Type", "radiateur_mm": "Radiateur", "ventilateurs": "Ventilateurs",
     "ventilateurs_inclus": "Ventilateurs fournis", "radiateur_max_mm": "Radiateur max.",
+    "slots_ram": "Emplacements RAM", "wifi": "Wi-Fi", "connecteur_alim": "Alimentation (câble)",
 }
 SPEC_UNITS = {"tdp": " W", "wattage": " W", "gpu_max_length_mm": " mm", "cpu_cooler_max_height_mm": " mm",
               "longueur_mm": " mm", "hauteur_mm": " mm", "frequence_base_ghz": " GHz",
