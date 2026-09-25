@@ -50,13 +50,23 @@ ssd interne internal nvme m.2 m 2 pcie gen gen3 gen4 gen5 x4 disque dur
 go gb g to tb mo mb mhz mt s w edition
 cpu cooler ventirad watercooling refroidisseur liquide aio ventilateur ventilateurs fan fans
 alimentation psu garantie ans an full modulaire semi certifie certified
-amd intel xmp expo compatible gddr5 gddr6 gddr6x gddr7
+amd intel xmp expo compatible gddr5 gddr6 gddr6x gddr7 memory air
 """.split()) | set(COULEURS) | {"spectral"}
 
 # Corrections manuelles, pour les cas que les règles ne voient pas :
 # RATTACHER {id: id d'une annonce du produit visé} ; SEPARES : ids toujours seuls.
 RATTACHER = {
     2268: 2206,   # « Corsair CX Series CX750 » = gamme CX
+    2615: 1903, 1898: 1903,           # PUSKILL DDR4 3200 (annonces sans nom de gamme)
+    1927: 1920,                       # Lexar Thor Z DDR5 6000 (« Series OC » dans une seule annonce)
+    2546: 2573,                       # GIGABYTE RX 6500 XT Eagle (référence GV-R65XTEAGLE collée au nom)
+    2412: 2336,                       # PNY RTX 5060 OC : toujours à deux ventilateurs
+    2462: 2368,                       # PNY RTX 5070 Ti OC : toujours à trois ventilateurs
+    2501: 2497, 2490: 2488,           # XFX Swift RX 9070 (XT) : toujours à trois ventilateurs
+    2697: 2713,                       # Thermalright Assassin X120 SE ARGB (écrit sans espace)
+    2711: 2694, 2703: 2694,           # Peerless Assassin 120 SE (« Dual Fan », V2)
+    2714: 2699,                       # be quiet! Pure Rock Pro 3 (LX = version ARGB)
+    2736: 2748,                       # Thermalright TL-C12C-S ARGB (« PWM » dans une seule annonce)
 }
 SEPARES = set()
 
@@ -85,7 +95,6 @@ def _mots(nom, sans_marque=True):
     n = re.sub(r"\(.*?\)", " ", n)                      # « (2x16Go) »
     n = n.replace("wi-fi", "wifi")
     n = re.sub(r"\b\d+\s*x\s*\d+\s*(go|gb|g)?\b", " ", n)  # « 2x16 », « 2 x 16 Go »
-    n = re.sub(r"\b(lot|pack|kit)\s+de\s+\d+\b|\bx\d\b(?!\S)", " ", n) if False else n
     return [t for t in re.split(r"[^a-z0-9.!]+", n) if t and t != "."]
 
 
@@ -146,7 +155,7 @@ def _cle_ram(c):
 def _cle_stockage(c):
     n = re.sub(r"\b\d+([.,]\d+)?\s*(go|gb|to|tb)\b", " ", _ascii(c["nom"]))
     mots = [t for t in _mots(n.replace(_ascii(marque(c["nom"])), "", 1), sans_marque=False)
-            if t not in MOTS_VIDES and not re.fullmatch(r"\d\.\d|dissipateur|heatsink|pcie\d", t)]
+            if t not in MOTS_VIDES and not re.fullmatch(r"\d\.\d|dissipateur|heatsink|pcie\d|22[348]0", t)]
     return " ".join(sorted(set(mots)))
 
 
@@ -165,8 +174,14 @@ def _cle_alim(c):
 
 def _cle_generique(c):
     n = re.sub(r"\b(lot|pack|kit)\s+de\s+\d+\b|\b\d\s*(pack|pcs)\b", " ", _ascii(c["nom"]))
+    n = re.sub(r"\b\d+\s*(caloducs?|heat\s*pipes?)\b", " ", n)   # « 4 caloducs », « 6 Heat Pipes »
+    n = re.sub(r"\b(\d+)\s+mm\b", r"\1mm", n)                      # « 120 mm » = « 120mm »
     mots = [t for t in _mots(marque(c["nom"]) + n[len(_ascii(marque(c["nom"]))):]) if t not in MOTS_VIDES]
-    mots = [t for t in mots if t not in {"argb", "rgb", "gaming", "airflow", "panoramique", "atx", "e-atx", "matx"}]
+    mots = [t for t in mots if t not in {"argb", "rgb", "gaming", "airflow", "panoramique", "atx", "e-atx", "matx"}
+            and not re.fullmatch(r"v\d", t)]
+    # Watercooling : 240, 360, 420 mm ne sont que des tailles du même modèle.
+    if (c.get("specs") or {}).get("type_refroidissement") == "Watercooling AIO":
+        mots = [t for t in mots if t not in {"120", "140", "240", "280", "360", "420"}]
     return " ".join(sorted(set(mots)))
 
 
@@ -201,7 +216,7 @@ def _fmt(v):
 
 
 CONDITIONNEMENTS = {"tray": "Tray (sans boîte)", "plateau": "Tray (sans boîte)", "oem": "Tray (sans boîte)",
-                    "box": "En boîte", "mpk": "Multipack", "argb": "ARGB", "rgb": "RGB"}
+                    "box": "En boîte", "mpk": "Multipack", "argb": "ARGB", "rgb": "RGB", "lx": "LX (ARGB)"}
 
 def _capacite(go):
     return f"{_fmt(go / 1000)} To" if go >= 1000 else f"{_fmt(go)} Go"
