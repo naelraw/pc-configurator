@@ -243,8 +243,9 @@
     frequence_boost_ghz: 'Fréquence boost', cache_l3_mo: 'Cache L3', memoire: 'Mémoire supportée',
     igpu: 'Graphique intégré', puce: 'Puce graphique', vram_go: 'Mémoire vidéo',
     type_memoire: 'Type de mémoire vidéo', bus_memoire_bits: 'Bus mémoire', chipset: 'Chipset',
+    capacite_go: 'Capacité', frequence_mt_s: 'Fréquence', barrettes: 'Barrettes', latence_cl: 'Latence (CL)',
   };
-  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm', frequence_base_ghz: ' GHz', frequence_boost_ghz: ' GHz', cache_l3_mo: ' Mo', vram_go: ' Go', bus_memoire_bits: ' bits' };
+  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm', frequence_base_ghz: ' GHz', frequence_boost_ghz: ' GHz', cache_l3_mo: ' Mo', vram_go: ' Go', bus_memoire_bits: ' bits', capacite_go: ' Go', frequence_mt_s: ' MT/s' };
   const TYPE_RANK = { DDR3: 1, DDR4: 2, DDR5: 3, SATA: 1, NVMe: 2 };
 
   // Meilleure valeur d'une caractéristique : 'a', 'b' ou null (égalité,
@@ -254,12 +255,14 @@
     if(va === undefined || vb === undefined || va === null || vb === null) return null;
     let score;
     if(['wattage', 'm2_slots', 'sata_ports', 'gpu_max_length_mm', 'cpu_cooler_max_height_mm',
-        'coeurs', 'threads', 'frequence_base_ghz', 'frequence_boost_ghz', 'cache_l3_mo', 'vram_go', 'bus_memoire_bits'].includes(key)){
+        'coeurs', 'threads', 'frequence_base_ghz', 'frequence_boost_ghz', 'cache_l3_mo', 'vram_go', 'bus_memoire_bits', 'capacite_go', 'frequence_mt_s'].includes(key)){
       score = v => Number(v);                                    // plus = mieux
     }else if(key === 'formats_supportes' || key === 'sockets_supportes'){
       score = v => Array.isArray(v) ? v.length : 0;              // plus compatible = mieux
     }else if(key === 'type' || key === 'ram_type'){
       score = v => TYPE_RANK[v] || 0;                            // DDR5 > DDR4, NVMe > SATA
+    }else if(key === 'latence_cl'){
+      score = v => -Number(v);                                   // latence : moins = mieux
     }else if(key === 'tdp'){
       // Ventirad : capacité de refroidissement (plus = mieux) ;
       // processeur / carte graphique : consommation (moins = mieux).

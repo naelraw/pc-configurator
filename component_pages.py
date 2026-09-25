@@ -40,11 +40,12 @@ SPEC_LABELS = {
     "frequence_boost_ghz": "Fréquence boost", "cache_l3_mo": "Cache L3", "memoire": "Mémoire supportée",
     "igpu": "Graphique intégré", "puce": "Puce graphique", "vram_go": "Mémoire vidéo",
     "type_memoire": "Type de mémoire vidéo", "bus_memoire_bits": "Bus mémoire", "chipset": "Chipset",
+    "capacite_go": "Capacité", "frequence_mt_s": "Fréquence", "barrettes": "Barrettes", "latence_cl": "Latence (CL)",
 }
 SPEC_UNITS = {"tdp": " W", "wattage": " W", "gpu_max_length_mm": " mm", "cpu_cooler_max_height_mm": " mm",
               "longueur_mm": " mm", "hauteur_mm": " mm", "frequence_base_ghz": " GHz",
               "frequence_boost_ghz": " GHz", "cache_l3_mo": " Mo", "vram_go": " Go",
-              "bus_memoire_bits": " bits"}
+              "bus_memoire_bits": " bits", "capacite_go": " Go", "frequence_mt_s": " MT/s"}
 FPS_GAMES = ["Cyberpunk 2077", "Fortnite", "Counter-Strike 2", "Black Myth Wukong", "Baldur's Gate 3"]
 
 
