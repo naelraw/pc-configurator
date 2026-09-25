@@ -104,7 +104,19 @@ def _fmt_spec(key, value):
     return f"{value}{SPEC_UNITS.get(key, '')}"
 
 
+def _un_par_produit(items):
+    """Garde la première annonce de chaque produit (les listes sont déjà triées)."""
+    vus, garde = set(), []
+    for c in items:
+        g = c.get("groupe_id", c["id"])
+        if g not in vus:
+            vus.add(g)
+            garde.append(c)
+    return garde
+
+
 def _link_list(items, extra=None):
+    items = _un_par_produit(items)
     if not items:
         return ""
     rows = "".join(
@@ -166,9 +178,30 @@ def _alternatives(c, by_cat):
     if price <= 0:
         return []
     pool = [x for x in by_cat.get(c["categorie"], [])
-            if x["id"] != c["id"] and x.get("en_stock") and 0.75 * price <= _price(x) <= 1.25 * price
-            and x["nom"].lower() != c["nom"].lower()]
-    return sorted(pool, key=lambda x: abs(_price(x) - price))[:5]
+            if x.get("groupe_id", x["id"]) != c.get("groupe_id", c["id"]) and x.get("en_stock")
+            and 0.75 * price <= _price(x) <= 1.25 * price and x["nom"].lower() != c["nom"].lower()]
+    return _un_par_produit(sorted(pool, key=lambda x: abs(_price(x) - price)))[:5]
+
+
+def _variantes_html(c, catalog):
+    """Les autres annonces du même produit (couleur, capacité, autre vendeur...), avec leur prix."""
+    if (c.get("nb_variantes") or 1) < 2:
+        return ""
+    groupe = sorted((x for x in catalog if x.get("groupe_id") == c.get("groupe_id")),
+                    key=lambda x: (not x.get("en_stock"), _price(x) <= 0, _price(x)))
+    rows = "".join(
+        (f"<span class=\"guide-other is-current\" aria-current=\"page\">" if x["id"] == c["id"]
+         else f"<a class=\"guide-other\" href=\"{escape(page_url(x))}\">")
+        + f"<span>{escape(x.get('variante') or x['nom'])}"
+        + ("" if x.get("en_stock") else " <em>(indisponible)</em>")
+        + (" <em>(cette fiche)</em>" if x["id"] == c["id"] else "")
+        + f"</span><b>{_euros(_price(x)) if _price(x) else '—'}</b>"
+        + ("</span>" if x["id"] == c["id"] else "</a>")
+        for x in groupe
+    )
+    return (f"<h2>Variantes de ce produit ({len(groupe)})</h2>"
+            f"<p class=\"guide-note\">Le même produit en plusieurs versions ou chez plusieurs vendeurs, avec leur prix du jour.</p>"
+            f"<div class=\"guide-others\">{rows}</div>")
 
 
 def render_component(c, catalog, fps_block, price_stats, affiliate):
@@ -231,6 +264,7 @@ def render_component(c, catalog, fps_block, price_stats, affiliate):
     compat_html = "".join(
         f"<h2>{title_}</h2><p class=\"guide-note\">{text}</p>{links}" for title_, text, links in _compatible_sections(c, by_cat)
     )
+    variantes_html = _variantes_html(c, catalog)
     alts = _alternatives(c, by_cat)
     alts_html = (f"<h2>Alternatives à prix proche</h2>{_link_list(alts)}" if alts else "")
     build_json = escape(json.dumps({cat: c["id"]}))
@@ -260,6 +294,7 @@ def render_component(c, catalog, fps_block, price_stats, affiliate):
       <table class="guide-table"><tbody>{specs_rows}</tbody></table>
     </section>
   </div>
+  {variantes_html}
   {fps_html}
   {compat_html}
   {alts_html}
@@ -274,11 +309,16 @@ def render_component(c, catalog, fps_block, price_stats, affiliate):
 
 def render_category(categorie, items):
     date_long, mois = _today()
-    items = sorted(items, key=lambda c: (not c.get("en_stock"), c["nom"].lower()))
+    # Une ligne par produit : son annonce la moins chère en stock, avec le
+    # nombre de variantes (les autres restent accessibles depuis sa fiche).
+    items = sorted(items, key=lambda c: (not c.get("en_stock"), _price(c) <= 0, _price(c)))
+    produits = sorted(_un_par_produit(items), key=lambda c: (not c.get("en_stock"), c["nom"].lower()))
     rows = "".join(
         f"<a class=\"guide-other\" href=\"{escape(page_url(c))}\"><span>{escape(c['nom'])}"
-        f"{'' if c.get('en_stock') else ' <em>(indisponible)</em>'}</span><b>{_euros(_price(c)) if _price(c) else '—'}</b></a>"
-        for c in items
+        f"{'' if c.get('en_stock') else ' <em>(indisponible)</em>'}"
+        f"{f' <em>({n} variantes)</em>' if (n := c.get('nb_variantes') or 1) > 1 else ''}</span>"
+        f"<b>{('dès ' if (c.get('nb_variantes') or 1) > 1 else '') + _euros(_price(c)) if _price(c) else '—'}</b></a>"
+        for c in produits
     )
     name = CATEGORY_NAMES.get(categorie, categorie)
     body = f"""
@@ -286,19 +326,19 @@ def render_category(categorie, items):
   <a href="/composants" class="legal-back">← Toutes les catégories</a>
   <p class="guide-kicker">Catalogue · {mois}</p>
   <h1>{escape(name)} : prix et caractéristiques</h1>
-  <div class="legal-updated">{len(items)} références · prix mis à jour le {date_long}</div>
+  <div class="legal-updated">{len(produits)} produits ({len(items)} offres) · prix mis à jour le {date_long}</div>
   <div class="guide-others">{rows}</div>
 </main>
 """
     return _page(f"{name} : prix et comparatif ({mois}) — PC Radar",
-                 f"{len(items)} {name.lower()} avec leur prix du jour, leurs caractéristiques et leur compatibilité.",
+                 f"{len(produits)} {name.lower()} avec leur prix du jour, leurs caractéristiques et leur compatibilité.",
                  f"https://pcradar.tech{category_url(categorie)}", body)
 
 
 def render_index(catalog):
     date_long, mois = _today()
     counts = {}
-    for c in catalog:
+    for c in _un_par_produit(catalog):
         counts[c["categorie"]] = counts.get(c["categorie"], 0) + 1
     rows = "".join(
         f"<a class=\"guide-other\" href=\"{escape(category_url(cat))}\"><span>{escape(CATEGORY_NAMES[cat])}</span>"
@@ -309,7 +349,7 @@ def render_index(catalog):
   <a href="/" class="legal-back">← Retour à l'accueil</a>
   <p class="guide-kicker">Catalogue · {mois}</p>
   <h1>Tous les composants PC</h1>
-  <div class="legal-updated">{len(catalog)} références · prix mis à jour le {date_long}</div>
+  <div class="legal-updated">{sum(counts.values())} produits · prix mis à jour le {date_long}</div>
   <div class="guide-others">{rows}</div>
 </main>
 """

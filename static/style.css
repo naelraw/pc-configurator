@@ -549,6 +549,19 @@ a.bento-cell:hover .more{ color:var(--accent); }
 }
 .component-btn .detail-btn:hover{ border-color:var(--line-strong); color:var(--text); }
 
+/* Menu des variantes d'un produit (couleur, capacité, autre vendeur...) */
+.component-btn .variant-pick{ display:flex; flex-direction:column; gap:4px; font-size:0.72rem; color:var(--text-2); cursor:default; }
+.component-btn .variant-pick select{
+  width:100%; min-width:0; font:inherit; font-size:0.76rem; color:var(--text);
+  background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:5px 6px; cursor:pointer;
+}
+.component-btn .variant-pick select:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+.variant-link{
+  background:transparent; border:1px solid var(--line); color:var(--accent); font-size:0.74rem;
+  padding:3px 9px; border-radius:6px; cursor:pointer;
+}
+.variant-link:hover{ border-color:var(--accent-line); }
+.guide-other.is-current{ border-color:var(--accent-line); background:var(--surface-2); }
 .component-btn.over-budget{ opacity:0.45; }
 .component-btn.over-budget .price::after{ content:' · dépasse le budget'; color:var(--danger); font-size:0.72rem; font-family:var(--font-body); }
 

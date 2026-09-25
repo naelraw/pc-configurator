@@ -58,11 +58,71 @@
     return sorted.filter(i => i.en_stock !== false).concat(sorted.filter(i => i.en_stock === false));
   }
 
-  // La "marque" n'est pas un champ à part dans la base — on la déduit du
-  // premier mot du nom (ex: "AMD Ryzen 5 5600" -> "AMD"). Évite d'ajouter
-  // un champ obligatoire de plus au schéma juste pour filtrer.
-  function getBrand(nom){
-    return (nom || '').trim().split(' ')[0];
+  // La "marque" n'est pas un champ à part dans la base : le serveur la
+  // déduit du début du nom, dans son écriture officielle (variantes.py :
+  // « CORSAIR » et « Corsair » donnent la même marque, « be quiet! » en
+  // entier). Repli sur le premier mot pour un vieux catalogue en cache.
+  function getBrand(item){
+    return item.marque || (item.nom || '').trim().split(' ')[0];
+  }
+
+  // Annonces d'un même produit (couleur, capacité, autre vendeur...) : le
+  // serveur leur donne le même groupe_id. Une seule carte par produit, avec
+  // un menu pour choisir la variante. La variante choisie par groupe reste
+  // en mémoire tant que la page est ouverte.
+  const chosenVariants = {};
+  const groupOf = item => item.groupe_id ?? item.id;
+
+  // En stock d'abord, puis du moins cher au plus cher (prix 0 = inconnu, à la fin).
+  function variantOrder(a, b){
+    if((a.en_stock === false) !== (b.en_stock === false)) return a.en_stock === false ? 1 : -1;
+    const pa = Number(a.prix_indicatif) || Infinity, pb = Number(b.prix_indicatif) || Infinity;
+    return pa - pb;
+  }
+
+  // Regroupe les annonces filtrées par produit : une carte par produit,
+  // montrant la variante choisie si elle passe les filtres, sinon la moins chère.
+  function groupVariants(items){
+    const byGroup = new Map();
+    items.forEach(item => {
+      const g = groupOf(item);
+      if(!byGroup.has(g)) byGroup.set(g, []);
+      byGroup.get(g).push(item);
+    });
+    return [...byGroup.values()].map(list => {
+      list.sort(variantOrder);
+      return list.find(v => v.id === chosenVariants[groupOf(v)]) || list[0];
+    });
+  }
+
+  function variantsOf(item, pool){
+    return pool.filter(c => groupOf(c) === groupOf(item)).sort(variantOrder);
+  }
+
+  function variantPickerHtml(item, variants){
+    if(variants.length < 2) return '';
+    const cheapest = variants.find(v => Number(v.prix_indicatif) > 0);
+    const options = variants.map(v => `<option value="${v.id}" ${v.id === item.id ? 'selected' : ''}>${escapeHtml(v.variante || v.nom)} — ${v.prix_indicatif}€${v.en_stock === false ? ' (épuisé)' : ''}</option>`).join('');
+    return `<label class="variant-pick">
+        <span>${variants.length} variantes${cheapest ? ` dès ${cheapest.prix_indicatif}€` : ''}</span>
+        <select aria-label="Choisir la variante">${options}</select>
+      </label>`;
+  }
+
+  // Changer de variante : si le produit est déjà sélectionné, la sélection
+  // suit (même produit, autre version) ; sinon la carte affiche la variante.
+  function chooseVariant(category, id){
+    const item = allComponents.find(c => c.id === id);
+    if(!item) return;
+    chosenVariants[groupOf(item)] = id;
+    const current = selectedComponents[category];
+    if(current && groupOf(current) === groupOf(item)){
+      selectedComponents[category] = item;
+      saveDraftToLocalStorage();
+      updateBuildPreview();
+      checkCompatibilityLive();
+    }
+    renderComponents(allComponents);
   }
 
   // Échappe une valeur pour l'insérer comme texte affiché OU comme valeur
@@ -97,7 +157,7 @@
     const previousValue = select.value;
     select.innerHTML = '<option value="">Toutes les marques</option>';
     const source = category ? allComponents.filter(c => c.categorie === category) : allComponents;
-    const brands = [...new Set(source.map(c => getBrand(c.nom)))].sort();
+    const brands = [...new Set(source.map(c => getBrand(c)))].sort((a, b) => a.localeCompare(b, 'fr', {sensitivity: 'base'}));
     brands.forEach(brand => appendOption(select, brand));
     select.value = brands.includes(previousValue) ? previousValue : '';
   }
@@ -227,7 +287,7 @@
     return items.filter(item => {
       if(item.en_stock === false && !showOutOfStock) return false;
       if(categoryFilter && item.categorie !== categoryFilter) return false;
-      if(brand && getBrand(item.nom) !== brand) return false;
+      if(brand && getBrand(item) !== brand) return false;
       if(priceMin !== null && item.prix_indicatif < priceMin) return false;
       if(priceMax !== null && item.prix_indicatif > priceMax) return false;
       if(search && !item.nom.toLowerCase().includes(search)) return false;
@@ -358,7 +418,8 @@
       // Calculé AVANT le titre (et même si la catégorie est repliée) : le
       // nombre affiché entre parenthèses doit refléter les filtres actifs
       // (recherche, marque, prix...), pas juste le total brut de la catégorie.
-      const visibleItems = filterItems(items);
+      const filteredItems = filterItems(items);
+      const visibleItems = groupVariants(filteredItems);
 
       const isCollapsed = collapsedCategories.has(category);
       const title = document.createElement('h3');
@@ -397,6 +458,8 @@
       const sortedItems = sortItems(visibleItems);
       const shownCount = isBrowseTarget ? Infinity : (visibleCounts[category] || PAGE_SIZE);
       const itemsToShow = selectedInCategory ? [selectedInCategory] : sortedItems.slice(0, shownCount);
+      // Menu des variantes : celles qui passent les filtres ; pour le produit
+      // déjà choisi, toutes (on peut changer de version sans tout rouvrir).
 
       itemsToShow.forEach(item => {
         const specs = item.specs || {};
@@ -413,6 +476,7 @@
         btn.tabIndex = 0;
         const imageHtml = item.image_url ? `<div class="component-thumb${item.image_processed ? ' is-transparent' : ''}"><img src="${escapeHtml(item.image_url)}?w=320" alt="${escapeHtml(item.nom)}" loading="lazy" decoding="async"></div>` : '';
         const outOfStockBadge = isOutOfStock ? `<span class="out-of-stock-badge">Épuisé</span>` : '';
+        const variants = variantsOf(item, selectedInCategory ? allComponents : filteredItems);
         btn.innerHTML = `
           ${outOfStockBadge}
           ${isOutOfStock ? '' : priceTrendBadge(item)}
@@ -420,9 +484,15 @@
           <span class="name">${escapeHtml(item.nom)}</span>
           <span class="specs">${specsText}</span>
           <span class="price">${item.prix_indicatif}€</span>
+          ${variantPickerHtml(item, variants)}
           <button type="button" class="detail-btn">Détail</button>
         `;
         btn.onclick = () => selectComponent(category, item);
+        const picker = btn.querySelector('.variant-pick');
+        if(picker){
+          picker.onclick = (event) => event.stopPropagation();
+          picker.querySelector('select').onchange = (event) => chooseVariant(category, Number(event.target.value));
+        }
         btn.querySelector('.detail-btn').onclick = (event) => {
           event.stopPropagation();
           showComponentDetail(item.id);
@@ -534,6 +604,18 @@
         `).join('')
       : '<p style="color:var(--text-dim); font-size:0.85rem;">Aucun prix de marché relevé. Voir le <a href="/comparateur" style="color:var(--led);">comparateur</a>.</p>';
 
+    const variants = variantsOf(item, allComponents);
+    const variantsHtml = variants.length > 1 ? `
+      <h4 style="margin-top:18px; margin-bottom:8px;">Variantes (${variants.length})</h4>
+      <div class="detail-prices">${variants.map(v => `
+        <div class="detail-row">
+          <span class="k">${escapeHtml(v.variante || v.nom)}${v.id === item.id ? ' <em>(affichée)</em>' : ''}</span>
+          <span class="v">${v.prix_indicatif}€${v.en_stock === false ? ' · épuisé' : ''}
+            ${v.id === item.id ? '' : `<button type="button" class="variant-link" data-variant="${v.id}" style="margin-left:8px;">Voir</button>`}
+          </span>
+        </div>`).join('')}
+      </div>` : '';
+
     const imageHtml = item.image_url ? `<div class="detail-image${item.image_processed ? ' is-transparent' : ''}"><img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.nom)}"></div>` : '';
 
     const descriptionHtml = item.description
@@ -568,10 +650,14 @@
       <div class="price-history-slot"></div>
       ${descriptionHtml}
       <div class="detail-specs">${specsHtml}</div>
+      ${variantsHtml}
       <h4 style="margin-top:18px; margin-bottom:8px;">Prix relevés</h4>
       <div class="detail-prices">${pricesHtml}</div>
       ${amazonDetailsHtml}
     `;
+    document.querySelectorAll('#detail-modal-content [data-variant]').forEach(b => {
+      b.onclick = () => showComponentDetail(Number(b.dataset.variant));
+    });
     document.getElementById('detail-modal-overlay').classList.add('show');
     PCAccount.mountFollow(document.querySelector('#detail-modal-content .follow-slot'), item);
     if(window.PCPriceHistory) PCPriceHistory.mount(document.querySelector('#detail-modal-content .price-history-slot'), item.id);

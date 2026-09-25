@@ -49,6 +49,7 @@ import featured_builds
 import guides
 import component_pages
 import comparisons
+import variantes
 import site_stats
 
 try:
@@ -959,6 +960,8 @@ def get_catalog():
         for component in components:
             component["page"] = component_pages.page_url(component)
             component["tendance_prix"] = trends.get(component["id"])
+        # Annonces d'un même produit regroupées en variantes (voir variantes.py).
+        variantes.annoter(components)
         if not components and _CATALOG["components"]:
             # Base momentanément indisponible : on garde la dernière version.
             return _CATALOG["components"]

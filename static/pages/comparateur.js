@@ -78,6 +78,8 @@
       .filter(c => (!restrictCategory || c.categorie === restrictCategory) && matchesQuery(c.nom, query)
         && !(other && isSameComponent(c, other)))
       .sort((a, b) => scoreRelevance(b.nom, query) - scoreRelevance(a.nom, query))
+      // Une seule ligne par produit (ses variantes partagent un groupe_id).
+      .filter((c, i, list) => list.findIndex(x => (x.groupe_id ?? x.id) === (c.groupe_id ?? c.id)) === i)
       .slice(0, 12);
 
     if(matches.length === 0){
@@ -88,14 +90,15 @@
 
     resultsBox.innerHTML = matches.map(c => `
       <div class="search-result-item" data-onclick="selectComponent('${slot}', ${c.id})">
-        ${escapeHtml(c.nom)}<br><span class="cat">${escapeHtml(c.categorie)}</span>
+        ${escapeHtml(c.nom)}<br><span class="cat">${escapeHtml(c.categorie)}${c.nb_variantes > 1 ? ` · ${c.nb_variantes} variantes` : ''}</span>
       </div>
     `).join('');
     resultsBox.classList.add('show');
   }
 
   function isSameComponent(x, y){
-    return x.id === y.id || normalize(x.nom) === normalize(y.nom);
+    return x.id === y.id || normalize(x.nom) === normalize(y.nom)
+      || (x.groupe_id != null && x.groupe_id === y.groupe_id);
   }
 
   function selectComponent(slot, id){

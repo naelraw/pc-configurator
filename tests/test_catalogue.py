@@ -94,3 +94,41 @@ def test_tendances_de_prix(app_main, catalog):
     assert t_ssd["releves_30j"] == 8 and t_ssd["min_30j"] == 65 and t_ssd["precedent"] == 80
     assert t_psu["precedent"] == 110
     assert by_id[component(catalog, "Ryzen 5 5600")["id"]]["tendance_prix"] is None
+
+
+def test_variantes_regroupees():
+    import variantes
+
+    def c(id_, categorie, nom, prix, **specs):
+        return {"id": id_, "categorie": categorie, "nom": nom, "prix_indicatif": prix, "en_stock": True, "specs": specs}
+
+    cat = variantes.annoter([
+        c(1, "RAM", "Corsair Vengeance RGB 32 Go DDR5 6000 MHz", 500, type="DDR5", capacite_go=32, latence_cl=30),
+        c(2, "RAM", "CORSAIR Vengeance RGB 32Go DDR5 6000MHz Intel", 480, type="DDR5", capacite_go=32, latence_cl=36),
+        c(3, "RAM", "Corsair Vengeance RGB 16 Go DDR5 6000", 250, type="DDR5", capacite_go=16, latence_cl=36),
+        c(4, "RAM", "Corsair Vengeance LPX 16 Go DDR4 3200", 150, type="DDR4", capacite_go=16),
+        c(5, "Carte mère", "MSI B760 Gaming Plus WiFi", 110, ram_type="DDR5"),
+        c(6, "Carte mère", "MSI B760 Gaming Plus WiFi DDR4", 150, ram_type="DDR4"),
+        c(7, "GPU", "MSI GeForce RTX 5080 16G Ventus 3X OC", 1600, puce="RTX 5080", vram_go=16),
+        c(8, "GPU", "MSI RTX 5080 Ventus 3X OC 16 Go GDDR7 White", 1700, puce="RTX 5080", vram_go=16),
+        c(9, "GPU", "MSI GeForce RTX 5080 16G Gaming Trio OC", 1700, puce="RTX 5080", vram_go=16),
+        c(10, "Alimentation", "be quiet! Pure Power 12 750W", 90, wattage=750),
+        c(11, "Alimentation", "be quiet! Pure Power 12 850W", 100, wattage=850),
+        c(12, "Alimentation", "be quiet! Pure Power 13 M 850W", 130, wattage=850),
+        c(13, "CPU", "Intel Core i5-14600KF", 260),
+        c(14, "CPU", "Intel Core i5-14600K Tray", 270),
+    ])
+    g = {x["id"]: x for x in cat}
+    meme = lambda a, b: g[a]["groupe_id"] == g[b]["groupe_id"]
+    assert meme(1, 2) and meme(1, 3) and not meme(1, 4)          # capacité/latence = variantes, LPX = autre gamme
+    assert not meme(5, 6)                                          # DDR4 et DDR5 : deux cartes mères
+    assert meme(7, 8) and not meme(7, 9)                           # couleur = variante, Gaming Trio = autre carte
+    assert meme(10, 11) and not meme(11, 12)                       # Pure Power 12 ≠ Pure Power 13 M
+    assert not meme(13, 14)                                        # 14600KF ≠ 14600K
+    assert g[1]["variante"] == "32 Go · CL30" and g[3]["nb_variantes"] == 3
+    assert g[8]["variante"] == "Blanc" and g[7]["variante"] == "Noir"
+    assert g[2]["marque"] == "Corsair" and g[10]["marque"] == "be quiet!"
+
+
+def test_catalogue_annonce_les_variantes(catalog):
+    assert all({"groupe_id", "variante", "nb_variantes", "marque"} <= set(c) for c in catalog)
