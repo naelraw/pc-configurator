@@ -623,7 +623,7 @@
     const bar = $('import-progress');
     log.innerHTML = '';
     bar.hidden = false;
-    bar.firstElementChild.style.width = '0';
+    bar.firstElementChild.style.transform = 'scaleX(0)';
     $('import-btn').disabled = true;
     $('import-pause').hidden = false;
     $('import-cancel').hidden = false;
@@ -644,7 +644,7 @@
         done++;
         if(outcome.ok) ok++;
         log.insertAdjacentHTML('beforeend', `<li class="${outcome.ok ? 'ok' : 'ko'}"><i class="ph ph-${outcome.ok ? 'check-circle' : 'x-circle'}"></i><span>${escapeHtml(outcome.text)}</span></li>`);
-        bar.firstElementChild.style.width = Math.round(done / entries.length * 100) + '%';
+        bar.firstElementChild.style.transform = `scaleX(${done / entries.length})`;
       }
     }
     await Promise.all([worker(), worker()]);
