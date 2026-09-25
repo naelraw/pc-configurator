@@ -15,6 +15,7 @@ RETRAITS = {
     2796: ("AGI STORAGE TURBOJET", "lot RAM + SSD rangé dans les SSD : ni un SSD, ni comparable"),
     2865: ("Acer Predator GM9 M.2", "doublon de l'annonce 2858 (même ASIN)"),
     2860: ("Lexar EQ790 SSD 1To", "doublon de l'annonce 2857 (même ASIN)"),
+    1936: ("Lexar THOR Z Series OC 8 Go DDR5 6000", "prix aberrant : 449,99 € pour la barrette de 8 Go vendue 174,99 € dans l'annonce 1920"),
 }
 
 export = []
@@ -28,8 +29,10 @@ for cid, (debut, raison) in RETRAITS.items():
     print(f"{cid} | {row['nom'][:50]} | {raison}")
 
 if APPLY and export:
+    # L'archive s'enrichit à chaque passage : les retraits précédents y restent.
     out = Path(sys.argv[1]).with_name("annonces_retirees_2026_09.json")
-    out.write_text(json.dumps(export, ensure_ascii=False, indent=1), encoding="utf-8")
+    deja = json.loads(out.read_text(encoding="utf-8")) if out.exists() else []
+    out.write_text(json.dumps(deja + export, ensure_ascii=False, indent=1), encoding="utf-8")
     for e in export:
         cid = e["composant"]["id"]
         db.execute("delete from price_history where component_id=?", (cid,))
