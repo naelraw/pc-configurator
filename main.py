@@ -588,8 +588,11 @@ def check_compatibility(config_list):
         ok, message = check_stockage(motherboard, storage)
         if not ok:
             errors.append(message)
-    if cpu and case and cooler:
-        ok, message = check_refroidissement(cpu, case, cooler)
+    if cooler:
+        # Sans processeur ou sans boîtier, les contrôles qui en dépendent sont
+        # simplement sautés ; « ventilateur de boîtier choisi comme
+        # refroidisseur » est signalé dans tous les cas.
+        ok, message = check_refroidissement(cpu or {}, case or {}, cooler)
         if not ok:
             errors.append(message)
 

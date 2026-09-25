@@ -264,6 +264,9 @@ def render_component(c, catalog, fps_block, price_stats, affiliate):
     compat_html = "".join(
         f"<h2>{title_}</h2><p class=\"guide-note\">{text}</p>{links}" for title_, text, links in _compatible_sections(c, by_cat)
     )
+    case_fan = ("<p class=\"guide-note\"><strong>Ventilateur de boîtier :</strong> il améliore la circulation d'air "
+                "dans le boîtier mais ne refroidit pas le processeur. Il s'ajoute en plus d'un ventirad ou d'un "
+                "watercooling.</p>") if _spec(c, "type_refroidissement") == "Ventilateur de boîtier" else ""
     variantes_html = _variantes_html(c, catalog)
     alts = _alternatives(c, by_cat)
     alts_html = (f"<h2>Alternatives à prix proche</h2>{_link_list(alts)}" if alts else "")
@@ -277,6 +280,7 @@ def render_component(c, catalog, fps_block, price_stats, affiliate):
     <div class="comp-head">
       <p class="guide-kicker">{escape(CATEGORY_SINGULAR.get(cat, cat).capitalize())} · {stock}</p>
       <h1>{escape(nom)}</h1>
+      {case_fan}
       <p class="comp-price">{_euros(price) if price else 'Prix non disponible'}</p>
       <div class="legal-updated">Prix mis à jour le {date_long}</div>
       <button type="button" class="btn btn-primary guide-cta" data-build="{build_json}">Ajouter au configurateur</button>

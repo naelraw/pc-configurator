@@ -90,6 +90,8 @@ def _ssd_go(nom):
 
 def _cooler_fits(cooler, socket):
     specs = cooler.get("specs") or {}
+    if specs.get("type_refroidissement") == "Ventilateur de boîtier":
+        return False   # ne refroidit pas le processeur
     sockets = specs.get("sockets_supportes")
     if isinstance(sockets, list) and sockets:
         return socket in sockets

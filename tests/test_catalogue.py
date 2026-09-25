@@ -132,3 +132,11 @@ def test_variantes_regroupees():
 
 def test_catalogue_annonce_les_variantes(catalog):
     assert all({"groupe_id", "variante", "nb_variantes", "marque"} <= set(c) for c in catalog)
+
+
+def test_ventilateur_de_boitier_refuse_comme_refroidisseur():
+    cpu = {"socket": "AM5", "tdp": 65}
+    fan = {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm"}
+    erreurs = verifier_compatibilite(cpu, {}, {}, {}, {}, None, [], fan)
+    assert erreurs and "ventilateur de boîtier" in erreurs[0]
+    assert verifier_compatibilite(cpu, {}, {}, {}, {}, None, [], {"type_refroidissement": "Ventirad", "sockets_supportes": ["AM5"]}) == []

@@ -549,6 +549,10 @@ a.bento-cell:hover .more{ color:var(--accent); }
 }
 .component-btn .detail-btn:hover{ border-color:var(--line-strong); color:var(--text); }
 
+.component-btn .case-fan-note{
+  display:flex; gap:5px; align-items:flex-start; font-size:0.72rem; line-height:1.35; color:var(--text-2);
+  border:1px solid var(--line); border-radius:6px; padding:4px 6px; background:var(--surface-2);
+}
 /* Menu des variantes d'un produit (couleur, capacité, autre vendeur...) */
 .component-btn .variant-pick{ display:flex; flex-direction:column; gap:4px; font-size:0.72rem; color:var(--text-2); cursor:default; }
 .component-btn .variant-pick select{

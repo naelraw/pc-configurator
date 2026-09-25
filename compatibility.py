@@ -54,7 +54,14 @@ def check_stockage(carte_mere, stockages):
 	return True, "OK"
 
 
+VENTILATEUR_BOITIER = "Ventilateur de boîtier"
+
+
 def check_refroidissement(cpu, boitier, cooler):
+	# Un ventilateur de boîtier ne refroidit pas le processeur : il s'ajoute
+	# en plus d'un ventirad ou d'un watercooling, jamais à leur place.
+	if cooler.get("type_refroidissement") == VENTILATEUR_BOITIER:
+		return False, "Ce produit est un ventilateur de boîtier : il ne refroidit pas le processeur. Choisis un ventirad ou un watercooling."
 	# Socket et hauteur sont vérifiés séparément : un watercooling n'a pas de
 	# hauteur de ventirad, mais son socket doit quand même correspondre.
 	if "socket" in cpu and "sockets_supportes" in cooler and cpu["socket"] not in cooler["sockets_supportes"]:

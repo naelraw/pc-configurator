@@ -53,9 +53,12 @@
       });
     }
     else sorted.sort((a, b) => a.nom.localeCompare(b.nom));
-    // Les produits épuisés (visibles seulement si la case est cochée) passent
-    // toujours en fin de liste, quel que soit le tri choisi.
-    return sorted.filter(i => i.en_stock !== false).concat(sorted.filter(i => i.en_stock === false));
+    // Les ventilateurs de boîtier passent après les ventirads et watercoolings
+    // (ils ne refroidissent pas le processeur), et les produits épuisés
+    // (visibles seulement si la case est cochée) toujours en fin de liste,
+    // quel que soit le tri choisi.
+    const rank = i => (i.en_stock === false ? 2 : 0) + (isCaseFan(i) ? 1 : 0);
+    return [0, 1, 2, 3].flatMap(r => sorted.filter(i => rank(i) === r));
   }
 
   // La "marque" n'est pas un champ à part dans la base : le serveur la
@@ -64,6 +67,10 @@
   // entier). Repli sur le premier mot pour un vieux catalogue en cache.
   function getBrand(item){
     return item.marque || (item.nom || '').trim().split(' ')[0];
+  }
+
+  function isCaseFan(item){
+    return (item.specs || {}).type_refroidissement === 'Ventilateur de boîtier';
   }
 
   // Annonces d'un même produit (couleur, capacité, autre vendeur...) : le
@@ -209,6 +216,7 @@
       { key: 'couleur', label: 'Couleur', kind: 'select' },
     ],
     'Refroidissement': [
+      { key: 'type_refroidissement', label: 'Type', kind: 'select' },
       { key: 'sockets_supportes', label: 'Socket supporté', kind: 'select-list' },
       { key: 'hauteur_mm', label: 'Hauteur maximum (mm)', kind: 'max' },
     ],
@@ -476,12 +484,15 @@
         btn.tabIndex = 0;
         const imageHtml = item.image_url ? `<div class="component-thumb${item.image_processed ? ' is-transparent' : ''}"><img src="${escapeHtml(item.image_url)}?w=320" alt="${escapeHtml(item.nom)}" loading="lazy" decoding="async"></div>` : '';
         const outOfStockBadge = isOutOfStock ? `<span class="out-of-stock-badge">Épuisé</span>` : '';
+        // Un ventilateur de boîtier ne remplace pas un ventirad : on le dit sur la carte.
+        const caseFanNote = isCaseFan(item) ? `<span class="case-fan-note"><i class="ph ph-fan" aria-hidden="true"></i> Ventilateur de boîtier — ne refroidit pas le processeur</span>` : '';
         const variants = variantsOf(item, selectedInCategory ? allComponents : filteredItems);
         btn.innerHTML = `
           ${outOfStockBadge}
           ${isOutOfStock ? '' : priceTrendBadge(item)}
           ${imageHtml}
           <span class="name">${escapeHtml(item.nom)}</span>
+          ${caseFanNote}
           <span class="specs">${specsText}</span>
           <span class="price">${item.prix_indicatif}€</span>
           ${variantPickerHtml(item, variants)}
