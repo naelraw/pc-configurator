@@ -247,8 +247,9 @@
     interface: 'Interface', lecture_mo_s: 'Lecture séquentielle', ecriture_mo_s: 'Écriture séquentielle',
     certification: 'Certification', modularite: 'Câbles', format_alim: 'Format',
     connecteur_12v_2x6: 'Connecteur 12V-2x6 (16 broches)', norme_atx: 'Norme',
+    type_refroidissement: 'Type', radiateur_mm: 'Radiateur', ventilateurs: 'Ventilateurs',
   };
-  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm', frequence_base_ghz: ' GHz', frequence_boost_ghz: ' GHz', cache_l3_mo: ' Mo', vram_go: ' Go', bus_memoire_bits: ' bits', capacite_go: ' Go', frequence_mt_s: ' MT/s', lecture_mo_s: ' Mo/s', ecriture_mo_s: ' Mo/s' };
+  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm', frequence_base_ghz: ' GHz', frequence_boost_ghz: ' GHz', cache_l3_mo: ' Mo', vram_go: ' Go', bus_memoire_bits: ' bits', capacite_go: ' Go', frequence_mt_s: ' MT/s', lecture_mo_s: ' Mo/s', ecriture_mo_s: ' Mo/s', radiateur_mm: ' mm' };
   const TYPE_RANK = { DDR3: 1, DDR4: 2, DDR5: 3, SATA: 1, NVMe: 2 };
 
   // Meilleure valeur d'une caractéristique : 'a', 'b' ou null (égalité,
@@ -258,7 +259,7 @@
     if(va === undefined || vb === undefined || va === null || vb === null) return null;
     let score;
     if(['wattage', 'm2_slots', 'sata_ports', 'gpu_max_length_mm', 'cpu_cooler_max_height_mm',
-        'coeurs', 'threads', 'frequence_base_ghz', 'frequence_boost_ghz', 'cache_l3_mo', 'vram_go', 'bus_memoire_bits', 'capacite_go', 'frequence_mt_s', 'lecture_mo_s', 'ecriture_mo_s'].includes(key)){
+        'coeurs', 'threads', 'frequence_base_ghz', 'frequence_boost_ghz', 'cache_l3_mo', 'vram_go', 'bus_memoire_bits', 'capacite_go', 'frequence_mt_s', 'lecture_mo_s', 'ecriture_mo_s', 'radiateur_mm'].includes(key)){
       score = v => Number(v);                                    // plus = mieux
     }else if(key === 'formats_supportes' || key === 'sockets_supportes'){
       score = v => Array.isArray(v) ? v.length : 0;              // plus compatible = mieux

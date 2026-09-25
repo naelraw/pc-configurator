@@ -853,6 +853,104 @@ ALIMS = {
 for cid, (nom, valeurs) in ALIMS.items():
     UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)
 
+# Refroidissement : type (ventirad / watercooling AIO / ventilateur de boîtier), radiateur,
+# nombre de ventilateurs, hauteur des ventirads vérifiée (thermalright.com, bequiet.com,
+# coolermaster.com, thermaltake.com, arctic.de, msi.com). None = champ faux à effacer
+# (une « hauteur » de ventilateur ou d'AIO n'a pas de sens pour la compatibilité).
+REFROIDISSEMENTS = {
+    2690: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2691: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2692: ("Thermalright Assassin Spi", {"type_refroidissement": "Ventirad", "hauteur_mm": 156}),
+    2693: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2694: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2695: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2696: ("ARCTIC Freezer 36 Refroid", {"type_refroidissement": "Ventirad", "hauteur_mm": 159}),
+    2697: ("Thermalright Assassin X12", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2698: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2699: ("be quiet! Pure Rock Pro 3", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2700: ("be quiet! Pure Rock Slim ", {"type_refroidissement": "Ventirad", "hauteur_mm": 135}),
+    2702: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2703: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2704: ("Cooler Master Hyper 212 B", {"type_refroidissement": "Ventirad", "hauteur_mm": 152}),
+    2705: ("Thermalright Assassin Spi", {"type_refroidissement": "Ventirad", "hauteur_mm": 156}),
+    2706: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 151}),
+    2708: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 164}),
+    2711: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2713: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2714: ("be quiet! Pure Rock Pro 3", {"type_refroidissement": "Ventirad", "hauteur_mm": 155}),
+    2715: ("Noctua NH-D15 Ventirad CP", {"type_refroidissement": "Ventirad", "hauteur_mm": 165}),
+    2716: ("Corsair Nautilus 360 RS A", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2717: ("Noctua NH-D15 G2", {"type_refroidissement": "Ventirad", "hauteur_mm": 168}),
+    2718: ("be quiet! Dark Rock Pro 6", {"type_refroidissement": "Ventirad", "hauteur_mm": 169}),
+    2719: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2720: ("MSI MAG COREFROZR AA13 Ve", {"type_refroidissement": "Ventirad", "hauteur_mm": 152}),
+    2721: ("Thermalright Assassin Kin", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2723: ("ARCTIC Liquid Freezer III", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2724: ("Thermalright Phantom Spir", {"type_refroidissement": "Ventirad", "hauteur_mm": 154}),
+    2725: ("Thermalright Assassin Spi", {"type_refroidissement": "Ventirad", "hauteur_mm": 156}),
+    2726: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 164}),
+    2727: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2728: ("ARCTIC Freezer 36 A-RGB", {"type_refroidissement": "Ventirad", "hauteur_mm": 159}),
+    2729: ("Thermaltake Contac 9 SE V", {"type_refroidissement": "Ventirad", "hauteur_mm": 131}),
+    2730: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 151}),
+    2731: ("Thermalright Assassin Spi", {"type_refroidissement": "Ventirad", "hauteur_mm": 156}),
+    2732: ("Noctua NH-U12A", {"type_refroidissement": "Ventirad", "hauteur_mm": 158}),
+    2733: ("Noctua NH-D15 G2 Ventirad", {"type_refroidissement": "Ventirad", "hauteur_mm": 168}),
+    2734: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 165}),
+    2735: ("Thermalright Peerless Ass", {"type_refroidissement": "Ventirad", "hauteur_mm": 162}),
+    2736: ("Thermalright TL-C12C-S AR", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "1 x 120 mm", "hauteur_mm": None}),
+    2737: ("Thermalright TL-C12C-S X3", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2738: ("Corsair RS120 120mm PWM L", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2739: ("Thermalright TL-C12C-S X5", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "5 x 120 mm", "hauteur_mm": None}),
+    2740: ("ARCTIC P12 Pro 120 mm Ven", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "1 x 120 mm", "hauteur_mm": None}),
+    2741: ("Thermalright TL-M12QW-S X", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2742: ("Thermalright TL-C12C-S X5", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "5 x 120 mm", "hauteur_mm": None}),
+    2743: ("Thermalright TL-M12Q-S X3", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2744: ("Mars Gaming MFPROX2 Kit 2", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "2 x 120 mm", "hauteur_mm": None}),
+    2745: ("Thermalright Assassin Kin", {"type_refroidissement": "Ventirad", "hauteur_mm": 148}),
+    2746: ("ARCTIC P12 120 mm Lot de ", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "5 x 120 mm", "hauteur_mm": None}),
+    2747: ("Thermalright TL-M12Q X3 V", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2748: ("Thermalright TL-C12C-S AR", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "1 x 120 mm", "hauteur_mm": None}),
+    2749: ("Thermalright TL-C12CW-S X", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2750: ("Thermalright TL-C12C X5 1", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "5 x 120 mm", "hauteur_mm": None}),
+    2751: ("Thermalright TL-C12C X3 1", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2752: ("ARCTIC P12 Pro A-RGB 120 ", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "1 x 120 mm", "hauteur_mm": None}),
+    2753: ("Thermalright TL-C12B-S V3", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2754: ("Thermalright TL-C12C-S X5", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "5 x 120 mm", "hauteur_mm": None}),
+    2755: ("ASUS Prime MR120 ARGB Rev", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2757: ("Corsair iCUE LINK QX120 R", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "3 x 120 mm", "hauteur_mm": None}),
+    2758: ("Noctua NF-A12x25 G2 PWM", {"type_refroidissement": "Ventilateur de boîtier", "ventilateurs": "1 x 120 mm", "hauteur_mm": None}),
+    2760: ("ASUS Prime MR120 ARGB Noi", {"type_refroidissement": "Ventilateur de boîtier", "hauteur_mm": None}),
+    2761: ("Thermalright Aqua Elite 3", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2762: ("Thermalright Aqua Elite 3", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2764: ("Thermalright Frozen Prism", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2765: ("ARCTIC Liquid Freezer III", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2766: ("ARCTIC Liquid Freezer III", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2767: ("MSI MAG CoreLiquid A13 36", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2768: ("Thermalright Frozen Notte", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2769: ("Corsair iCUE LINK TITAN 3", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2770: ("Thermalright Aqua Elite 2", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2771: ("Thermalright Aqua Elite 1", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 120, "hauteur_mm": None}),
+    2772: ("Cooler Master MasterLiqui", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2773: ("ASUS ROG Strix LC III 360", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2774: ("Thermalright Aqua Elite 3", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2775: ("Thermalright Aqua Elite 2", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2776: ("Thermalright FW240 Blanc ", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2777: ("Thermalright Assassin X 1", {"type_refroidissement": "Ventirad", "hauteur_mm": 151}),
+    2778: ("Thermalright Frozen Prism", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2779: ("Thermalright Frozen Notte", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 120, "hauteur_mm": None}),
+    2780: ("Thermalright FW360 Noir A", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2781: ("ARCTIC Liquid Freezer III", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 420, "hauteur_mm": None}),
+    2782: ("Thermalright Aqua Elite 2", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2783: ("Thermalright Phantom Spir", {"type_refroidissement": "Ventirad", "hauteur_mm": 157}),
+    2784: ("MSI MAG CoreLiquid I360 W", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
+    2785: ("Thermalright FW240 Black ", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2827: ("ASUS TUF Gaming LC II 240", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2839: ("ASUS TUF Gaming LC III 24", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+}
+for cid, (nom, valeurs) in REFROIDISSEMENTS.items():
+    UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)
+
 # Fiche 1936 : nommée « 32 Go » mais l'annonce vend 1 barrette de 8 Go -> nom corrigé.
 RENOMMER = {1936: ("Lexar THOR Z Series OC 32 Go DDR5 6000", "Lexar THOR Z Series OC 8 Go DDR5 6000")}
 
@@ -863,13 +961,14 @@ for cid, (expected, values) in UPDATES.items():
         problems.append(f"{cid} : attendu « {expected} », trouvé {r[0] if r else 'rien'} -> ignoré")
         continue
     specs = json.loads(r[1] or "{}")
-    diff = {k: v for k, v in values.items() if specs.get(k) != v}
+    diff = {k: v for k, v in values.items() if specs.get(k) != v and not (v is None and k not in specs)}
     if not diff:
         continue
     changes.append(f"{cid} | {r[0][:45]} | " + ", ".join(f"{k}={v}" for k, v in diff.items()))
     if APPLY:
+        merged = {k: v for k, v in {**specs, **diff}.items() if v is not None}
         db.execute("update components set specs_json=? where id=?",
-                   (json.dumps({**specs, **diff}, ensure_ascii=False), cid))
+                   (json.dumps(merged, ensure_ascii=False), cid))
 
 for cid, (ancien, nouveau) in RENOMMER.items():
     r = db.execute("select nom from components where id=?", (cid,)).fetchone()
