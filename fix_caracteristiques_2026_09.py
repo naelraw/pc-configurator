@@ -691,6 +691,61 @@ RAMS = {
 for cid, (nom, valeurs) in RAMS.items():
     UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)
 
+# SSD : capacité, format, interface (génération PCIe par gamme fabricant), débits séquentiels
+# en Mo/s (valeurs des marques, vérifiées sur samsung.com ; erreurs évidentes corrigées).
+SSDS = {
+    2651: ("Lexar NM790 2 To", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7400, "ecriture_mo_s": 6500}),
+    2652: ("Lexar ARES 512 Go M.2 NVM", {"capacite_go": 512, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7400, "ecriture_mo_s": 6500}),
+    2653: ("Lexar EQ790 2 To", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7000, "ecriture_mo_s": 5000}),
+    2654: ("SanDisk Optimus GX 7100 5", {"capacite_go": 500, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 6800, "ecriture_mo_s": 5800}),
+    2655: ("Samsung 990 Pro 1 To", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7450, "ecriture_mo_s": 6900}),
+    2656: ("Crucial P310 500 Go PCIe ", {"capacite_go": 500, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 6600, "ecriture_mo_s": 3500}),
+    2657: ("Crucial P310 1 To PCIe Ge", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7100, "ecriture_mo_s": 6000}),
+    2658: ("Acer Predator GM7 1 To M.", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7400, "ecriture_mo_s": 6300}),
+    2659: ("Crucial P310 2 To NVMe", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7100}),
+    2660: ("Samsung 9100 Pro 1 To NVM", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 14800, "ecriture_mo_s": 13400}),
+    2661: ("Samsung SSD 990 1 To", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7150, "ecriture_mo_s": 6450}),
+    2662: ("PNY CS1030 250 Go M.2 NVM", {"capacite_go": 250, "format": "M.2 2280", "interface": "PCIe 3.0 x4", "lecture_mo_s": 2500, "ecriture_mo_s": 1100}),
+    2663: ("PNY CS1030 500 Go M.2 NVM", {"capacite_go": 500, "format": "M.2 2280", "interface": "PCIe 3.0 x4", "lecture_mo_s": 2000}),
+    2664: ("Crucial P510 1 To PCIe 5.", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 11000, "ecriture_mo_s": 9500}),
+    2665: ("SanDisk Optimus GX Pro 85", {"capacite_go": 8000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7200, "ecriture_mo_s": 6600}),
+    2666: ("SanDisk Optimus GX Pro 81", {"capacite_go": 8000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 14900, "ecriture_mo_s": 13200}),
+    2667: ("Acer Predator GM7000 2 To", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7400, "ecriture_mo_s": 7400}),
+    2668: ("Samsung 9100 Pro NVMe 2.0", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 14800, "ecriture_mo_s": 13400}),
+    2669: ("MSI SPATIUM M461 1 To", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 5000, "ecriture_mo_s": 3200}),
+    2670: ("SanDisk Optimus 5100 500 ", {"capacite_go": 500, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 6600, "ecriture_mo_s": 5600}),
+    2671: ("Samsung 990 EVO Plus 2 To", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7250, "ecriture_mo_s": 6300}),
+    2672: ("Lexar Thor Pro SSD 1To", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 6000, "ecriture_mo_s": 2500}),
+    2673: ("Lexar EQ790 4To NVMe", {"capacite_go": 4000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7000, "ecriture_mo_s": 6000}),
+    2675: ("Patriot P320 256 Go NVMe ", {"capacite_go": 256, "format": "M.2 2280", "interface": "PCIe 3.0 x4", "lecture_mo_s": 2200, "ecriture_mo_s": 1200}),
+    2677: ("Lexar NM620 256 Go M.2 NV", {"capacite_go": 256, "format": "M.2 2280", "interface": "PCIe 3.0 x4", "lecture_mo_s": 3500, "ecriture_mo_s": 1300}),
+    2678: ("Patriot P300 256 Go PCIe ", {"capacite_go": 256, "format": "M.2 2280", "interface": "PCIe 3.0 x4", "lecture_mo_s": 1700, "ecriture_mo_s": 1100}),
+    2679: ("MSI SPATIUM M452 500 Go", {"capacite_go": 500, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 3600, "ecriture_mo_s": 3500}),
+    2680: ("Samsung 990 Pro 2 To", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7450, "ecriture_mo_s": 6900}),
+    2681: ("Lexar EQ790 1To NVMe", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7000, "ecriture_mo_s": 5000}),
+    2682: ("PNY CS900 250 Go", {"capacite_go": 250, "format": "2,5 pouces", "interface": "SATA III", "lecture_mo_s": 535, "ecriture_mo_s": 500}),
+    2683: ("PNY CS900 1 To", {"capacite_go": 1000, "format": "2,5 pouces", "interface": "SATA III", "lecture_mo_s": 535, "ecriture_mo_s": 515}),
+    2684: ("Samsung 990 EVO Plus 1 To", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7150, "ecriture_mo_s": 6300}),
+    2685: ("Crucial BX500 1 To", {"capacite_go": 1000, "format": "2,5 pouces", "interface": "SATA III", "lecture_mo_s": 540, "ecriture_mo_s": 540}),
+    2686: ("PNY CS900 500Go SSD Inter", {"capacite_go": 500, "format": "2,5 pouces", "interface": "SATA III"}),
+    2687: ("Samsung 870 EVO 250 Go", {"capacite_go": 250, "format": "2,5 pouces", "interface": "SATA III", "lecture_mo_s": 560, "ecriture_mo_s": 530}),
+    2688: ("Lexar ARES PRO 4 To", {"capacite_go": 4000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 14000, "ecriture_mo_s": 11000}),
+    2689: ("Lexar ARES 2To NVMe", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4"}),
+    2856: ("SanDisk Optimus GX Pro 85", {"capacite_go": 8000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7200, "ecriture_mo_s": 6600}),
+    2857: ("Lexar EQ790 1 To M.2 2280", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7000, "ecriture_mo_s": 5000}),
+    2858: ("Acer Predator GM9 1 To PC", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 14000, "ecriture_mo_s": 11000}),
+    2859: ("SanDisk Optimus GX Pro 85", {"capacite_go": 8000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7200, "ecriture_mo_s": 6600}),
+    2860: ("Lexar EQ790 SSD 1To, M.2 ", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7000, "ecriture_mo_s": 5000}),
+    2861: ("Acer Predator GM7 2 To M.", {"capacite_go": 2000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7400, "ecriture_mo_s": 5000}),
+    2862: ("Acer FA100 512 Go", {"capacite_go": 512, "format": "M.2 2280", "interface": "PCIe 3.0 x4", "lecture_mo_s": 3300, "ecriture_mo_s": 2700}),
+    2863: ("Acer Predator GM7 512Go M", {"capacite_go": 512, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7200, "ecriture_mo_s": 6300}),
+    2864: ("Lexar ARES 1 To PCIe Gen4", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 4.0 x4", "lecture_mo_s": 7400, "ecriture_mo_s": 6500}),
+    2865: ("Acer Predator GM9 M.2 NVM", {"capacite_go": 1000, "format": "M.2 2280", "interface": "PCIe 5.0 x4", "lecture_mo_s": 14000, "ecriture_mo_s": 11000}),
+    2866: ("KingSpec P3 1 To", {"capacite_go": 1000, "format": "2,5 pouces", "interface": "SATA III", "lecture_mo_s": 550, "ecriture_mo_s": 540}),
+}
+for cid, (nom, valeurs) in SSDS.items():
+    UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)
+
 # Fiche 1936 : nommée « 32 Go » mais l'annonce vend 1 barrette de 8 Go -> nom corrigé.
 RENOMMER = {1936: ("Lexar THOR Z Series OC 32 Go DDR5 6000", "Lexar THOR Z Series OC 8 Go DDR5 6000")}
 
