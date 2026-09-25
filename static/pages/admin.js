@@ -66,6 +66,7 @@
 
   function revealAdminUI(){
     document.getElementById('login-card').classList.add('hidden');
+    document.getElementById('watch-card').classList.remove('hidden');
     document.getElementById('browse-card').classList.remove('hidden');
     document.getElementById('edit-card').classList.remove('hidden');
     document.getElementById('link-check-controls').classList.remove('hidden');
@@ -79,6 +80,7 @@
     loadAdminBuilds();
     loadQuotas();
     loadSiteStats();
+    loadWatch();
     // Faire apparaître/disparaître toutes ces cartes d'un coup change
     // beaucoup la hauteur de page — sans ça, la page peut rester scrollée
     // au milieu/en bas là où elle était pendant l'écran de connexion.
@@ -278,9 +280,12 @@
           <div>
             <span class="nom">${escapeHtml(c.nom)}</span>
             <span class="prix"> — ${c.prix_indicatif}€</span>
+            ${c.nb_variantes > 1 ? `<span class="variante" title="Variante d’un produit à ${c.nb_variantes} annonces">${escapeHtml(c.variante || '')} · ${c.nb_variantes} variantes</span>` : ''}
             ${c.en_stock === false ? '<span class="epuise-badge">Épuisé</span>' : ''}
+            ${c.prix_suspect ? '<span class="suspect-badge" title="Voir « À surveiller »">Prix suspect</span>' : ''}
           </div>
           <div class="row-actions">
+            ${c.nb_variantes > 1 ? `<button class="edit-btn" data-onclick="separateVariant(${c.id})" title="Ce n’est pas le même produit">Séparer</button>` : ''}
             <button class="edit-btn" data-onclick="selectComponentToEdit(${c.id})">Éditer</button>
             <button class="delete-btn" data-onclick="quickDeleteComponent(${c.id})">Supprimer</button>
           </div>
@@ -1395,4 +1400,141 @@
       headers: { 'X-Admin-Secret': adminSecret },
     });
     loadAdminBuilds();
+  }
+
+  // ---------------------------------------------------------------------
+  // « À surveiller » : contrôle automatique du catalogue (controle_catalogue.py
+  // côté serveur). Chaque signalement a ses actions : voir la fiche, éditer,
+  // supprimer l'annonce, rattacher comme variante, ou marquer « normal ».
+  // ---------------------------------------------------------------------
+  let watchData = null;
+  let watchTab = 'prix';
+
+  async function loadWatch(){
+    const el = document.getElementById('watch-content');
+    try{
+      const res = await fetch(API_BASE + '/api/admin/controle-catalogue', { headers: { 'X-Admin-Secret': adminSecret } });
+      if(!res.ok) throw new Error();
+      watchData = await res.json();
+      const counts = {
+        prix: watchData.prix_suspects.length,
+        isolees: watchData.annonces_isolees.length,
+        incompletes: watchData.fiches_incompletes.length,
+      };
+      const labels = { prix: 'Prix suspects', isolees: 'Annonces à rattacher', incompletes: 'Fiches incomplètes' };
+      Object.entries(counts).forEach(([k, n]) => {
+        document.getElementById('watch-tab-' + k).innerHTML = `${labels[k]}<span class="n">${n}</span>`;
+      });
+      const urgent = counts.prix + counts.isolees;
+      document.getElementById('watch-total').textContent = urgent ? String(urgent) : '';
+      renderWatch();
+    }catch(e){
+      el.innerHTML = '<p class="field-hint">Contrôle indisponible pour le moment.</p>';
+    }
+  }
+
+  function showWatchTab(tab){
+    watchTab = tab;
+    document.querySelectorAll('.watch-tab').forEach(b => b.classList.toggle('active', b.id === 'watch-tab-' + tab));
+    renderWatch();
+  }
+
+  function euros(v){
+    return Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  }
+
+  const WATCH_FIELD_LABELS = {
+    prix: 'prix', image: 'image', socket: 'socket', tdp: 'TDP', ram_type: 'type de RAM', format: 'format',
+    m2_slots: 'slots M.2', sata_ports: 'ports SATA', type: 'type', formats_supportes: 'formats supportés',
+    gpu_max_length_mm: 'longueur GPU max', cpu_cooler_max_height_mm: 'hauteur ventirad max', wattage: 'puissance',
+    longueur_mm: 'longueur', sockets_supportes: 'sockets', hauteur_mm: 'hauteur',
+  };
+
+  function renderWatch(){
+    const el = document.getElementById('watch-content');
+    if(!watchData) return;
+    let html = '';
+    if(watchTab === 'prix'){
+      html = watchData.prix_suspects.map(s => `
+        <div class="watch-item">
+          <div class="t">${escapeHtml(s.nom)}</div>
+          <div class="why"><b>${euros(s.prix)}</b> au lieu d’environ ${euros(s.reference)} (×${s.ratio}, comparé à ${s.comparees} annonce${s.comparees > 1 ? 's' : ''}) : ${escapeHtml(s.motif)}.</div>
+          <div class="actions">
+            ${s.page ? `<a href="${escapeHtml(s.page)}" target="_blank" rel="noopener">Voir la fiche ↗</a>` : ''}
+            <button data-onclick="editFromWatch(${s.id})">Éditer</button>
+            <button class="danger" data-onclick="deleteFromWatch(${s.id})">Supprimer l’annonce</button>
+            <button class="ok" data-onclick="ignoreWatch('prix:${s.id}:${s.prix}')">Prix normal, ignorer</button>
+          </div>
+        </div>`).join('') || '<p class="field-hint">Aucun prix suspect.</p>';
+    }else if(watchTab === 'isolees'){
+      html = watchData.annonces_isolees.map(p => {
+        const cle = `isolee:${Math.min(p.id, p.proche_id)}:${Math.max(p.id, p.proche_id)}`;
+        return `
+        <div class="watch-item">
+          <div class="t">${escapeHtml(p.nom)}</div>
+          <div class="why">Ressemble à <b>${escapeHtml(p.proche_nom)}</b>${p.proche_variantes > 1 ? ` (${p.proche_variantes} variantes)` : ''}. Si c’est le même produit, il en devient une variante.</div>
+          <div class="actions">
+            <button class="ok" data-onclick="attachVariant(${p.id}, ${p.proche_id})">C’est le même produit</button>
+            <button data-onclick="ignoreWatch('${cle}')">Produits différents, ignorer</button>
+          </div>
+        </div>`;
+      }).join('') || '<p class="field-hint">Aucune annonce isolée à rattacher.</p>';
+    }else{
+      html = watchData.fiches_incompletes.map(f => `
+        <div class="watch-item">
+          <div class="t">${escapeHtml(f.nom)} <span style="color:var(--text-dim); font-weight:400;">· ${escapeHtml(f.categorie)}</span></div>
+          <div class="why">Manque : ${f.manques.map(m => `<span class="missing">${escapeHtml(WATCH_FIELD_LABELS[m] || m)}</span>`).join('')}</div>
+          <div class="actions"><button data-onclick="editFromWatch(${f.id})">Compléter</button></div>
+        </div>`).join('') || '<p class="field-hint">Toutes les fiches sont complètes.</p>';
+    }
+    el.innerHTML = html;
+  }
+
+  async function watchPost(path, body){
+    const res = await fetch(API_BASE + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': adminSecret },
+      body: JSON.stringify(body),
+    });
+    if(!res.ok){
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.detail || ('Erreur ' + res.status));
+    }
+  }
+
+  async function ignoreWatch(cle){
+    try{
+      await watchPost('/api/admin/controle/ignorer', { cle });
+      await Promise.all([loadWatch(), loadAllComponentsForEdit()]);
+    }
+    catch(e){ alert(e.message); }
+  }
+
+  async function attachVariant(id, cible){
+    try{
+      await watchPost('/api/admin/variantes/rattacher', { id, cible });
+      await Promise.all([loadWatch(), loadAllComponentsForEdit()]);
+    }catch(e){ alert(e.message); }
+  }
+
+  async function separateVariant(id){
+    const c = allComponentsForEdit.find(x => x.id === id);
+    if(c && !confirm(`Sortir « ${c.nom} » de son produit (il redevient une fiche à part) ?`)) return;
+    try{
+      await watchPost('/api/admin/variantes/separer', { id });
+      await Promise.all([loadWatch(), loadAllComponentsForEdit()]);
+    }catch(e){ alert(e.message); }
+  }
+
+  function editFromWatch(id){
+    selectComponentToEdit(id);
+    const card = document.getElementById('edit-card');
+    const body = card.querySelector('.card-body');
+    if(body && body.classList.contains('hidden')) toggleCardBody(card.querySelector('.card-toggle-btn'));
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  async function deleteFromWatch(id){
+    await quickDeleteComponent(id);
+    await loadWatch();
   }

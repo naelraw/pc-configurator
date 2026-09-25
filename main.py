@@ -41,6 +41,7 @@ from compatibility import (
     check_cpu_carte_mere,
     check_gpu_boitier,
     check_refroidissement,
+    check_cable_alimentation,
     check_stockage,
 )
 from schema import REQUIRED_FIELDS, validate_component
@@ -50,6 +51,7 @@ import guides
 import component_pages
 import comparisons
 import variantes
+import controle_catalogue
 import site_stats
 
 try:
@@ -596,7 +598,7 @@ def check_compatibility(config_list):
         if not ok:
             errors.append(message)
 
-    return {"compatible": not errors, "errors": errors}
+    return {"compatible": not errors, "errors": errors, "warnings": check_cable_alimentation(gpu, psu)}
 
 
 def verify_compatibility(suggestion):
@@ -948,6 +950,29 @@ _CATALOG = {"at": 0.0, "components": None, "body": b"", "gzip": b"", "etag": ""}
 _CATALOG_LOCK = threading.Lock()
 
 
+def _state_get(cle, defaut):
+    """Valeur JSON gardée dans app_state (corrections admin...), ou `defaut`."""
+    client = get_client()
+    try:
+        rows = client.execute("SELECT valeur FROM app_state WHERE cle = ?", [cle]).rows
+        return json.loads(rows[0][0]) if rows and rows[0][0] else defaut
+    except Exception:
+        return defaut
+    finally:
+        client.close()
+
+
+def _state_set(cle, valeur):
+    client = get_client()
+    try:
+        client.execute(
+            "INSERT INTO app_state (cle, valeur) VALUES (?, ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur",
+            [cle, json.dumps(valeur, ensure_ascii=False)],
+        )
+    finally:
+        client.close()
+
+
 def get_catalog():
     """
     Liste légère des composants (voir get_all_components_light), partagée :
@@ -963,8 +988,13 @@ def get_catalog():
         for component in components:
             component["page"] = component_pages.page_url(component)
             component["tendance_prix"] = trends.get(component["id"])
-        # Annonces d'un même produit regroupées en variantes (voir variantes.py).
-        variantes.annoter(components)
+        # Annonces d'un même produit regroupées en variantes (voir variantes.py),
+        # avec les corrections faites depuis la page admin.
+        variantes.annoter(
+            components,
+            rattacher={int(k): v for k, v in _state_get("variantes_rattacher", {}).items()},
+            separer=set(_state_get("variantes_separer", [])),
+        )
         if not components and _CATALOG["components"]:
             # Base momentanément indisponible : on garde la dernière version.
             return _CATALOG["components"]
@@ -1102,6 +1132,10 @@ def api_component_by_asin(asin: str):
         return {"exists": False}
 
     row = result.rows[0]
+    # Infos de produit (variantes, prix suspect) tirées du catalogue en mémoire :
+    # l'extension les affiche sur la page Amazon.
+    produit = next((c for c in get_catalog() if c["id"] == row[0]), None) or {}
+    suspect = next((p for p in _controle_courant()["prix_suspects"] if p["id"] == row[0]), None)
     return {
         "exists": True,
         "component": {
@@ -1110,6 +1144,10 @@ def api_component_by_asin(asin: str):
             "nom": row[2],
             "prix_indicatif": row[3],
             "en_stock": bool(row[4]),
+            "variante": produit.get("variante"),
+            "nb_variantes": produit.get("nb_variantes") or 1,
+            "page": produit.get("page"),
+            "prix_suspect": suspect,
         },
     }
 
@@ -1184,7 +1222,7 @@ def check_compatibility_route(payload: dict = Body(...)):
         raise HTTPException(status_code=400, detail="'components' doit être une liste.")
 
     result = check_compatibility(components)
-    return {"compatible": result["compatible"], "erreurs": result["errors"]}
+    return {"compatible": result["compatible"], "erreurs": result["errors"], "avertissements": result["warnings"]}
 
 
 def hash_password(password: str) -> str:
@@ -2302,7 +2340,17 @@ def admin_list_components(_admin=Depends(require_admin)):
     un rejet ("Erreurs de validation, rien n'a été modifié") dès qu'on
     modifiait un composant sans re-choisir son image à chaque fois.
     """
-    return {"components": get_all_components()}
+    infos = {c["id"]: c for c in get_catalog()}
+    suspects = {x["id"] for x in _controle_courant()["prix_suspects"]}
+    components = get_all_components()
+    for c in components:
+        info = infos.get(c["id"], {})
+        c["variante"] = info.get("variante")
+        c["nb_variantes"] = info.get("nb_variantes") or 1
+        c["groupe_id"] = info.get("groupe_id", c["id"])
+        c["page"] = info.get("page")
+        c["prix_suspect"] = c["id"] in suspects
+    return {"components": components}
 
 
 @app.get("/api/admin/builds")
@@ -5967,6 +6015,214 @@ def _run_link_check():
         f"{unverifiable_count} non vérifiable(s) (anti-bot), {auto_fixed_count} corrigé(s) auto (Amazon), "
         f"{error_count} erreur(s)."
     )
+
+
+# ---------------------------------------------------------------------------
+# Contrôle qualité du catalogue (controle_catalogue.py) : prix suspects,
+# annonces isolées qui ressemblent à un produit existant, fiches incomplètes.
+# Recalculé au plus une fois par version du catalogue en mémoire ; un
+# contrôle quotidien envoie par e-mail les NOUVEAUX prix suspects (une même
+# annonce au même prix n'est signalée qu'une fois).
+# ---------------------------------------------------------------------------
+_CONTROLE = {"at": None, "rapport": None}
+CONTROLE_INTERVAL_SECONDS = 24 * 60 * 60
+
+
+def _controle_courant():
+    catalog = get_catalog()
+    if _CONTROLE["rapport"] is None or _CONTROLE["at"] != _CATALOG["at"]:
+        rapport = controle_catalogue.rapport(catalog)
+        # Signalements marqués « normal » depuis l'admin : un prix ignoré revient
+        # s'il change, une paire d'annonces ignorée ne revient pas.
+        ignores = set(_state_get("controle_ignores", []))
+        rapport["prix_suspects"] = [x for x in rapport["prix_suspects"] if f"prix:{x['id']}:{x['prix']}" not in ignores]
+        rapport["annonces_isolees"] = [
+            x for x in rapport["annonces_isolees"]
+            if f"isolee:{min(x['id'], x['proche_id'])}:{max(x['id'], x['proche_id'])}" not in ignores
+        ]
+        _CONTROLE.update(at=_CATALOG["at"], rapport=rapport)
+    return _CONTROLE["rapport"]
+
+
+@app.get("/api/admin/controle-catalogue")
+def admin_controle_catalogue(_admin=Depends(require_admin)):
+    return _controle_courant()
+
+
+class IgnorerRequest(BaseModel):
+    cle: str
+
+
+@app.post("/api/admin/controle/ignorer")
+def admin_controle_ignorer(request: IgnorerRequest, _admin=Depends(require_admin)):
+    if not re.fullmatch(r"(prix:\d+:[\d.]+|isolee:\d+:\d+)", request.cle):
+        raise HTTPException(status_code=400, detail="Clé invalide.")
+    ignores = _state_get("controle_ignores", [])
+    if request.cle not in ignores:
+        ignores.append(request.cle)
+        _state_set("controle_ignores", ignores[-500:])
+    _CONTROLE["rapport"] = None
+    return {"status": "ok"}
+
+
+class VarianteRequest(BaseModel):
+    id: int
+    cible: int | None = None
+
+
+@app.post("/api/admin/variantes/rattacher")
+def admin_variantes_rattacher(request: VarianteRequest, _admin=Depends(require_admin)):
+    """« C'est le même produit » : l'annonce devient une variante du produit de `cible`."""
+    ids = {c["id"] for c in get_catalog()}
+    if request.id not in ids or request.cible not in ids or request.id == request.cible:
+        raise HTTPException(status_code=400, detail="Composants invalides.")
+    rattacher = _state_get("variantes_rattacher", {})
+    rattacher[str(request.id)] = request.cible
+    _state_set("variantes_rattacher", rattacher)
+    _state_set("variantes_separer", [i for i in _state_get("variantes_separer", []) if i != request.id])
+    invalidate_catalog()
+    _CONTROLE["rapport"] = None
+    return {"status": "ok"}
+
+
+@app.post("/api/admin/variantes/separer")
+def admin_variantes_separer(request: VarianteRequest, _admin=Depends(require_admin)):
+    """« Ce n'est pas le même produit » : l'annonce redevient un produit à part."""
+    separer = _state_get("variantes_separer", [])
+    if request.id not in separer:
+        separer.append(request.id)
+    _state_set("variantes_separer", separer)
+    rattacher = _state_get("variantes_rattacher", {})
+    rattacher.pop(str(request.id), None)
+    _state_set("variantes_rattacher", rattacher)
+    invalidate_catalog()
+    _CONTROLE["rapport"] = None
+    return {"status": "ok"}
+
+
+def _run_controle_catalogue():
+    suspects = _controle_courant()["prix_suspects"]
+    cles = [f"{s['id']}:{s['prix']}" for s in suspects]
+    client = get_client()
+    try:
+        rows = client.execute("SELECT valeur FROM app_state WHERE cle = 'controle_prix_deja_signales'").rows
+        deja = set(json.loads(rows[0][0])) if rows and rows[0][0] else set()
+        client.execute(
+            "INSERT INTO app_state (cle, valeur) VALUES ('controle_prix_deja_signales', ?) "
+            "ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur",
+            [json.dumps(cles)],
+        )
+    finally:
+        client.close()
+    nouveaux = [s for s, cle in zip(suspects, cles) if cle not in deja]
+    if nouveaux and SMTP_FROM:
+        lignes = "\n".join(
+            f"- {s['nom']} ({s['categorie']}) : {s['prix']:.2f} € au lieu d'environ {s['reference']:.2f} € "
+            f"({s['motif']}). {SITE_URL}{s['page'] or ''}"
+            for s in nouveaux
+        )
+        send_email(
+            SMTP_FROM, f"[PC Radar] {len(nouveaux)} prix suspect(s) dans le catalogue",
+            f"Le contrôle quotidien du catalogue a repéré :\n\n{lignes}\n\n"
+            f"Détail et actions dans la page admin : {SITE_URL}/admin",
+        )
+    return nouveaux
+
+
+async def controle_catalogue_loop():
+    await asyncio.sleep(10 * 60)
+    while True:
+        try:
+            if await asyncio.to_thread(_task_is_due, "dernier_controle_catalogue", CONTROLE_INTERVAL_SECONDS):
+                nouveaux = await asyncio.to_thread(_run_controle_catalogue)
+                await asyncio.to_thread(_mark_task_done, "dernier_controle_catalogue")
+                print(f"Contrôle du catalogue : {len(nouveaux)} nouveau(x) prix suspect(s).")
+        except Exception as error:
+            print(f"Contrôle du catalogue échoué : {error}")
+        await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
+
+
+@app.on_event("startup")
+async def start_controle_catalogue_loop():
+    if is_background_leader():
+        asyncio.create_task(controle_catalogue_loop())
+
+
+@app.get("/api/admin/produits-proches")
+def admin_produits_proches(titre: str, categorie: str = "", _admin=Depends(require_admin)):
+    """
+    Pour l'extension : un produit Amazon pas encore catalogué ressemble-t-il à un
+    produit qu'on a déjà (autre annonce du même modèle, autre couleur, autre
+    capacité) ? Tous les mots du nom catalogué — numéros de modèle compris —
+    doivent se retrouver dans le titre Amazon.
+    """
+    titre_mots = set(variantes._mots(titre, sans_marque=False))
+    titre_bas = titre.lower()
+    produits, mots_produit = {}, {}
+    for c in get_catalog():
+        if categorie and categorie != "Accessoire" and c["categorie"] != categorie:
+            continue
+        if (c.get("marque") or "").lower() not in titre_bas:
+            continue
+        # « RGB » compte ici : un kit RGB et un kit sans RGB sont deux gammes.
+        mots = controle_catalogue._mots_cle(c) - (controle_catalogue.MOTS_SANS_IMPORTANCE - {"rgb", "argb"})
+        if len(mots) < 2 or not mots <= titre_mots:
+            continue
+        g = c.get("groupe_id", c["id"])
+        mots_produit[g] = mots_produit.get(g, set()) | mots
+        meilleur = produits.get(g)
+        if meilleur is None or (c.get("en_stock") and float(c.get("prix_indicatif") or 0) < float(meilleur.get("prix_indicatif") or 0)):
+            produits[g] = c
+    # « Vengeance » et « Vengeance RGB » trouvés pour un kit RGB : on ne garde que
+    # le produit le plus précis (dont les mots contiennent ceux de l'autre).
+    precis = [g for g in produits if not any(mots_produit[g] < mots_produit[o] for o in produits if o != g)]
+    proches = sorted((produits[g] for g in precis), key=lambda c: -len(mots_produit[c.get("groupe_id", c["id"])]))[:3]
+    return {"proches": [
+        {"id": c["id"], "nom": c["nom"], "categorie": c["categorie"], "prix_indicatif": c.get("prix_indicatif"),
+         "nb_variantes": c.get("nb_variantes") or 1, "page": c.get("page")}
+        for c in proches
+    ]}
+
+
+class PrixAmazonRequest(BaseModel):
+    prix: float
+
+
+@app.post("/api/admin/components/{component_id}/prix-amazon")
+def admin_prix_amazon(component_id: int, request: PrixAmazonRequest, _admin=Depends(require_admin)):
+    """
+    Met à jour le prix Amazon d'un composant avec le prix lu sur la page produit
+    (depuis l'extension) : prix affiché, ligne Amazon des prix relevés,
+    historique du jour et alertes de prix, comme le rafraîchissement automatique.
+    """
+    if not 0 < request.prix < 20000:
+        raise HTTPException(status_code=400, detail="Prix invalide.")
+    client = get_client()
+    try:
+        rows = client.execute(
+            "SELECT nom, prix_marche_json, asin FROM components WHERE id = ?", [component_id]
+        ).rows
+        if not rows:
+            raise HTTPException(status_code=404, detail="Composant introuvable.")
+        nom, prix_marche_json, asin = rows[0]
+        try:
+            prix_marche = json.loads(prix_marche_json) if prix_marche_json else []
+        except (TypeError, json.JSONDecodeError):
+            prix_marche = []
+        lien = next((m.get("lien") for m in prix_marche if m.get("vendeur") == "Amazon" and m.get("lien")), None) \
+            or (f"https://www.amazon.fr/dp/{asin}" if asin else None)
+        prix_marche = [m for m in prix_marche if m.get("vendeur") != "Amazon"]
+        prix_marche.append({"vendeur": "Amazon", "prix": request.prix, "lien": lien,
+                            "date_releve": datetime.utcnow().date().isoformat()})
+        client.execute(
+            "UPDATE components SET prix_indicatif = ?, prix_marche_json = ?, en_stock = 1 WHERE id = ?",
+            [request.prix, json.dumps(prix_marche, ensure_ascii=False), component_id],
+        )
+        record_price_and_notify(client, component_id, nom, float(request.prix), lien)
+    finally:
+        client.close()
+    invalidate_catalog()
+    return {"status": "ok", "prix": request.prix}
 
 
 async def link_checker_loop():

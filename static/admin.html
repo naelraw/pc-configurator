@@ -211,6 +211,38 @@
   }
   .browse-row .row-actions .edit-btn:hover{ border-color:var(--accent2); color:var(--accent2); }
   .browse-row .row-actions .delete-btn:hover{ border-color:var(--danger); color:var(--danger); }
+  .browse-row .variante{ color:var(--accent2); font-size:0.76rem; margin-left:6px; }
+  .suspect-badge{
+    display:inline-block; margin-left:6px; padding:1px 6px; border-radius:3px;
+    background:#d29922; color:#0d1117; font-size:0.68rem; font-weight:600; vertical-align:middle;
+  }
+
+  /* Bloc « À surveiller » */
+  .watch-total{
+    display:inline-block; min-width:22px; padding:1px 7px; border-radius:10px; margin-left:6px;
+    background:#d29922; color:#0d1117; font-size:0.75rem; text-align:center; vertical-align:middle;
+  }
+  .watch-total:empty{ display:none; }
+  .watch-tabs{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+  .watch-tab{
+    background:transparent; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:20px; padding:6px 14px; font-size:0.82rem; cursor:pointer;
+  }
+  .watch-tab.active{ border-color:var(--accent2); color:var(--text); background:rgba(88,166,255,0.08); }
+  .watch-tab .n{ color:var(--text-dim); margin-left:4px; }
+  .watch-item{ padding:12px 14px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; font-size:0.86rem; }
+  .watch-item .t{ font-weight:600; }
+  .watch-item .why{ color:var(--text-dim); font-size:0.8rem; margin:4px 0 8px; }
+  .watch-item .why b{ color:#d29922; }
+  .watch-item .actions{ display:flex; gap:6px; flex-wrap:wrap; }
+  .watch-item .actions button, .watch-item .actions a{
+    background:transparent; border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:6px 11px; font-size:0.78rem; cursor:pointer; text-decoration:none;
+  }
+  .watch-item .actions button:hover, .watch-item .actions a:hover{ border-color:var(--accent2); color:var(--accent2); }
+  .watch-item .actions .danger:hover{ border-color:var(--danger); color:var(--danger); }
+  .watch-item .actions .ok{ border-color:var(--accent); color:var(--accent); }
+  .missing{ display:inline-block; background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:0 6px; margin:2px 4px 0 0; font-size:0.74rem; color:var(--text-dim); }
 </style>
 <script src="/static/csp-handlers.js"></script>
 </head>
@@ -230,6 +262,24 @@
     <input type="password" id="secret-input" placeholder="•••••••••" data-onkeydown="if(event.key==='Enter') login()">
     <button class="btn" id="login-btn" data-onclick="login()">Entrer</button>
     <div id="login-result" class="result hidden"></div>
+  </div>
+
+  <div class="card hidden" id="watch-card">
+    <div class="card-header">
+      <div>
+        <h3 style="margin-bottom:4px;">À surveiller <span id="watch-total" class="watch-total"></span></h3>
+        <p style="color:var(--text-dim); font-size:0.82rem;">Contrôle automatique du catalogue (recalculé à chaque visite, e-mail quotidien pour les nouveaux prix suspects).</p>
+      </div>
+      <button class="card-toggle-btn" data-onclick="toggleCardBody(this)" title="Réduire/agrandir ce bloc">▾</button>
+    </div>
+    <div class="card-body">
+      <div class="watch-tabs" role="tablist">
+        <button class="watch-tab active" data-onclick="showWatchTab('prix')" id="watch-tab-prix">Prix suspects</button>
+        <button class="watch-tab" data-onclick="showWatchTab('isolees')" id="watch-tab-isolees">Annonces à rattacher</button>
+        <button class="watch-tab" data-onclick="showWatchTab('incompletes')" id="watch-tab-incompletes">Fiches incomplètes</button>
+      </div>
+      <div id="watch-content"><p class="field-hint">Chargement…</p></div>
+    </div>
   </div>
 
   <div class="card hidden" id="edit-card">

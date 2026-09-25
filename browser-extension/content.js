@@ -54,6 +54,7 @@
       </div>
       <div id="pcradar-body">
         <div id="pcradar-status">Vérification du catalogue…</div>
+        <div id="pcradar-info"></div>
         <div id="pcradar-controls" style="display:none;">
           <select id="pcradar-categorie"></select>
           <button id="pcradar-fetch"><span class="pcradar-btn-label">Ajouter au catalogue</span></button>
@@ -117,6 +118,67 @@
     });
 
     let lastComponentId = null;
+    const infoEl = panel.querySelector('#pcradar-info');
+
+    function formatEuros(v) {
+      return Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+    }
+
+    // Infos utiles sur un produit déjà catalogué : variante, écart entre le prix
+    // affiché sur cette page et le prix du catalogue (mise à jour en un clic),
+    // prix signalé suspect par le contrôle quotidien.
+    function renderKnownInfo(c) {
+      const parts = [];
+      if (c.nb_variantes > 1) {
+        parts.push('<div class="pcradar-line">Variante' + (c.variante ? ' « ' + escapeHtml(c.variante) + ' »' : '')
+          + ' d\'un produit à ' + c.nb_variantes + ' annonces.</div>');
+      }
+      const pagePrice = pcradarExtractQuickData(document).prix;
+      const catalogPrice = Number(c.prix_indicatif) || 0;
+      if (pagePrice && catalogPrice && Math.abs(pagePrice - catalogPrice) / catalogPrice > 0.01) {
+        const diff = pagePrice - catalogPrice;
+        parts.push('<div class="pcradar-line pcradar-price-diff">Prix sur cette page : <strong>' + formatEuros(pagePrice)
+          + '</strong> (catalogue : ' + formatEuros(catalogPrice) + ', ' + (diff > 0 ? '+' : '') + formatEuros(diff) + ')</div>'
+          + '<button id="pcradar-update-price" class="pcradar-secondary"><span class="pcradar-btn-label">Mettre à jour le prix (' + formatEuros(pagePrice) + ')</span></button>');
+      }
+      if (c.prix_suspect) {
+        parts.push('<div class="pcradar-line pcradar-warn">⚠ Prix signalé suspect : ' + formatEuros(c.prix_suspect.prix)
+          + ' au lieu d\'environ ' + formatEuros(c.prix_suspect.reference) + ' pour les autres annonces du même produit.</div>');
+      }
+      if (c.page) {
+        parts.push('<a class="pcradar-link" href="' + escapeHtml('https://pcradar.tech' + c.page) + '" target="_blank" rel="noopener">Voir la fiche PC Radar ↗</a>');
+      }
+      infoEl.innerHTML = parts.join('');
+      const btn = infoEl.querySelector('#pcradar-update-price');
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          setLoading(btn, true);
+          try {
+            await sendMessage({ type: 'UPDATE_PRICE', componentId: c.id, prix: pagePrice, asin });
+            setMsg('✓ Prix mis à jour : ' + formatEuros(pagePrice), 'ok');
+            refreshStatus();
+          } catch (e) {
+            setMsg(e.message === 'NO_SECRET' ? "Clé admin manquante — clique sur l'icône de l'extension." : 'Erreur : ' + e.message, 'error');
+            setLoading(btn, false);
+          }
+        });
+      }
+    }
+
+    // Produit pas encore catalogué : un produit proche existe-t-il déjà ?
+    async function renderSimilar() {
+      try {
+        const { proches } = await sendMessage({ type: 'SIMILAR', titre: titleText, categorie: resolvedCategorie() });
+        if (!proches || !proches.length) { infoEl.innerHTML = ''; return; }
+        infoEl.innerHTML = '<div class="pcradar-line pcradar-warn">Déjà au catalogue sous une autre annonce ? Vérifie avant d\'ajouter :</div>'
+          + proches.map((p) => '<a class="pcradar-link" href="' + escapeHtml('https://pcradar.tech' + (p.page || '')) + '" target="_blank" rel="noopener">'
+            + escapeHtml(p.nom) + (p.nb_variantes > 1 ? ' (' + p.nb_variantes + ' variantes)' : '')
+            + ' — ' + formatEuros(p.prix_indicatif) + ' ↗</a>').join('')
+          + '<div class="pcradar-line pcradar-muted">Si c\'est le même produit, l\'ajouter en fera une variante (même fiche, plusieurs prix).</div>';
+      } catch (e) {
+        infoEl.innerHTML = '';
+      }
+    }
 
     async function refreshStatus() {
       try {
@@ -130,11 +192,13 @@
             (c.en_stock === false ? ' — <span style="color:#ff5d5d;">épuisé</span>' : ' — ' + c.prix_indicatif + '€');
           controlsEl.style.display = 'block';
           panel.querySelector('#pcradar-fetch .pcradar-btn-label').textContent = 'Rafraîchir depuis Amazon';
+          renderKnownInfo(c);
         } else {
           lastComponentId = null;
           statusEl.className = 'pcradar-status-out';
           statusEl.textContent = 'Pas encore dans le catalogue PC Radar.';
           controlsEl.style.display = 'block';
+          renderSimilar();
         }
       } catch (e) {
         statusEl.className = '';

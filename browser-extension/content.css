@@ -46,6 +46,18 @@
 #pcradar-status.pcradar-status-out { border-left-color: #c98a3d; color: #e5ede8; }
 
 #pcradar-controls { margin-top: 10px; }
+
+#pcradar-info:empty { display: none; }
+#pcradar-info { margin-top: 8px; font-size: 11.5px; line-height: 1.45; color: #b7c5bd; }
+#pcradar-info .pcradar-line { margin-top: 6px; }
+#pcradar-info .pcradar-price-diff strong { color: #e8a94f; }
+#pcradar-info .pcradar-warn { color: #e8a94f; }
+#pcradar-info .pcradar-muted { color: #7d9186; }
+#pcradar-info .pcradar-link {
+  display: block; margin-top: 6px; color: #2dd4bf; text-decoration: none; font-size: 11.5px;
+  padding: 6px 8px; border: 1px solid #1f3a2c; border-radius: 5px; background: #0f1a15;
+}
+#pcradar-info .pcradar-link:hover { border-color: #2dd4bf; }
 #pcradar-panel select {
   width: 100%; padding: 7px 9px; background: #0f1a15; border: 1px solid #1f3a2c;
   color: #e5ede8; font-size: 12px; border-radius: 5px; appearance: none; -webkit-appearance: none;

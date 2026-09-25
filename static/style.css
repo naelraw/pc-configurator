@@ -586,6 +586,8 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .compat-result{ margin-top:16px; padding:14px 16px; font-size:0.9rem; border-radius:var(--r-md); }
 .compat-ok{ background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--text); }
 .compat-fail{ background:var(--danger-soft); border:1px solid var(--danger-line); color:var(--text); }
+.compat-warn{ background:var(--surface-2); border:1px solid var(--line-strong); color:var(--text-2); font-size:0.85rem; }
+.compat-warn ul, .compat-fail ul{ margin:6px 0 0 18px; }
 .compat-ok strong, .compat-ok b{ color:var(--accent); }
 .compat-fail strong, .compat-fail b{ color:var(--danger); }
 

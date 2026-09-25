@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PC Radar - Ajout rapide Amazon",
-  "version": "1.1",
-  "description": "Ajoute un composant au catalogue PC Radar directement depuis une page produit Amazon (panneau intégré + icône).",
+  "version": "1.2",
+  "description": "Ajoute un composant au catalogue PC Radar depuis une page produit Amazon, signale les produits déjà catalogués sous une autre annonce et met à jour le prix en un clic.",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -27,12 +27,21 @@
         "https://www.amazon.de/*",
         "https://www.amazon.co.uk/*"
       ],
-      "js": ["categorize.js", "content.js"],
-      "css": ["content.css"],
+      "js": [
+        "categorize.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
   "host_permissions": [
     "https://pcradar.tech/*",
     "https://*.amazon.fr/*",

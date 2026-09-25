@@ -189,6 +189,34 @@ async function removeComponent(componentId, asin) {
   return data;
 }
 
+// Produits déjà catalogués qui ressemblent au produit Amazon affiché (autre
+// annonce du même modèle, autre couleur/capacité) : évite d'ajouter un doublon.
+// Réservé à l'admin (clé requise) ; sans clé, simplement aucun résultat.
+async function similarProducts(titre, categorie) {
+  const settings = await getSettings();
+  if (!settings.adminSecret || !titre) return { proches: [] };
+  const url = settings.siteUrl + '/api/admin/produits-proches?titre=' + encodeURIComponent(titre)
+    + '&categorie=' + encodeURIComponent(categorie || '');
+  const res = await fetch(url, { headers: { 'X-Admin-Secret': settings.adminSecret } });
+  if (!res.ok) return { proches: [] };
+  return res.json();
+}
+
+// Met à jour le prix Amazon d'un composant avec celui lu sur la page produit.
+async function updatePrice(componentId, prix, asin) {
+  const settings = await getSettings();
+  if (!settings.adminSecret) throw new Error('NO_SECRET');
+  const res = await fetch(settings.siteUrl + '/api/admin/components/' + componentId + '/prix-amazon', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': settings.adminSecret },
+    body: JSON.stringify({ prix }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ('Erreur ' + res.status));
+  if (asin) asinCache.delete(asin.toUpperCase());
+  return data;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
@@ -214,6 +242,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         case 'QUICK_ADD':
           sendResponse({ ok: true, data: await quickAdd(message.asin, message.categorie, message.quickData) });
+          break;
+        case 'SIMILAR':
+          sendResponse({ ok: true, data: await similarProducts(message.titre, message.categorie) });
+          break;
+        case 'UPDATE_PRICE':
+          sendResponse({ ok: true, data: await updatePrice(message.componentId, message.prix, message.asin) });
           break;
         case 'REMOVE_COMPONENT':
           sendResponse({ ok: true, data: await removeComponent(message.componentId, message.asin) });

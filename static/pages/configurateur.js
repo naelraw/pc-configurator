@@ -708,6 +708,12 @@
         const list = (data.erreurs || []).map(e => `<li>${e}</li>`).join('');
         compatBox.innerHTML = `<div class="compat-result compat-fail"><i class="ph ph-warning-circle" aria-hidden="true"></i> Incompatibilité détectée :<ul>${list}</ul></div>`;
       }
+      // Avertissements non bloquants (ex. câble 16 broches absent de l'alimentation,
+      // adaptateur fourni avec la carte) : affichés en plus, sans changer le verdict.
+      const warnings = data.avertissements || [];
+      if(warnings.length){
+        compatBox.insertAdjacentHTML('beforeend', `<div class="compat-result compat-warn"><i class="ph ph-info" aria-hidden="true"></i> À savoir :<ul>${warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></div>`);
+      }
     }catch(e){
       compatBox.innerHTML = '';
     }

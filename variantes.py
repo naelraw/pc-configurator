@@ -292,19 +292,23 @@ def _etiquettes(groupe):
     return labels
 
 
-def annoter(composants):
+def annoter(composants, rattacher=None, separer=None):
     """
+    rattacher / separer : corrections faites depuis la page admin (gardées en
+    base), qui s'ajoutent à RATTACHER / SEPARES ci-dessus.
+
     Ajoute à chaque composant (dict du catalogue) :
       marque       -> marque officielle
       groupe_id    -> id commun à toutes les variantes du produit (le plus petit id)
       variante     -> libellé court de la variante (None si produit sans variante)
       nb_variantes -> nombre d'annonces du produit
     """
+    separer = SEPARES | set(separer or ())
     cles = {}
     for c in composants:
         c["marque"] = marque(c["nom"])
-        cles[c["id"]] = cle_produit(c) or f"seul:{c['id']}"
-    for id_, cible in RATTACHER.items():
+        cles[c["id"]] = (None if c["id"] in separer else cle_produit(c)) or f"seul:{c['id']}"
+    for id_, cible in {**RATTACHER, **(rattacher or {})}.items():
         if id_ in cles and cible in cles:
             cles[id_] = cles[cible]
     groupes = {}

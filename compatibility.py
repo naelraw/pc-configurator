@@ -73,6 +73,26 @@ def check_refroidissement(cpu, boitier, cooler):
 	return True, "OK"
 
 
+def check_cable_alimentation(gpu, alimentation):
+	"""
+	Avertissements NON bloquants (liste, vide si rien à signaler) : la carte
+	graphique se branche avec un câble que l'alimentation n'a pas en natif.
+	Ce n'est pas une incompatibilité, un adaptateur est fourni avec la carte.
+	"""
+	if not gpu or not alimentation:
+		return []
+	connecteur = str(gpu.get("connecteur_alim") or "")
+	if "16 broches" in connecteur and alimentation.get("connecteur_12v_2x6") == "Non":
+		return [
+			f"La carte graphique se branche avec un câble 16 broches (12V-2x6) que cette alimentation n'a pas : "
+			"utilisez l'adaptateur fourni avec la carte (plusieurs prises 8 broches de l'alimentation vers 16 broches), "
+			"ou choisissez une alimentation ATX 3.x avec câble 12V-2x6 natif."
+		]
+	if "12 broches (Nvidia)" in connecteur:
+		return ["Cette carte Founders Edition se branche avec l'adaptateur 12 broches fourni par Nvidia (2 prises 8 broches de l'alimentation)."]
+	return []
+
+
 def verifier_compatibilite(
 	cpu, carte_mere, ram, boitier, alimentation, gpu, stockages, cooler
 ):
