@@ -59,6 +59,8 @@ def check_refroidissement(cpu, boitier, cooler):
 	# hauteur de ventirad, mais son socket doit quand même correspondre.
 	if "socket" in cpu and "sockets_supportes" in cooler and cpu["socket"] not in cooler["sockets_supportes"]:
 		return False, "Le refroidisseur ne supporte pas le socket du CPU."
+	if "radiateur_mm" in cooler and "radiateur_max_mm" in boitier and cooler["radiateur_mm"] > boitier["radiateur_max_mm"]:
+		return False, f"Le radiateur du watercooling ({cooler['radiateur_mm']} mm) est trop grand pour le boîtier (max {boitier['radiateur_max_mm']} mm)."
 	if "hauteur_mm" in cooler and "cpu_cooler_max_height_mm" in boitier and cooler["hauteur_mm"] > boitier["cpu_cooler_max_height_mm"]:
 		return False, "Le refroidisseur est trop haut pour le boîtier."
 	return True, "OK"

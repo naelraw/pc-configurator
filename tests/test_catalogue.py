@@ -28,6 +28,10 @@ def test_compatibilite():
     # Watercooling (pas de hauteur) : le socket est quand même vérifié.
     aio = {"sockets_supportes": ["AM5"]}
     assert verifier_compatibilite(cpu, mb, ram, case, psu, gpu, [], aio)
+    # Watercooling 360 mm dans un boîtier limité à 240 mm : refusé ; 240 mm : accepté.
+    boitier_240 = {**case, "radiateur_max_mm": 240}
+    assert verifier_compatibilite(cpu, mb, ram, boitier_240, psu, gpu, [], {**aio, "sockets_supportes": ["AM4"], "radiateur_mm": 360})
+    assert verifier_compatibilite(cpu, mb, ram, boitier_240, psu, gpu, [], {"sockets_supportes": ["AM4"], "radiateur_mm": 240}) == []
     # Carte mère sans slots M.2 connus : les ports SATA sont quand même vérifiés.
     mb_sata = {k: v for k, v in mb.items() if k != "m2_slots"}
     assert verifier_compatibilite(cpu, mb_sata, ram, case, psu, gpu, [{"type": "SATA"}] * 5, cooler)
