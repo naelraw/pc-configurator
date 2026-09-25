@@ -689,6 +689,13 @@ def favicon():
     return FileResponse("static/favicon.ico", media_type="image/x-icon")
 
 
+@app.get("/apple-touch-icon.png")
+@app.get("/apple-touch-icon-precomposed.png")
+def apple_touch_icon():
+    """Demandées à la racine par iOS et certains crawlers, même sans <link>."""
+    return FileResponse("static/apple-touch-icon.png", media_type="image/png")
+
+
 @app.get("/sw.js")
 def service_worker():
     """Servi à la racine : un service worker ne contrôle que les pages sous son propre dossier."""

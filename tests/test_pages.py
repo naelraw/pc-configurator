@@ -63,3 +63,9 @@ def test_application_installable(client):
     assert r.status_code == 200 and "javascript" in r.headers["content-type"]
     html = client.get("/").text
     assert 'rel="manifest"' in html and "/static/pwa.js" in html
+
+
+def test_icones_a_la_racine(client):
+    for chemin, type_attendu in (("/favicon.ico", "image/x-icon"), ("/apple-touch-icon.png", "image/png")):
+        r = client.get(chemin)
+        assert r.status_code == 200 and r.headers["content-type"] == type_attendu

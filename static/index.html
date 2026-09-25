@@ -34,17 +34,44 @@
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "PC Radar",
-  "url": "https://pcradar.tech/",
-  "description": "Configurateur PC gratuit avec vérification de compatibilité automatique, assistant IA, comparateur de prix et estimation FPS.",
-  "applicationCategory": "UtilitiesApplication",
-  "operatingSystem": "Web",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "EUR"
-  }
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://pcradar.tech/#organisation",
+      "name": "PC Radar",
+      "url": "https://pcradar.tech/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://pcradar.tech/static/favicon.png",
+        "width": 512,
+        "height": 512
+      },
+      "email": "contact.pcradar@gmail.com"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://pcradar.tech/#site",
+      "name": "PC Radar",
+      "url": "https://pcradar.tech/",
+      "inLanguage": "fr-FR",
+      "publisher": {"@id": "https://pcradar.tech/#organisation"}
+    },
+    {
+      "@type": "WebApplication",
+      "name": "PC Radar",
+      "url": "https://pcradar.tech/",
+      "description": "Configurateur PC gratuit avec vérification de compatibilité automatique, assistant IA, comparateur de prix et estimation FPS.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "Web",
+      "image": "https://pcradar.tech/static/favicon.png",
+      "publisher": {"@id": "https://pcradar.tech/#organisation"},
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "EUR"
+      }
+    }
+  ]
 }
 </script>
 <script src="/static/csp-handlers.js"></script>
