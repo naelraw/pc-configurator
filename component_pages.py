@@ -36,9 +36,13 @@ SPEC_LABELS = {
     "formats_supportes": "Formats de carte mère", "gpu_max_length_mm": "Longueur max. de carte graphique",
     "cpu_cooler_max_height_mm": "Hauteur max. de ventirad", "longueur_mm": "Longueur",
     "hauteur_mm": "Hauteur", "sockets_supportes": "Sockets supportés", "couleur": "Couleur",
+    "coeurs": "Cœurs", "threads": "Threads", "frequence_base_ghz": "Fréquence de base",
+    "frequence_boost_ghz": "Fréquence boost", "cache_l3_mo": "Cache L3", "memoire": "Mémoire supportée",
+    "igpu": "Graphique intégré",
 }
 SPEC_UNITS = {"tdp": " W", "wattage": " W", "gpu_max_length_mm": " mm", "cpu_cooler_max_height_mm": " mm",
-              "longueur_mm": " mm", "hauteur_mm": " mm"}
+              "longueur_mm": " mm", "hauteur_mm": " mm", "frequence_base_ghz": " GHz",
+              "frequence_boost_ghz": " GHz", "cache_l3_mo": " Mo"}
 FPS_GAMES = ["Cyberpunk 2077", "Fortnite", "Counter-Strike 2", "Black Myth Wukong", "Baldur's Gate 3"]
 
 
@@ -86,6 +90,8 @@ def _spec(c, key):
 def _fmt_spec(key, value):
     if isinstance(value, list):
         return ", ".join(str(v) for v in value)
+    if isinstance(value, float):
+        value = f"{value:g}".replace(".", ",")   # 4.7 -> « 4,7 » à la française
     return f"{value}{SPEC_UNITS.get(key, '')}"
 
 

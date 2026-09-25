@@ -239,8 +239,11 @@
     formats_supportes: 'Formats de carte mère', gpu_max_length_mm: 'Carte graphique max.',
     cpu_cooler_max_height_mm: 'Ventirad max.', longueur_mm: 'Longueur', hauteur_mm: 'Hauteur',
     sockets_supportes: 'Sockets supportés', couleur: 'Couleur',
+    coeurs: 'Cœurs', threads: 'Threads', frequence_base_ghz: 'Fréquence de base',
+    frequence_boost_ghz: 'Fréquence boost', cache_l3_mo: 'Cache L3', memoire: 'Mémoire supportée',
+    igpu: 'Graphique intégré',
   };
-  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm' };
+  const SPEC_UNITS = { tdp: ' W', wattage: ' W', gpu_max_length_mm: ' mm', cpu_cooler_max_height_mm: ' mm', longueur_mm: ' mm', hauteur_mm: ' mm', frequence_base_ghz: ' GHz', frequence_boost_ghz: ' GHz', cache_l3_mo: ' Mo' };
   const TYPE_RANK = { DDR3: 1, DDR4: 2, DDR5: 3, SATA: 1, NVMe: 2 };
 
   // Meilleure valeur d'une caractéristique : 'a', 'b' ou null (égalité,
@@ -249,7 +252,8 @@
   function bestSide(key, va, vb, categorie){
     if(va === undefined || vb === undefined || va === null || vb === null) return null;
     let score;
-    if(['wattage', 'm2_slots', 'sata_ports', 'gpu_max_length_mm', 'cpu_cooler_max_height_mm'].includes(key)){
+    if(['wattage', 'm2_slots', 'sata_ports', 'gpu_max_length_mm', 'cpu_cooler_max_height_mm',
+        'coeurs', 'threads', 'frequence_base_ghz', 'frequence_boost_ghz', 'cache_l3_mo'].includes(key)){
       score = v => Number(v);                                    // plus = mieux
     }else if(key === 'formats_supportes' || key === 'sockets_supportes'){
       score = v => Array.isArray(v) ? v.length : 0;              // plus compatible = mieux
@@ -275,7 +279,7 @@
       return titre ? '' : '<p style="color:var(--text-dim); padding:16px 0; text-align:center;">Aucune caractéristique enregistrée pour comparer ces composants.</p>';
     }
     const categorie = a.categorie || (selectedA && selectedA.categorie);
-    const fmt = (k, v) => v === undefined || v === null ? '-' : (Array.isArray(v) ? v.join(', ') : String(v) + (SPEC_UNITS[k] || ''));
+    const fmt = (k, v) => v === undefined || v === null ? '-' : (Array.isArray(v) ? v.join(', ') : String(v).replace(/^(\d+)\.(\d+)$/, '$1,$2') + (SPEC_UNITS[k] || ''));
     let anyBest = false;
     const rows = keys.map(k => {
       const best = bestSide(k, specsA[k], specsB[k], categorie);
