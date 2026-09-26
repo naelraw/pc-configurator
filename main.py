@@ -758,6 +758,7 @@ def sitemap_xml():
         ("/assistant", "0.9", "weekly"),
         ("/comparateur", "0.8", "weekly"),
         ("/estimer-fps", "0.8", "weekly"),
+        ("/application", "0.5", "monthly"),
         ("/guides", "0.8", "daily"),
     ] + [(f"/guides/{slug}", "0.8", "daily") for slug in guides.GUIDES]
     pages += [("/composants", "0.7", "daily")]
@@ -872,6 +873,11 @@ def cgu_page():
 @app.get("/cookies")
 def cookies_page():
     return FileResponse("static/cookies.html")
+
+
+@app.get("/application")
+def application_page():
+    return FileResponse("static/application.html")
 
 
 @app.get("/build/{build_id}")

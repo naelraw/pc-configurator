@@ -77,6 +77,7 @@ _SHELL_FOOT = """
       <span>Projet personnel et indépendant. Compatibilité vérifiée côté serveur, suggestions IA validées avant affichage.</span>
     </div>
     <div class="footer-legal-links">
+      <a href="/application">Installer l'application</a>
       <a href="/guides">Guides d'achat</a>
       <a href="/composants">Composants</a>
       <a href="/comparer">Comparatifs</a>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#0e0f11">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Installer l'application PC Radar — Android et iPhone</title>
+<meta name="description" content="Installe PC Radar sur ton téléphone en 10 secondes, sans passer par un store : ajout à l'écran d'accueil sur Android et iPhone, gratuit.">
+<link rel="canonical" href="https://pcradar.tech/application">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="96x96" href="/static/favicon-96.png">
+<link rel="icon" type="image/png" sizes="512x512" href="/static/favicon.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<link rel="manifest" href="/static/manifest.webmanifest">
+<script src="/static/pwa.js" defer></script>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/csp-handlers.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="nav-wrap">
+    <a href="/" class="logo"><img src="/static/favicon.svg" alt="" width="22" height="22">PC Radar</a>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    <nav>
+      <ul>
+        <li><a href="/">Accueil</a></li>
+        <li><a href="/configurateur">Configurateur</a></li>
+        <li><a href="/assistant">Assistant IA</a></li>
+        <li><a href="/comparateur">Comparateur</a></li>
+        <li><a href="/estimer-fps">Estimer FPS</a></li>
+        <li><a href="/compte">Mon compte</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main class="legal-page install-page">
+  <a href="/" class="legal-back">← Retour à l'accueil</a>
+
+  <div class="install-hero">
+    <img src="/static/icon-192.png" alt="" width="64" height="64" class="install-app-icon">
+    <div>
+      <h1>Installer l'application</h1>
+      <p class="install-lead">PC Radar s'installe sur ton téléphone comme une vraie appli, en 10 secondes, sans passer par un store.</p>
+    </div>
+  </div>
+
+  <ul class="install-perks">
+    <li><i class="ph ph-gift" aria-hidden="true"></i>Gratuit, sans compte</li>
+    <li><i class="ph ph-feather" aria-hidden="true"></i>Presque rien à télécharger</li>
+    <li><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Toujours à jour tout seul</li>
+    <li><i class="ph ph-frame-corners" aria-hidden="true"></i>S'ouvre en plein écran</li>
+  </ul>
+
+  <div class="install-direct" id="install-direct" hidden>
+    <div>
+      <strong>Ton navigateur peut l'installer directement</strong>
+      <span>Un seul bouton, puis confirme « Installer ».</span>
+    </div>
+    <button type="button" class="btn btn-primary" data-onclick="installApp()"><i class="ph ph-download-simple" aria-hidden="true"></i>Installer PC Radar</button>
+  </div>
+
+  <div class="install-done" id="install-done" hidden>
+    <i class="ph ph-check-circle" aria-hidden="true"></i>
+    <span>C'est bon : PC Radar est déjà installé sur cet appareil.</span>
+  </div>
+
+  <div class="install-tabs" role="tablist" aria-label="Type de téléphone">
+    <button type="button" role="tab" id="tab-android" aria-controls="panel-android" aria-selected="true" data-onclick="showInstallTab('android')"><i class="ph ph-android-logo" aria-hidden="true"></i>Android</button>
+    <button type="button" role="tab" id="tab-iphone" aria-controls="panel-iphone" aria-selected="false" data-onclick="showInstallTab('iphone')"><i class="ph ph-apple-logo" aria-hidden="true"></i>iPhone / iPad</button>
+  </div>
+
+  <section class="install-panel" id="panel-android" role="tabpanel" aria-labelledby="tab-android">
+    <h2>Avec Chrome</h2>
+    <ol class="install-steps">
+      <li><span class="step-n">1</span><div><strong>Ouvre pcradar.tech dans Chrome</strong><span>Le navigateur par défaut de la plupart des téléphones Android.</span></div></li>
+      <li><span class="step-n">2</span><div><strong>Touche le menu <span class="kbd"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></span></strong><span>Les trois points, en haut à droite de l'écran.</span></div></li>
+      <li><span class="step-n">3</span><div><strong>Choisis « Ajouter à l'écran d'accueil »</strong><span>Parfois écrit « Installer l'application ».</span></div></li>
+      <li><span class="step-n">4</span><div><strong>Confirme avec « Installer »</strong><span>L'icône PC Radar apparaît avec tes autres applis.</span></div></li>
+    </ol>
+    <p class="install-alt"><i class="ph ph-info" aria-hidden="true"></i><span><strong>Samsung Internet :</strong> menu <span class="kbd"><i class="ph ph-list" aria-hidden="true"></i></span> en bas à droite → « Ajouter la page à » → « Écran d'accueil ».</span></p>
+  </section>
+
+  <section class="install-panel" id="panel-iphone" role="tabpanel" aria-labelledby="tab-iphone" hidden>
+    <h2>Avec Safari</h2>
+    <ol class="install-steps">
+      <li><span class="step-n">1</span><div><strong>Ouvre pcradar.tech dans Safari</strong><span>Le navigateur à la boussole bleue, installé sur tous les iPhone.</span></div></li>
+      <li><span class="step-n">2</span><div><strong>Touche le bouton Partager <span class="kbd"><i class="ph ph-export" aria-hidden="true"></i></span></strong><span>Le carré avec une flèche vers le haut, en bas de l'écran. Sur iOS 26, il est dans le menu <span class="kbd"><i class="ph ph-dots-three" aria-hidden="true"></i></span> à côté de l'adresse.</span></div></li>
+      <li><span class="step-n">3</span><div><strong>Choisis « Sur l'écran d'accueil »</strong><span>Fais défiler la liste vers le bas si tu ne le vois pas.</span></div></li>
+      <li><span class="step-n">4</span><div><strong>Touche « Ajouter »</strong><span>En haut à droite. L'icône PC Radar apparaît sur ton écran d'accueil.</span></div></li>
+    </ol>
+    <p class="install-alt"><i class="ph ph-info" aria-hidden="true"></i><span>Depuis iOS 16.4, ça marche aussi depuis Chrome, Edge ou Firefox : bouton Partager <span class="kbd"><i class="ph ph-export" aria-hidden="true"></i></span> dans la barre d'adresse, puis « Sur l'écran d'accueil ».</span></p>
+  </section>
+
+  <h2>Questions fréquentes</h2>
+  <p><strong>Est-ce que ça prend de la place ?</strong> Non : l'application ne stocke que quelques fichiers, bien moins qu'une appli classique.</p>
+  <p><strong>Comment la mettre à jour ?</strong> Rien à faire, elle affiche toujours la dernière version du site et les prix du jour.</p>
+  <p><strong>Comment la supprimer ?</strong> Comme n'importe quelle appli : appui long sur l'icône, puis « Supprimer » ou « Désinstaller ».</p>
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <strong>PC Radar</strong>
+      <span>Projet personnel et indépendant. Compatibilité vérifiée côté serveur, suggestions IA validées avant affichage.</span>
+    </div>
+    <div class="footer-legal-links">
+      <a href="/application">Installer l'application</a>
+      <a href="/mentions-legales">Mentions légales</a>
+      <a href="/confidentialite">Confidentialité</a>
+      <a href="/cgu">CGU</a>
+      <a href="/cookies">Cookies</a>
+    </div>
+  </div>
+</footer>
+
+<script src="/static/pages/application.js"></script>
+<script src="/static/nav-menu.js"></script>
+<script src="/static/effects.js"></script>
+</body>
+</html>

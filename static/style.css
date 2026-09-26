@@ -1452,3 +1452,79 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   background:var(--surface); color:var(--accent); border:1px solid var(--accent-line);
   font-size:0.68rem; font-weight:560; padding:2px 7px; border-radius:6px;
 }
+
+/* ===== Page /application : installer PC Radar sur l'écran d'accueil ===== */
+.install-hero{ display:flex; align-items:center; gap:18px; margin-bottom:22px; }
+.install-app-icon{ width:64px; height:64px; border-radius:16px; border:1px solid var(--line-strong); flex-shrink:0; }
+.install-page .install-hero h1{ margin-bottom:6px; }
+.install-lead{ color:var(--text-2); line-height:1.6; max-width:52ch; }
+.legal-page .install-perks, .legal-page .install-steps{ margin-left:0; }
+.legal-page .install-perks li, .legal-page .install-steps li{ margin-bottom:0; }
+.install-perks{ list-style:none; display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin:0 0 28px; padding:0; }
+.install-perks li{
+  display:flex; align-items:center; gap:10px; padding:12px 14px; min-width:0;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md);
+  color:var(--text); font-size:0.9rem;
+}
+.install-perks i{ color:var(--accent); font-size:1.15rem; flex-shrink:0; }
+.install-direct{
+  display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  padding:16px 18px; margin-bottom:24px; border-radius:var(--r-md);
+  background:var(--accent-soft); border:1px solid var(--accent-line);
+}
+.install-direct div{ display:flex; flex-direction:column; gap:2px; }
+.install-direct strong{ color:var(--text); font-weight:600; }
+.install-direct span{ color:var(--text-2); font-size:0.86rem; }
+.install-direct .btn{ display:inline-flex; align-items:center; gap:8px; }
+.install-done{
+  display:flex; align-items:center; gap:10px; padding:14px 16px; margin-bottom:24px;
+  border-radius:var(--r-md); background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--text);
+}
+.install-done i{ color:var(--accent); font-size:1.3rem; }
+.install-direct[hidden], .install-done[hidden], .install-panel[hidden]{ display:none; }
+.install-tabs{
+  display:inline-flex; gap:4px; padding:4px; margin-bottom:22px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md);
+}
+.install-tabs button{
+  display:inline-flex; align-items:center; gap:8px; padding:9px 16px; min-height:40px;
+  border:1px solid transparent; border-radius:var(--r-sm); background:transparent;
+  color:var(--text-2); font-weight:560; font-size:0.9rem; cursor:pointer;
+  transition:background-color .2s var(--ease), color .2s var(--ease);
+}
+.install-tabs button:hover{ color:var(--text); }
+.install-tabs button[aria-selected="true"]{ background:var(--surface-3); border-color:var(--line-strong); color:var(--text); }
+.install-tabs button:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.install-tabs i{ font-size:1.1rem; }
+.legal-page .install-panel h2{ border-top:none; padding-top:0; margin-top:0; }
+.install-steps{ list-style:none; padding:0; margin:0 0 18px; display:flex; flex-direction:column; gap:10px; }
+.install-steps li{
+  display:flex; gap:14px; align-items:flex-start; padding:14px 16px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r-md);
+}
+.install-steps li > div{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.install-steps strong{ color:var(--text); font-weight:600; line-height:1.45; }
+.install-steps li > div > span{ color:var(--text-2); font-size:0.88rem; line-height:1.55; }
+.step-n{
+  flex-shrink:0; width:28px; height:28px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent);
+  font-family:var(--font-mono); font-size:0.85rem; font-weight:600;
+}
+.kbd{
+  display:inline-flex; align-items:center; justify-content:center; vertical-align:-3px;
+  min-width:24px; height:22px; padding:0 4px; margin:0 2px;
+  background:var(--surface-3); border:1px solid var(--line-strong); border-radius:6px; color:var(--text);
+}
+.kbd i{ font-size:0.95rem; }
+.install-alt{ display:flex; gap:10px; align-items:flex-start; }
+.legal-page .install-alt{ color:var(--text-2); font-size:0.88rem; }
+.install-alt > i{ color:var(--text-3); font-size:1.1rem; margin-top:3px; flex-shrink:0; }
+@media (max-width:480px){
+  .install-hero{ align-items:flex-start; }
+  .install-app-icon{ width:52px; height:52px; border-radius:13px; }
+  .install-perks{ grid-template-columns:minmax(0, 1fr); }
+  .install-tabs{ display:flex; }
+  .install-tabs button{ flex:1; justify-content:center; }
+  .install-direct .btn{ width:100%; justify-content:center; }
+}
