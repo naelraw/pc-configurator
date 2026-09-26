@@ -532,7 +532,8 @@
 
   async function deleteComponent(id){
     const c = components.find(x => x.id === id);
-    if(!confirm(`Supprimer définitivement « ${c ? c.nom : id} » ? Les configurations qui l'utilisent le perdront.`)) return;
+    if(!await uiConfirm(`« ${c ? c.nom : id} » sera retiré du catalogue. Les configurations qui l'utilisent le perdront.`,
+      { title: 'Supprimer ce composant ?', confirmLabel: 'Supprimer', danger: true })) return;
     try{
       await api(`/api/admin/components/${id}`, { method: 'DELETE' });
       toast('Supprimé.');
@@ -544,7 +545,8 @@
   function deleteCurrent(){ if(editing) deleteComponent(editing.id); }
 
   async function separateCurrent(){
-    if(!editing || !confirm(`Sortir « ${editing.nom} » de son produit (il redevient une fiche à part) ?`)) return;
+    if(!editing || !await uiConfirm(`« ${editing.nom} » redevient une fiche à part.`,
+      { title: 'Sortir de ce produit ?', confirmLabel: 'Séparer' })) return;
     try{
       await post('/api/admin/variantes/separer', { id: editing.id });
       toast('Séparé de ses variantes.');
@@ -741,7 +743,7 @@
   }
 
   async function fixBrokenLink(componentId, vendeur, ancienLien){
-    const nouveau = prompt(`Nouveau lien ${vendeur} :`, ancienLien);
+    const nouveau = await uiPrompt(`Nouveau lien ${vendeur}`, ancienLien, { confirmLabel: 'Remplacer' });
     if(!nouveau || nouveau === ancienLien) return;
     try{
       await post('/api/admin/fix-link', { component_id: componentId, vendeur, nouveau_lien: nouveau });

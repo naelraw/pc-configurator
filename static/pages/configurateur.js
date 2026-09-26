@@ -900,7 +900,7 @@
   // n'est connecté — la sauvegarde côté serveur nécessite un compte.
   async function saveBuild(){
     if(Object.keys(selectedComponents).length === 0){
-      alert('Sélectionnez au moins un composant avant de sauvegarder.');
+      uiAlert('Sélectionne au moins un composant avant de sauvegarder.', { title: 'Configuration vide' });
       return;
     }
 
@@ -913,7 +913,8 @@
       return;
     }
 
-    const nom = prompt('Nom de cette configuration :', editingBuildId ? editingBuildNom : 'Ma config');
+    const nom = await uiPrompt('Nom de cette configuration', editingBuildId ? editingBuildNom : 'Ma config',
+      { confirmLabel: editingBuildId ? 'Mettre à jour' : 'Sauvegarder', maxLength: 120 });
     if(!nom) return;
 
     const composants_json = {};
@@ -974,10 +975,10 @@
   // de notre côté : la commande utilise directement la session Amazon déjà
   // ouverte dans le navigateur de la personne (ou lui demande de se
   // connecter si besoin), exactement comme suivre un lien produit normal.
-  function addAllToAmazonCart(){
+  async function addAllToAmazonCart(){
     const withAsin = Object.values(selectedComponents).filter(item => item.asin);
     if(withAsin.length === 0){
-      alert('Aucun des composants sélectionnés n\'a de lien Amazon connu.');
+      uiAlert('Aucun composant sélectionné n\'a de lien Amazon connu.', { title: 'Panier Amazon indisponible' });
       return;
     }
 
@@ -990,7 +991,9 @@
 
     const skipped = Object.keys(selectedComponents).length - withAsin.length;
     if(skipped > 0){
-      alert(`${skipped} composant(s) sans lien Amazon connu ne seront pas ajoutés au panier.`);
+      const suite = await uiConfirm(`${skipped} composant(s) sans lien Amazon connu ne seront pas ajoutés au panier.`,
+        { title: 'Panier incomplet', confirmLabel: 'Continuer vers Amazon' });
+      if(!suite) return;
     }
 
     window.open(`https://www.amazon.fr/gp/aws/cart/add.html?${params.toString()}`, '_blank', 'noopener');

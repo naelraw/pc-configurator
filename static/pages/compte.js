@@ -132,7 +132,7 @@
       try{ localStorage.removeItem('pc_configurator_draft'); }catch(e){}
       hideDeleteAccount();
       await refreshView();
-      alert('Ton compte et toutes tes données ont été supprimés.');
+      uiAlert('Ton compte et toutes tes données ont été supprimés.', { title: 'Compte supprimé', tone: 'ok' });
     }catch(e){
       errorEl.textContent = 'La suppression a échoué. Réessaie, ou écris à contact.pcradar@gmail.com.';
       btn.disabled = false;
@@ -297,7 +297,8 @@
   async function deleteBuild(buildId){
     const build = lastLoadedBuilds.find(b => b.id === buildId);
     if(!build) return;
-    if(!confirm(`Supprimer définitivement la configuration "${build.nom}" ? Cette action est irréversible.`)) return;
+    if(!await uiConfirm(`« ${build.nom} » sera supprimée définitivement. Cette action est irréversible.`,
+      { title: 'Supprimer cette configuration ?', confirmLabel: 'Supprimer', danger: true })) return;
 
     try{
       const res = await fetch(API_BASE + `/api/builds/${buildId}`, {
@@ -308,10 +309,10 @@
         await loadBuilds();
       }else{
         const data = await res.json().catch(() => ({}));
-        alert(data.detail || 'Erreur lors de la suppression.');
+        uiAlert(data.detail || 'Réessaie dans un instant.', { title: 'Suppression impossible' });
       }
     }catch(e){
-      alert('Erreur réseau : ' + e.message);
+      uiAlert('Vérifie ta connexion puis réessaie.', { title: 'Erreur réseau' });
     }
   }
 
@@ -319,16 +320,16 @@
     const url = window.location.origin + '/build/' + buildId;
     try{
       await navigator.clipboard.writeText(url);
-      alert('Lien copié : ' + url);
+      uiAlert(url, { title: 'Lien copié', tone: 'ok' });
     }catch(e){
-      prompt('Copie ce lien manuellement :', url);
+      uiPrompt('Copie ce lien', url, { confirmLabel: 'Fermer' });
     }
   }
 
   // Même principe que sur le configurateur (voir configurateur.html) :
   // ajoute tous les composants de cette configuration sauvegardée au panier
   // Amazon de la personne, via /gp/aws/cart/add.html, en un seul lien.
-  function addAllToAmazonCart(buildId){
+  async function addAllToAmazonCart(buildId){
     const build = lastLoadedBuilds.find(b => b.id === buildId);
     if(!build) return;
 
@@ -337,7 +338,7 @@
       .filter(item => item && item.asin);
 
     if(items.length === 0){
-      alert('Aucun des composants de cette configuration n\'a de lien Amazon connu.');
+      uiAlert('Aucun composant de cette configuration n\'a de lien Amazon connu.', { title: 'Panier Amazon indisponible' });
       return;
     }
 
@@ -350,7 +351,9 @@
 
     const total = Object.keys(build.composants_json || {}).length;
     if(items.length < total){
-      alert(`${total - items.length} composant(s) sans lien Amazon connu ne seront pas ajoutés au panier.`);
+      const suite = await uiConfirm(`${total - items.length} composant(s) sans lien Amazon connu ne seront pas ajoutés au panier.`,
+        { title: 'Panier incomplet', confirmLabel: 'Continuer vers Amazon' });
+      if(!suite) return;
     }
 
     window.open(`https://www.amazon.fr/gp/aws/cart/add.html?${params.toString()}`, '_blank', 'noopener');

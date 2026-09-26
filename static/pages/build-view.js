@@ -172,7 +172,7 @@
   function selectFpsGame(name){
     if(selectedFpsGames.includes(name)) return;
     if(selectedFpsGames.length >= MAX_FPS_GAMES){
-      alert(`Maximum ${MAX_FPS_GAMES} jeux à la fois.`);
+      uiAlert(`Retire un jeu pour en ajouter un autre.`, { title: `${MAX_FPS_GAMES} jeux maximum` });
       return;
     }
     selectedFpsGames.push(name);
