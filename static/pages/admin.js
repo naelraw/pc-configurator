@@ -128,6 +128,21 @@
 
   function openSite(){ window.open('/', '_blank', 'noopener'); }
 
+  // Le .zip est protégé par le mot de passe admin (en-tête) : un simple lien
+  // ne l'enverrait pas, d'où le passage par fetch puis un lien temporaire.
+  async function downloadExtension(){
+    try{
+      const res = await fetch(API_BASE + '/api/admin/extension.zip', { headers: { 'X-Admin-Secret': adminSecret } });
+      if(!res.ok) throw new Error('Erreur ' + res.status);
+      const name = (res.headers.get('Content-Disposition') || '').match(/filename="([^"]+)"/)?.[1] || 'pc-radar-extension.zip';
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      toast('Extension téléchargée. Dézippe-la, puis chrome://extensions → Mode développeur → « Charger l’extension non empaquetée ».');
+    }catch(e){ toast('Téléchargement impossible : ' + e.message, true); }
+  }
+
   function startApp(){
     $('login-view').hidden = true;
     $('app').hidden = false;

@@ -3,8 +3,8 @@ uvicorn>=0.30.0,<1.0.0
 uvloop>=0.19; sys_platform != "win32"
 httptools>=0.6
 libsql-client==0.3.1
-requests==2.31.0
+requests>=2.33.0,<3
 groq
 google-genai
-python-dotenv==1.0.0
+python-dotenv>=1.2.2,<2
 itsdangerous

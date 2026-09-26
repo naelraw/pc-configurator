@@ -33,7 +33,7 @@ from groq import Groq
 import libsql_client
 import sqlite3
 from libsql_client.sqlite3_utils import _execute_stmt as _libsql_execute_stmt
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from compatibility import (
     check_alimentation,
     check_carte_mere_boitier,
@@ -176,10 +176,17 @@ REMBG_SERVICE_URL = os.getenv("REMBG_SERVICE_URL", "").rstrip("/")
 REMBG_API_KEY = os.getenv("REMBG_API_KEY", "")
 
 
-class SuggestConfigRequest(BaseModel):
-    user_input: str
+# Au-delà de quelques phrases, un message ne sert qu'à gonfler le prompt (et
+# les quotas gratuits des IA) : 2000 caractères suffisent largement.
+MAX_USER_INPUT = 2000
 
-app = FastAPI()
+
+class SuggestConfigRequest(BaseModel):
+    user_input: str = Field(max_length=MAX_USER_INPUT)
+
+# Pas de documentation d'API publique (/docs, /redoc, /openapi.json) : elle
+# listait toutes les routes, admin comprises, à n'importe quel visiteur.
+app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
 # Cookie de session marqué Secure (jamais envoyé en HTTP clair). En local sans
 # HTTPS, mettre SESSION_HTTPS_ONLY=0 dans .env.
@@ -1921,11 +1928,24 @@ def check_build_alerts():
         client.close()
 
 
+def _build_payload(payload: dict):
+    """Nom et composants d'une build envoyée par un visiteur, bornés : une
+    build tient en quelques centaines d'octets, rien ne justifie d'en stocker
+    davantage."""
+    nom = str(payload.get("nom") or "Configuration sans nom").strip()[:120] or "Configuration sans nom"
+    composants = payload.get("composants_json", {})
+    if not isinstance(composants, dict):
+        raise HTTPException(status_code=400, detail="Composants invalides.")
+    composants_json = json.dumps(composants)
+    if len(composants_json) > 20000:
+        raise HTTPException(status_code=413, detail="Configuration trop volumineuse.")
+    return nom, composants_json
+
+
 @app.post("/api/builds")
 def save_build(payload: dict = Body(...), user=Depends(require_login)):
     """Sauvegarde une configuration dans la table builds, liée au compte connecté."""
-    nom = payload.get("nom", "Configuration sans nom")
-    composants_json = json.dumps(payload.get("composants_json", {}))
+    nom, composants_json = _build_payload(payload)
     date = datetime.utcnow().isoformat()
 
     client = get_client()
@@ -1965,8 +1985,7 @@ def update_build(build_id: int, payload: dict = Body(...), user=Depends(require_
     compte connecté avant toute modification — jamais de confiance dans un
     ID envoyé par le client sans vérifier son propriétaire.
     """
-    nom = payload.get("nom", "Configuration sans nom")
-    composants_json = json.dumps(payload.get("composants_json", {}))
+    nom, composants_json = _build_payload(payload)
 
     client = get_client()
     try:
@@ -2325,6 +2344,31 @@ def admin_page():
 def admin_verify(_admin=Depends(require_admin)):
     """Simple endpoint pour vérifier le mot de passe admin avant d'afficher le formulaire."""
     return {"status": "ok"}
+
+
+EXTENSION_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "browser-extension")
+
+
+@app.get("/api/admin/extension.zip")
+def admin_extension_zip(_admin=Depends(require_admin)):
+    """L'extension PC Radar en .zip, construite à la volée depuis
+    browser-extension/ : toujours la version déployée, sans fichier à tenir
+    à jour à la main."""
+    import io, zipfile
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for root, _dirs, files in os.walk(EXTENSION_DIR):
+            for name in sorted(files):
+                path = os.path.join(root, name)
+                archive.write(path, os.path.relpath(path, EXTENSION_DIR))
+    try:
+        with open(os.path.join(EXTENSION_DIR, "manifest.json"), encoding="utf-8") as f:
+            version = json.load(f).get("version", "")
+    except Exception:
+        version = ""
+    filename = f"pc-radar-extension-{version}.zip" if version else "pc-radar-extension.zip"
+    return Response(buffer.getvalue(), media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
 
 
 @app.get("/api/admin/components")
@@ -5151,7 +5195,7 @@ soit null si aucun composant n'est disponible pour cette catégorie :
 
 class RefineConfigRequest(BaseModel):
     current_suggestion: dict  # {"cpu_id": id ou null, ..., "jeux": [...]} — la dernière suggestion affichée
-    user_input: str
+    user_input: str = Field(max_length=MAX_USER_INPUT)
 
 
 @app.post("/api/refine-config")

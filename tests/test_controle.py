@@ -90,3 +90,18 @@ def test_analyse_d_une_page_amazon(client, catalog):
     if gpu["asin"]:
         assert res[gpu["asin"].upper()]["catalogue"]["id"] == gpu["id"]
     assert res["B0INCONNU1"] == {"catalogue": None, "proche": None}
+
+
+def test_securite_et_extension(client):
+    # Pas de documentation d'API publique.
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404
+    # Message trop long refusé avant tout appel IA.
+    assert client.post("/suggest-config", json={"user_input": "x" * 2001}).status_code == 422
+    # L'extension n'est téléchargeable qu'avec le mot de passe admin.
+    assert client.get("/api/admin/extension.zip").status_code == 401
+    r = client.get("/api/admin/extension.zip", headers=ADMIN)
+    assert r.status_code == 200 and r.content[:2] == b"PK"
+    import io, zipfile
+    noms = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert "manifest.json" in noms and "content.js" in noms
