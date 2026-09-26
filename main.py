@@ -5006,7 +5006,124 @@ FIELD_TO_CATEGORY_BACKEND = {
 AI_PROVIDERS_UNAVAILABLE_MESSAGE = "L'assistant IA est temporairement surchargé, réessayez dans quelques minutes."
 
 
-def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False):
+# Poids de chaque composant pour les performances en jeu : descendre d'un
+# euro sur le GPU « coûte » 6 fois plus que sur le boîtier.
+BUDGET_WEIGHTS = {"gpu_id": 6, "cpu_id": 4, "ram_id": 2, "motherboard_id": 1.5, "psu_id": 1.5, "storage_id": 1.2, "case_id": 1}
+
+
+def _fit_to_budget(suggestion, budget, components_by_id):
+    """
+    Les IA additionnent mal : à budget serré, elles proposent souvent une
+    config compatible qui dépasse de quelques dizaines d'euros, puis
+    échouent à corriger en 3 essais (« pas de configuration trouvée » à
+    800 € alors qu'il y en a). Le serveur fait donc l'ajustement lui-même,
+    au centime près : à chaque étape, il remplace le composant dont la
+    descente en gamme coûte le moins en performances par euro réellement
+    utile (poids BUDGET_WEIGHTS), toujours en gardant une config compatible.
+    Renvoie la config ajustée, ou None si le budget reste hors d'atteinte.
+    """
+    def price(c):
+        return float(c.get("prix_indicatif") or 0)
+
+    def acceptable(field, current, candidate):
+        # Pas de descente absurde : stockage d'au moins 500 Go (ou la
+        # capacité d'origine si plus petite), 16 Go de RAM minimum.
+        specs_new, specs_old = candidate.get("specs") or {}, current.get("specs") or {}
+        if field == "storage_id":
+            return (specs_new.get("capacite_go") or 0) >= min(500, specs_old.get("capacite_go") or 0)
+        if field == "ram_id":
+            return (specs_new.get("capacite_go") or 0) >= min(16, specs_old.get("capacite_go") or 0)
+        return True
+
+    by_category = {}
+    for c in components_by_id.values():
+        if c.get("en_stock", True) and price(c) > 0:
+            by_category.setdefault(c.get("categorie"), []).append(c)
+
+    config = dict(suggestion)
+    for _ in range(40):
+        overage = compute_real_total(config, components_by_id) - budget
+        if overage <= 0:
+            return config
+        options = []
+        for field, weight in BUDGET_WEIGHTS.items():
+            current = components_by_id.get(config.get(field))
+            if not current:
+                continue
+            for c in by_category.get(FIELD_TO_CATEGORY_BACKEND[field], []):
+                drop = price(current) - price(c)
+                if drop > 0 and acceptable(field, current, c):
+                    # Coût en performances par euro qui sert vraiment à
+                    # combler le dépassement ; à égalité, la plus petite descente.
+                    options.append((weight * drop / min(drop, overage), drop, field, c["id"]))
+        options.sort(key=lambda o: (o[0], o[1]))
+        swap = next(((field, cid) for _, _, field, cid in options
+                     if verify_compatibility({**config, field: cid})["compatible"]), None)
+        if not swap:
+            return None
+        config[swap[0]] = swap[1]
+    return config if compute_real_total(config, components_by_id) <= budget else None
+
+
+def _repair_compatibility(suggestion, components_by_id):
+    """
+    Quand la config de l'IA n'échoue qu'à cause d'UNE pièce (boîtier trop
+    petit, RAM du mauvais type, alimentation trop faible...), le serveur la
+    remplace par l'option compatible au prix le plus proche plutôt que de
+    relancer l'IA. Les pièces qui font les performances (CPU, GPU) ne sont
+    jamais changées ici. Renvoie la config réparée, ou None.
+    """
+    def price(c):
+        return float(c.get("prix_indicatif") or 0)
+
+    for field in ("case_id", "psu_id", "ram_id", "storage_id", "motherboard_id"):
+        current = components_by_id.get(suggestion.get(field))
+        if not current:
+            continue
+        category = FIELD_TO_CATEGORY_BACKEND[field]
+        options = sorted(
+            (c for c in components_by_id.values()
+             if c.get("categorie") == category and c.get("en_stock", True) and price(c) > 0 and c["id"] != current["id"]),
+            key=lambda c: abs(price(c) - price(current)),
+        )
+        for c in options[:80]:
+            trial = {**suggestion, field: c["id"]}
+            if verify_compatibility(trial)["compatible"]:
+                return trial
+    return None
+
+
+def _cheapest_possible_total(components_by_id):
+    """Somme des composants en stock les moins chers de chaque catégorie de
+    config : en dessous, aucun budget ne peut suffire."""
+    total = 0.0
+    for category in FIELD_TO_CATEGORY_BACKEND.values():
+        prix = [float(c["prix_indicatif"]) for c in components_by_id.values()
+                if c.get("categorie") == category and c.get("en_stock", True) and (c.get("prix_indicatif") or 0) > 0]
+        total += min(prix) if prix else 0
+    return total
+
+
+def _budget_from_text(text):
+    """Budget en euros écrit dans la demande (« moins de 800 euros », « 1 200€ »,
+    « 1,5k€ », « budget 900 »), ou None. Sert seulement à contredire un refus
+    injustifié de l'IA, jamais à choisir les composants."""
+    pattern = (r"(\d{1,2}[ .]\d{3}|\d{3,5})\s*(?:€|euros?\b|eur\b|balles\b)"
+               r"|(\d+(?:[.,]\d+)?)\s*k\s*(?:€|euros?\b)"
+               r"|budget\D{0,15}(\d{3,5})")
+    for m in re.finditer(pattern, (text or "").lower()):
+        if m.group(1):
+            value = float(m.group(1).replace(" ", "").replace(".", ""))
+        elif m.group(2):
+            value = float(m.group(2).replace(",", ".")) * 1000
+        else:
+            value = float(m.group(3))
+        if 150 <= value <= 20000:
+            return value
+    return None
+
+
+def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None):
     """
     Boucle de génération + correction partagée par /suggest-config (nouvelle
     config) et /api/refine-config (modification d'une config existante) :
@@ -5037,18 +5154,39 @@ def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=
         # du schéma attendu. On relaie ce message tel quel plutôt que de
         # tomber sur "champs manquants", moins clair pour l'utilisateur.
         if isinstance(parsed, dict) and "error" in parsed:
+            # L'IA refuse parfois un budget pourtant suffisant (« pas de config
+            # à 800 € »). Si le budget lu dans la demande couvre la config la
+            # moins chère possible, on lui renvoie le chiffre au lieu de
+            # relayer ce refus.
+            plancher = _cheapest_possible_total(components_by_id)
+            if budget_hint and plancher and budget_hint >= plancher and attempt < MAX_AI_ATTEMPTS:
+                current_prompt = f"""{base_prompt}
+
+Ta réponse précédente {json.dumps(parsed)} est un refus injustifié : avec les composants listés,
+une configuration complète coûte à partir d'environ {plancher:.0f}€, donc un budget de {budget_hint:.0f}€
+permet bien d'en proposer une. Propose la meilleure configuration possible sous {budget_hint:.0f}€.
+Réponds UNIQUEMENT avec le JSON demandé."""
+                continue
             return {"status": "error", "message": parsed["error"]}
 
         if allow_advice and isinstance(parsed, dict) and parsed.get("type") == "advice":
             return {"status": "advice", "message": parsed.get("message") or ""}
 
         compatibility_result = verify_compatibility(parsed)
+        if not compatibility_result["compatible"] and isinstance(parsed, dict):
+            reparee = _repair_compatibility(parsed, components_by_id)
+            if reparee is not None:
+                parsed = reparee
+                compatibility_result = verify_compatibility(parsed)
         errors = list(compatibility_result["errors"])
 
         budget_max = parsed.get("budget_max") if isinstance(parsed, dict) else None
         if compatibility_result["compatible"] and isinstance(budget_max, (int, float)) and budget_max > 0:
             real_total = compute_real_total(parsed, components_by_id)
             if real_total > budget_max:
+                ajustee = _fit_to_budget(parsed, budget_max, components_by_id)
+                if ajustee is not None:
+                    return {"status": "ok", "suggestion": ajustee}
                 overage = real_total - budget_max
                 errors.append(
                     f"Le total réel de cette configuration ({real_total:.2f}€) dépasse le "
@@ -5123,6 +5261,10 @@ RÈGLES IMPORTANTES :
   propose la meilleure config possible dans ce budget, quitte à jouer en réglages modérés avec
   upscaling (DLSS/FSR) plutôt qu'en ultra/ray-tracing — ne juge jamais un budget "insuffisant"
   sur la base du confort ou du niveau de réglages graphiques.
+- Utilise vraiment le budget : vise un total entre 85 % et 100 % du budget_max, en mettant
+  l'argent en priorité dans le GPU (jeu) ou le CPU (montage, calcul) plutôt que de rester
+  loin en dessous. Ne propose pas de SSD de moins de 500 Go ni moins de 16 Go de RAM quand
+  le budget le permet.
 - Si l'utilisateur ne mentionne aucun budget, mets "budget_max": null.
 - Adapte vraiment le CHOIX (quel CPU, quel GPU...) à l'USAGE décrit (gaming, montage vidéo,
   bureautique, etc.) DANS la limite du budget donné : à budget égal, privilégie les composants
@@ -5152,7 +5294,7 @@ soit null si aucun composant n'est disponible pour cette catégorie :
         # Jamais de confiance aveugle dans l'IA pour la compatibilité ou le
         # budget (le total réel est toujours recalculé côté serveur à partir
         # des prix en base) — voir _generate_and_verify_suggestion.
-        result = _generate_and_verify_suggestion(base_prompt, components_by_id)
+        result = _generate_and_verify_suggestion(base_prompt, components_by_id, budget_hint=_budget_from_text(request.user_input))
         if result["status"] != "ok":
             return result
         suggestion_json = result["suggestion"]

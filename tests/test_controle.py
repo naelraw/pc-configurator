@@ -105,3 +105,19 @@ def test_securite_et_extension(client):
     import io, zipfile
     noms = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
     assert "manifest.json" in noms and "content.js" in noms
+
+
+def test_boitier_atx_accepte_les_cartes_plus_petites():
+    from compatibility import check_carte_mere_boitier
+    assert check_carte_mere_boitier({"format": "Micro-ATX"}, {"formats_supportes": ["ATX"]})[0]
+    assert check_carte_mere_boitier({"format": "Mini-ITX"}, {"formats_supportes": ["ATX"]})[0]
+    assert not check_carte_mere_boitier({"format": "ATX"}, {"formats_supportes": ["Micro-ATX", "Mini-ITX"]})[0]
+    assert not check_carte_mere_boitier({"format": "E-ATX"}, {"formats_supportes": ["ATX"]})[0]
+
+
+def test_budget_lu_dans_la_demande():
+    import main
+    assert main._budget_from_text("config fortnite pour moins de 800 euros") == 800
+    assert main._budget_from_text("pc à 1 200€ pour du montage") == 1200
+    assert main._budget_from_text("1,5k€ pour jouer en 4k") == 1500
+    assert main._budget_from_text("config 4k 144hz") is None

@@ -14,10 +14,21 @@ def check_carte_mere_ram(carte_mere, ram):
 	return True, "OK"
 
 
+# Du plus petit au plus grand : un boîtier accepte aussi toutes les cartes
+# plus petites que son plus grand format (les fixations ATX incluent celles
+# du Micro-ATX et du Mini-ITX). Les fiches ne listent souvent que « ATX ».
+FORMATS_CARTE_MERE = ["Mini-ITX", "Micro-ATX", "ATX", "E-ATX"]
+
+
 def check_carte_mere_boitier(carte_mere, boitier):
 	if "format" not in carte_mere or "formats_supportes" not in boitier:
 		return True, "OK"
-	if carte_mere["format"] not in boitier["formats_supportes"]:
+	formats = boitier["formats_supportes"]
+	tailles = [FORMATS_CARTE_MERE.index(f) for f in formats if f in FORMATS_CARTE_MERE]
+	if carte_mere["format"] in FORMATS_CARTE_MERE and tailles:
+		if FORMATS_CARTE_MERE.index(carte_mere["format"]) <= max(tailles):
+			return True, "OK"
+	if carte_mere["format"] not in formats:
 		return False, "Le format de la carte mère n'est pas supporté par le boîtier."
 	return True, "OK"
 
