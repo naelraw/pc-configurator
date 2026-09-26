@@ -946,7 +946,8 @@ REFROIDISSEMENTS = {
     2784: ("MSI MAG CoreLiquid I360 W", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 360, "hauteur_mm": None}),
     2785: ("Thermalright FW240 Black ", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
     2827: ("ASUS TUF Gaming LC II 240", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
-    2839: ("ASUS TUF Gaming LC III 24", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None}),
+    2839: ("ASUS TUF Gaming LC III 24", {"type_refroidissement": "Watercooling AIO", "radiateur_mm": 240, "hauteur_mm": None,
+                                        "sockets_supportes": ["AM5", "AM4", "LGA1851", "LGA1700", "LGA1200"]}),   # asus.com techspec
 }
 for cid, (nom, valeurs) in REFROIDISSEMENTS.items():
     UPDATES.setdefault(cid, (nom, {}))[1].update(valeurs)

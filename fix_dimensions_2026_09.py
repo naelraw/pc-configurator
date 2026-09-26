@@ -49,6 +49,7 @@ BOITIERS = {
     2872: ("H6 Flow", 365, 163),
     2868: ("A70", 420, 168),                    # thermalright.com (168,4)
     2595: ("A70", 420, 168),
+    2874: ("MC-3TCORELCD", 410, 161),           # marsgaming.eu (fiche « Specifications »)
 }
 
 UPDATES = {cid: (nom, {"gpu_max_length_mm": g, "cpu_cooler_max_height_mm": h})
@@ -345,6 +346,7 @@ GPUS = {
     2475: ("ZOTAC Gaming GeForce RTX ", 330),     # RTX 5080 Solid OC
     2484: ("ZOTAC Gaming GeForce RTX ", 330),     # RTX 5090 Solid
     2446: ("ZOTAC Gaming RTX 5050 SOL", 165),
+    2460: ("PNY GeForce RTX 5070 12 G", 290),     # pny.com : 290 x 128 x 40 mm (Slim OC Dual Fan)
 }
 for cid, (nom, longueur) in GPUS.items():
     UPDATES.setdefault(cid, (nom, {}))[1]["longueur_mm"] = longueur
@@ -472,6 +474,7 @@ CARTES_MERES = {
     2836: ("ASUS TUF Gaming B860-PLUS", 3, 4),
     2840: ("ASUS TUF Gaming B850-Pro ", 3, 4),
     2842: ("ASRock X870E Challenger W", 4, 2),
+    2145: ("ASRock B550 Rock WiFi", 3, 4),      # asrock.com : Hyper M.2 + Ultra M.2 + M.2 Gen3x2, 4 SATA3
 }
 for cid, (nom, m2, sata) in CARTES_MERES.items():
     UPDATES.setdefault(cid, (nom, {}))[1].update({"m2_slots": m2, "sata_ports": sata})
