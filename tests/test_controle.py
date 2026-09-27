@@ -121,3 +121,19 @@ def test_budget_lu_dans_la_demande():
     assert main._budget_from_text("pc à 1 200€ pour du montage") == 1200
     assert main._budget_from_text("1,5k€ pour jouer en 4k") == 1500
     assert main._budget_from_text("config 4k 144hz") is None
+
+
+def test_meme_annonce_amazon_pas_de_doublon(client, catalog):
+    import main
+    avec_asin = next(c for c in catalog if c.get("asin"))
+    avant = len(main.get_all_components())
+    r = client.post("/api/admin/components", headers=ADMIN, json={"components": [{
+        "categorie": avec_asin["categorie"], "nom": "Titre Amazon brut différent", "prix_indicatif": 99.9,
+        "specs": avec_asin.get("specs") or {}, "asin": avec_asin["asin"],
+        "prix_marche": [{"vendeur": "Amazon", "prix": 99.9, "lien": "https://www.amazon.fr/dp/" + avec_asin["asin"], "date_releve": "2026-09-27"}],
+    }]})
+    assert r.status_code == 200 and r.json()["created"] == 0
+    main.invalidate_catalog()
+    assert len(main.get_all_components()) == avant
+    fiche = next(c for c in main.get_all_components() if c["id"] == avec_asin["id"])
+    assert fiche["nom"] == avec_asin["nom"] and fiche["prix_indicatif"] == 99.9

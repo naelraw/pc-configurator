@@ -2479,8 +2479,12 @@ def admin_add_components(payload: dict = Body(...), _admin=Depends(require_admin
         # composants d'un coup (un SELECT + un INSERT/UPDATE par composant,
         # en série, prenait ~50s pour 300 composants ; en un seul batch,
         # c'est quasi instantané).
-        existing_result = client.execute("SELECT id, categorie, nom FROM components")
+        existing_result = client.execute("SELECT id, categorie, nom, asin FROM components")
         existing_ids = {(row[1], row[2]): row[0] for row in existing_result.rows}
+        # Même annonce Amazon déjà au catalogue sous un autre nom (nom nettoyé
+        # depuis) : on ne crée pas de doublon, on rafraîchit seulement son
+        # prix et sa dispo — jamais son nom ni ses caractéristiques corrigés.
+        existing_by_asin = {row[3].upper(): row[0] for row in existing_result.rows if row[3]}
 
         # Si le fichier envoyé contient deux fois le même (categorie, nom),
         # on ne garde que la dernière occurrence — même comportement que
@@ -2513,6 +2517,15 @@ def admin_add_components(payload: dict = Body(...), _admin=Depends(require_admin
             en_stock = 0 if asin and not component.get("prix_marche") else 1
 
             existing_id = existing_ids.get((categorie, nom))
+            same_listing_id = existing_by_asin.get(asin.upper()) if asin else None
+            if existing_id is None and same_listing_id is not None:
+                if component.get("prix_marche"):
+                    statements.append((
+                        "UPDATE components SET prix_indicatif = ?, prix_marche_json = ?, en_stock = 1 WHERE id = ?",
+                        [prix, prix_marche_json, same_listing_id],
+                    ))
+                updated += 1
+                continue
             if existing_id is not None:
                 statements.append((
                     "UPDATE components SET specs_json = ?, prix_indicatif = ?, prix_marche_json = ?, image_url = ?, has_image = ?, asin = ?, amazon_details_json = ?, description = ?, en_stock = ? WHERE id = ?",
