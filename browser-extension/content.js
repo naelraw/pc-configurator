@@ -268,12 +268,13 @@
   // Tout l'état de la page est demandé au site en UNE requête
   // (/api/admin/analyse-page), pas une par produit.
   // ---------------------------------------------------------------------
-  const entries = [];              // { asin, card, pill, categorie, data, state, selected }
+  const entries = [];              // { asin, card, pill, categorie, data, state }
   const seenCards = new WeakSet();
   const pending = new Set();
   let analyseTimer = null;
   let secretMissing = false;
-  let hideKnown = false;
+  let confirmAddAll = false;       // 1er clic sur « Ajouter les nouveaux » = demande de confirmation
+  let confirmTimer = null;
   let bar = null;
   let busy = false;
 
@@ -299,7 +300,7 @@
     pill.className = 'pcradar-pill pcradar-pill-loading';
     pill.innerHTML = '<span class="pcradar-pill-spin"></span>';
     card.appendChild(pill);
-    const entry = { asin, card, pill, categorie: pcradarGuessCategorie('', cardTitle(card)), data: null, state: 'loading', selected: false };
+    const entry = { asin, card, pill, categorie: pcradarGuessCategorie('', cardTitle(card)), data: null, state: 'loading' };
     entries.push(entry);
     pill.addEventListener('click', (e) => onPillClick(e, entry));
     pill.addEventListener('change', (e) => onPillChange(e, entry));
@@ -344,32 +345,27 @@
       '<option value="' + escapeHtml(c) + '"' + (c === entry.categorie ? ' selected' : '') + '>' + escapeHtml(c) + '</option>').join('') + '</select>';
   }
 
+  // Étiquette posée sur chaque produit : une seule information utile.
+  //   au catalogue → « ✓ Au catalogue » (+ bouton si le prix Amazon a changé)
+  //   nouveau      → « + Ajouter » et la catégorie devinée, modifiable
   function renderPill(entry) {
     const pill = entry.pill;
     const c = entry.data && entry.data.catalogue;
     pill.className = 'pcradar-pill pcradar-pill-' + entry.state;
-    entry.card.classList.toggle('pcradar-hidden-card', hideKnown && entry.state === 'in');
     if (entry.state === 'in') {
       const gap = priceGap(entry);
       pill.innerHTML =
-        '<span class="pcradar-pill-row">'
-        + '<span class="pcradar-pill-check" aria-hidden="true">✓</span>'
-        + '<b>' + euros(c.prix_indicatif) + '</b>'
-        + (c.en_stock === false ? '<span class="pcradar-pill-muted">épuisé</span>' : '')
-        + (c.prix_suspect ? '<span class="pcradar-pill-flag" title="Prix signalé suspect dans le catalogue">!</span>' : '')
-        + (c.page ? '<a class="pcradar-pill-link" href="https://pcradar.tech' + escapeHtml(c.page) + '" target="_blank" rel="noopener" title="Voir la fiche PC Radar">↗</a>' : '')
-        + '</span>'
-        + (c.nb_variantes > 1 ? '<span class="pcradar-pill-sub">' + escapeHtml(c.variante || '') + ' · ' + c.nb_variantes + ' variantes</span>' : '')
-        + (gap ? '<button class="pcradar-pill-btn" data-act="price" title="Remplacer le prix du catalogue par celui de cette page">Prix Amazon : ' + euros(gap) + ' · mettre à jour</button>' : '');
+        '<a class="pcradar-pill-known" href="https://pcradar.tech' + escapeHtml(c.page || '/') + '" target="_blank" rel="noopener" title="Voir la fiche sur PC Radar">'
+        + '<span class="pcradar-pill-check" aria-hidden="true">✓</span>Au catalogue</a>'
+        + (gap ? '<button class="pcradar-pill-btn" data-act="price" title="Le catalogue affiche ' + euros(c.prix_indicatif) + '">Nouveau prix ' + euros(gap) + ' · mettre à jour</button>' : '');
     } else if (entry.state === 'out') {
       const p = entry.data && entry.data.proche;
       pill.innerHTML =
         '<span class="pcradar-pill-row">'
-        + '<input type="checkbox" class="pcradar-pill-select" title="Sélectionner pour un ajout groupé"' + (entry.selected ? ' checked' : '') + '>'
         + '<button class="pcradar-pill-btn pcradar-pill-add" data-act="add">+ Ajouter</button>'
         + categorySelect(entry)
         + '</span>'
-        + (p ? '<a class="pcradar-pill-sub pcradar-pill-near" href="https://pcradar.tech' + escapeHtml(p.page || '') + '" target="_blank" rel="noopener" title="Produit proche déjà au catalogue : si c\'est le même, l\'ajouter en fera une variante">≈ ' + escapeHtml(p.nom) + (p.nb_variantes > 1 ? ' (' + p.nb_variantes + ' variantes)' : '') + '</a>' : '');
+        + (p ? '<a class="pcradar-pill-sub pcradar-pill-near" href="https://pcradar.tech' + escapeHtml(p.page || '') + '" target="_blank" rel="noopener" title="Si c\'est le même produit, l\'ajouter en fera une variante">Ressemble à : ' + escapeHtml(p.nom) + '</a>' : '');
     } else if (entry.state === 'busy') {
       pill.innerHTML = '<span class="pcradar-pill-spin"></span><span>' + escapeHtml(entry.busyText || 'En cours…') + '</span>';
     } else if (entry.state === 'error') {
@@ -383,7 +379,7 @@
     e.stopPropagation();
     const link = e.target.closest('a');
     if (link) return;
-    if (e.target.closest('select, input')) return;
+    if (e.target.closest('select')) return;
     e.preventDefault();
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'add') addEntry(entry).then(renderBar);
@@ -394,7 +390,6 @@
   function onPillChange(e, entry) {
     e.stopPropagation();
     if (e.target.classList.contains('pcradar-pill-cat')) entry.categorie = e.target.value;
-    if (e.target.classList.contains('pcradar-pill-select')) { entry.selected = e.target.checked; renderBar(); }
   }
 
   async function addEntry(entry) {
@@ -404,7 +399,6 @@
     renderPill(entry);
     try {
       await sendMessage({ type: 'QUICK_ADD', asin: entry.asin, categorie: entry.categorie, quickData: pcradarExtractQuickData(entry.card) });
-      entry.selected = false;
       entry.state = 'loading';
       renderPill(entry);
       pending.add(entry.asin);
@@ -470,56 +464,69 @@
     return !!document.querySelector('div[data-component-type="s-search-result"]') || !extractPageAsin();
   }
 
+  // Barre en bas à gauche : ce qu'il y a sur la page, et au plus deux actions.
   function renderBar() {
     if (!isListingPage() || entries.length < 2) return;
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'pcradar-bar';
       bar.innerHTML = '<div class="pcradar-bar-head">' + LOGO_SVG + '<span class="pcradar-bar-title">PC Radar</span>'
-        + '<span class="pcradar-bar-counts"></span><button class="pcradar-bar-toggle" data-act="collapse" title="Réduire">–</button></div>'
-        + '<div class="pcradar-bar-body"><div class="pcradar-bar-actions"></div><div class="pcradar-bar-msg"></div></div>';
+        + '<button class="pcradar-bar-toggle" data-act="collapse" title="Réduire">–</button></div>'
+        + '<div class="pcradar-bar-body"><div class="pcradar-bar-stats"></div><div class="pcradar-bar-actions"></div><div class="pcradar-bar-msg"></div></div>';
       document.documentElement.appendChild(bar);
       bar.addEventListener('click', onBarClick);
     }
     const unique = (list) => [...new Map(list.map((e) => [e.asin, e])).values()];
     const known = unique(entries.filter((e) => e.state === 'in'));
     const fresh = unique(entries.filter((e) => e.state === 'out'));
-    const selected = unique(entries.filter((e) => e.state === 'out' && e.selected));
     const gaps = unique(known.filter((e) => priceGap(e)));
-    bar.querySelector('.pcradar-bar-counts').textContent =
-      known.length + ' au catalogue · ' + fresh.length + ' nouveaux' + (gaps.length ? ' · ' + gaps.length + ' prix différents' : '');
-    const actions = secretMissing
-      ? '<span class="pcradar-bar-note">Clé admin manquante : clique sur l\'icône de l\'extension pour la renseigner.</span>'
-      : '<button data-act="select-all"' + (fresh.length ? '' : ' disabled') + '>' + (selected.length && selected.length === fresh.length ? 'Tout désélectionner' : 'Sélectionner les nouveaux') + '</button>'
-        + '<button class="pcradar-primary" data-act="add-selected"' + (selected.length && !busy ? '' : ' disabled') + '>Ajouter la sélection (' + selected.length + ')</button>'
-        + '<button data-act="update-prices"' + (gaps.length && !busy ? '' : ' disabled') + '>Mettre à jour ' + gaps.length + ' prix</button>'
-        + '<button data-act="hide-known"' + (known.length ? '' : ' disabled') + '>' + (hideKnown ? 'Afficher' : 'Masquer') + ' ceux déjà au catalogue</button>';
-    bar.querySelector('.pcradar-bar-actions').innerHTML = actions;
+    bar.querySelector('.pcradar-bar-stats').innerHTML =
+      '<div><b>' + known.length + '</b> déjà au catalogue</div>'
+      + '<div><b>' + fresh.length + '</b> nouveau' + (fresh.length > 1 ? 'x' : '') + '</div>';
+    if (secretMissing) {
+      bar.querySelector('.pcradar-bar-actions').innerHTML =
+        '<span class="pcradar-bar-note">Mot de passe admin manquant : clique sur l\'icône de l\'extension pour le renseigner.</span>';
+      return;
+    }
+    const plural = fresh.length > 1 ? 's' : '';
+    const actions = [];
+    if (fresh.length && confirmAddAll) {
+      actions.push('<button class="pcradar-primary" data-act="add-all"' + (busy ? ' disabled' : '') + '>Confirmer : ajouter ' + fresh.length + ' produit' + plural + '</button>'
+        + '<button data-act="cancel">Annuler</button>');
+    } else if (fresh.length) {
+      actions.push('<button class="pcradar-primary" data-act="add-all"' + (busy ? ' disabled' : '') + '>'
+        + (fresh.length > 1 ? 'Ajouter les ' + fresh.length + ' nouveaux' : 'Ajouter le nouveau') + '</button>');
+    }
+    if (gaps.length && !confirmAddAll) {
+      actions.push('<button data-act="update-prices"' + (busy ? ' disabled' : '') + '>Mettre à jour ' + gaps.length + ' prix</button>');
+    }
+    if (!actions.length) actions.push('<span class="pcradar-bar-note">Rien à faire sur cette page.</span>');
+    bar.querySelector('.pcradar-bar-actions').innerHTML = actions.join('');
   }
 
   function onBarClick(e) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (!act) return;
-    const fresh = entries.filter((x) => x.state === 'out');
+    const seen = new Set();
+    const once = (x) => !seen.has(x.asin) && seen.add(x.asin);
+    clearTimeout(confirmTimer);
     if (act === 'collapse') {
       const collapsed = bar.classList.toggle('pcradar-bar-collapsed');
       e.target.textContent = collapsed ? '+' : '–';
-    } else if (act === 'select-all') {
-      const all = fresh.length && fresh.every((x) => x.selected);
-      fresh.forEach((x) => { x.selected = !all; renderPill(x); });
+    } else if (act === 'add-all' && !confirmAddAll) {
+      confirmAddAll = true;
+      setBarMsg('Vérifie la catégorie proposée sur chaque produit avant de confirmer.');
       renderBar();
-    } else if (act === 'add-selected') {
-      const seen = new Set();
-      const list = fresh.filter((x) => x.selected && !seen.has(x.asin) && seen.add(x.asin));
-      runBatch(list, addEntry, 'Ajout');
+      confirmTimer = setTimeout(() => { confirmAddAll = false; setBarMsg(''); renderBar(); }, 8000);
+    } else if (act === 'add-all') {
+      confirmAddAll = false;
+      runBatch(entries.filter((x) => x.state === 'out' && once(x)), addEntry, 'Ajout');
+    } else if (act === 'cancel') {
+      confirmAddAll = false;
+      setBarMsg('');
+      renderBar();
     } else if (act === 'update-prices') {
-      const seen = new Set();
-      const list = entries.filter((x) => x.state === 'in' && priceGap(x) && !seen.has(x.asin) && seen.add(x.asin));
-      runBatch(list, updateEntryPrice, 'Mise à jour');
-    } else if (act === 'hide-known') {
-      hideKnown = !hideKnown;
-      entries.forEach((x) => x.card.classList.toggle('pcradar-hidden-card', hideKnown && x.state === 'in'));
-      renderBar();
+      runBatch(entries.filter((x) => x.state === 'in' && priceGap(x) && once(x)), updateEntryPrice, 'Mise à jour');
     }
   }
 

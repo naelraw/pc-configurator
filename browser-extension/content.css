@@ -119,15 +119,14 @@
 .pcradar-pill-row { display: flex; align-items: center; gap: 6px; }
 .pcradar-pill b { font-family: var(--pcr-mono); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pcradar-pill-check { color: var(--pcr-accent); font-weight: 700; }
-.pcradar-pill-muted { color: var(--pcr-text-3); font-size: 11px; }
 .pcradar-pill-flag {
   display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;
   background: var(--pcr-danger); color: #1a0606; font-weight: 700; font-size: 11px;
 }
-.pcradar-pill-link { color: var(--pcr-text-2); text-decoration: none; padding: 0 2px; }
-.pcradar-pill-link:hover { color: var(--pcr-accent); }
 .pcradar-pill-sub { color: var(--pcr-text-3); font-size: 11px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 236px; }
 a.pcradar-pill-near { text-decoration: none; color: var(--pcr-text-2); }
+a.pcradar-pill-known { display: flex; align-items: center; gap: 6px; color: var(--pcr-text); text-decoration: none; font-weight: 560; }
+a.pcradar-pill-known:hover { color: var(--pcr-accent); }
 a.pcradar-pill-near:hover { color: var(--pcr-accent); }
 .pcradar-pill-btn {
   all: unset; box-sizing: border-box; cursor: pointer; font-family: var(--pcr-font); font-size: 11.5px; font-weight: 560;
@@ -144,12 +143,10 @@ a.pcradar-pill-near:hover { color: var(--pcr-accent); }
   background-repeat: no-repeat; background-position: right 6px center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .pcradar-pill-cat option { background: #141517; color: #ececee; }
-.pcradar-pill-select { all: revert; margin: 0; width: 14px; height: 14px; accent-color: #3ecf8e; cursor: pointer; }
 .pcradar-pill-spin {
   width: 11px; height: 11px; border: 2px solid rgba(236, 236, 238, 0.2); border-top-color: var(--pcr-accent);
   border-radius: 50%; display: inline-block; animation: pcradar-spin .7s linear infinite;
 }
-.pcradar-hidden-card { opacity: 0.18 !important; transition: opacity .2s ease; }
 
 /* ------------------------------------------------------------------ */
 /* Barre d'actions groupées (pages de résultats)                        */
@@ -163,11 +160,12 @@ a.pcradar-pill-near:hover { color: var(--pcr-accent); }
   animation: pcradar-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .pcradar-bar-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
-.pcradar-bar-title { font-weight: 650; }
-.pcradar-bar-counts { flex: 1; color: var(--pcr-text-2); font-size: 11.5px; text-align: right; }
+.pcradar-bar-title { flex: 1; font-weight: 650; }
 .pcradar-bar-body { padding: 0 12px 12px; border-top: 1px solid var(--pcr-line); }
 #pcradar-bar.pcradar-bar-collapsed .pcradar-bar-body { display: none; }
-.pcradar-bar-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.pcradar-bar-stats { display: flex; gap: 16px; margin-top: 10px; color: var(--pcr-text-2); font-size: 12px; }
+.pcradar-bar-stats b { color: var(--pcr-text); font-family: var(--pcr-mono); font-weight: 600; font-size: 15px; margin-right: 3px; }
+.pcradar-bar-actions { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .pcradar-bar-actions button {
   all: unset; box-sizing: border-box; cursor: pointer; text-align: center; font-family: var(--pcr-font); font-size: 12px; font-weight: 560;
   padding: 8px 10px; border-radius: 8px; border: 1px solid var(--pcr-line-strong); background: var(--pcr-surface-2); color: var(--pcr-text);
@@ -176,7 +174,7 @@ a.pcradar-pill-near:hover { color: var(--pcr-accent); }
 .pcradar-bar-actions button.pcradar-primary { background: var(--pcr-accent); border-color: var(--pcr-accent); color: var(--pcr-ink); }
 .pcradar-bar-actions button.pcradar-primary:hover { background: var(--pcr-accent-hover); }
 .pcradar-bar-actions button[disabled] { opacity: 0.4; cursor: not-allowed; }
-.pcradar-bar-note { grid-column: 1 / -1; color: var(--pcr-text-2); }
+.pcradar-bar-note { color: var(--pcr-text-2); font-size: 12px; }
 .pcradar-bar-msg { margin-top: 8px; min-height: 14px; font-size: 11.5px; color: var(--pcr-text-2); }
 .pcradar-bar-msg.pcradar-bar-error { color: var(--pcr-danger); }
 
