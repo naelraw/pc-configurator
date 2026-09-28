@@ -13,6 +13,6 @@ def test_chaque_email_a_sa_banniere_et_son_texte():
     ]
     for sujet, texte, html_body, png in mails:
         assert sujet and texte and png[:8] == b"\x89PNG\r\n\x1a\n"
-        assert 'src="cid:banniere"' in html_body and 'bgcolor="#0e0f11"' in html_body and '<a href="https://pcradar.tech" style="display:block;text-decoration:none;"><img src="cid:banniere"' in html_body
+        assert 'src="cid:banniere"' in html_body and 'bgcolor="#141517"' in html_body and '<a href="https://pcradar.tech" style="display:block;text-decoration:none;"><img src="cid:banniere"' in html_body
     # Le nom saisi par l'utilisateur est échappé dans le HTML.
     assert "&lt;gaming&gt;" in mails[2][2] and "<gaming>" not in mails[2][2]
