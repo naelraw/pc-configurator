@@ -1742,6 +1742,12 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "") or SMTP_USER
+# Adresse qui reçoit les réponses. Utile quand SMTP_FROM est une adresse du
+# domaine sans boîte de réception (contact@pcradar.tech via Brevo...) :
+# les réponses arrivent quand même dans la vraie boîte.
+SMTP_REPLY_TO = os.getenv("SMTP_REPLY_TO", "") or SMTP_FROM
+# Destinataire des e-mails réservés à l'admin (contrôle du catalogue).
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "") or SMTP_REPLY_TO
 
 
 def send_email(to: str, subject: str, text: str, html_body: str | None = None, banniere_png: bytes | None = None) -> bool:
@@ -1760,12 +1766,12 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None, b
     # fait passer un message pour un envoi automatisé de mauvaise qualité.
     message["Date"] = formatdate(localtime=True)
     message["Message-ID"] = make_msgid(domain="pcradar.tech")
-    message["Reply-To"] = SMTP_FROM
-    if to != SMTP_FROM:
+    message["Reply-To"] = SMTP_REPLY_TO
+    if to not in (SMTP_FROM, ADMIN_EMAIL):
         # Désinscription en un clic proposée par Gmail (bouton en haut du
         # message) : sans elle, un destinataire lassé clique « Spam »,
         # ce qui dégrade la réputation de l'adresse d'envoi pour tous.
-        message["List-Unsubscribe"] = f"<{SITE_URL}/compte>, <mailto:{SMTP_FROM}?subject=D%C3%A9sinscription>"
+        message["List-Unsubscribe"] = f"<{SITE_URL}/compte>, <mailto:{SMTP_REPLY_TO}?subject=D%C3%A9sinscription>"
     message.set_content(text)
     if html_body:
         message.add_alternative(html_body, subtype="html")
@@ -6359,7 +6365,7 @@ def _run_controle_catalogue():
         client.close()
     nouveaux = [s for s, cle in zip(suspects, cles) if cle not in deja]
     if nouveaux and SMTP_FROM:
-        send_site_email(SMTP_FROM, emails.controle_admin(nouveaux, f"{SITE_URL}/admin#watch"))
+        send_site_email(ADMIN_EMAIL, emails.controle_admin(nouveaux, f"{SITE_URL}/admin#watch"))
     return nouveaux
 
 
