@@ -250,7 +250,7 @@ def bienvenue(email):
     )
     html_body = gabarit(titre, escape(intro), contenu, ("Créer ma première config", f"{SITE}/configurateur"),
                         pied_html="Tu reçois cet e-mail car tu viens de créer un compte sur PC Radar.")
-    return "Bienvenue sur PC Radar 👋", texte, html_body, banniere("Bienvenue", "Ton compte est prêt", sous_titre="Configure, compare et suis les prix de ton PC.")
+    return "Bienvenue sur PC Radar", texte, html_body, banniere("Bienvenue", "Ton compte est prêt", sous_titre="Configure, compare et suis les prix de ton PC.")
 
 
 def alerte_composant_activee(nom, prix_actuel, prix_cible, page):
@@ -298,7 +298,7 @@ def baisse_prix_composant(nom, prix, prix_cible, lien_offre, page):
     )
     html_body = gabarit(titre, intro, encadre(lignes), ("Voir l'offre", cta_url),
                         note_html="Les prix changent vite : vérifie-le sur la page du vendeur avant d'acheter.")
-    return f"📉 {nom} à {euros(prix)}", texte, html_body, banniere("Baisse de prix", nom, valeur=euros(prix), sous_titre=f"Sous ta cible de {euros(prix_cible)}")
+    return f"Baisse de prix : {nom} à {euros(prix)}", texte, html_body, banniere("Baisse de prix", nom, valeur=euros(prix), sous_titre=f"Sous ta cible de {euros(prix_cible)}")
 
 
 def baisse_prix_config(nom_config, total, prix_cible, pieces, build_id):
@@ -316,7 +316,7 @@ def baisse_prix_config(nom_config, total, prix_cible, pieces, build_id):
     )
     html_body = gabarit(titre, intro, encadre(lignes), ("Voir la configuration", lien),
                         note_html="Les prix changent vite : vérifie-les sur la page du vendeur avant d'acheter.")
-    return f"📉 Ta config « {nom_config} » à {euros(total)}", texte, html_body, banniere("Baisse de prix", nom_config, valeur=euros(total), sous_titre=f"Sous ta cible de {euros(prix_cible)}")
+    return f"Baisse de prix : ta config « {nom_config} » à {euros(total)}", texte, html_body, banniere("Baisse de prix", nom_config, valeur=euros(total), sous_titre=f"Sous ta cible de {euros(prix_cible)}")
 
 
 def compte_supprime():

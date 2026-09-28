@@ -1750,10 +1750,22 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None, b
     import smtplib
     from email.message import EmailMessage
 
+    from email.utils import formatdate, make_msgid
+
     message = EmailMessage()
     message["Subject"] = subject
     message["From"] = f"PC Radar <{SMTP_FROM}>"
     message["To"] = to
+    # En-têtes que les filtres anti-spam s'attendent à trouver : leur absence
+    # fait passer un message pour un envoi automatisé de mauvaise qualité.
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid(domain="pcradar.tech")
+    message["Reply-To"] = SMTP_FROM
+    if to != SMTP_FROM:
+        # Désinscription en un clic proposée par Gmail (bouton en haut du
+        # message) : sans elle, un destinataire lassé clique « Spam »,
+        # ce qui dégrade la réputation de l'adresse d'envoi pour tous.
+        message["List-Unsubscribe"] = f"<{SITE_URL}/compte>, <mailto:{SMTP_FROM}?subject=D%C3%A9sinscription>"
     message.set_content(text)
     if html_body:
         message.add_alternative(html_body, subtype="html")
