@@ -104,6 +104,9 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
     # Appareils différents sur toute la période (sans la date dans
     # l'empreinte) : quelqu'un qui revient 3 jours ne compte qu'une fois.
     week_devices, all_devices = {}, set()
+    # Détail par jour, pour l'archive des totaux (main.py) : uniquement des
+    # compteurs, aucune adresse ni empreinte.
+    day_pages, day_sources, day_types = defaultdict(Counter), defaultdict(Counter), defaultdict(dict)
     for m in _lines(log_glob):
         if m["method"] != "GET" or m["status"] not in ("200", "304"):
             continue
@@ -121,6 +124,11 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
         per_day_views[day] += 1
         per_day_visitors[day].add(device)
         all_devices.add(device)
+        day_pages[day][page] += 1
+        day_types[day][device] = "Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"
+        day_src = _source(m["ref"], host)
+        if day_src:
+            day_sources[day][day_src] += 1
         if day >= week_start:
             pages[page] += 1
             week_devices[device] = "Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"
@@ -139,4 +147,8 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
         "pages": [{"page": p, "vues": n} for p, n in pages.most_common(15)],
         "provenance": [{"source": s, "visites": n} for s, n in sources.most_common(10)],
         "appareils": dict(Counter(week_devices.values())),
+        "detail": {d.isoformat(): {"visiteurs": len(per_day_visitors[d]), "pages_vues": per_day_views[d],
+                                   "pages": dict(day_pages[d]), "sources": dict(day_sources[d]),
+                                   "appareils": dict(Counter(day_types[d].values()))}
+                   for d in days_list},
     }

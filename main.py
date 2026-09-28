@@ -19,6 +19,7 @@ except ImportError:
     fcntl = None
 import time
 import unicodedata
+from collections import Counter
 from datetime import datetime, timedelta
 from urllib.parse import parse_qsl, urlencode, urlparse
 import requests
@@ -3591,8 +3592,62 @@ def admin_site_stats(_admin=Depends(require_admin)):
     (voir site_stats.py) : aucune donnée collectée en plus. Cache 10 min.
     """
     if _STATS_CACHE["data"] is None or time.time() - _STATS_CACHE["at"] > 600:
-        _STATS_CACHE.update(at=time.time(), data=site_stats.compute(excluded_ips={"127.0.0.1", "10.0.0.79", "88.96.49.31"}))
+        data = site_stats.compute(excluded_ips=STATS_EXCLUDED_IPS)
+        historique = _archiver_stats(data)
+        data["total"] = _totaux_stats(historique, data)
+        data.pop("detail", None)
+        _STATS_CACHE.update(at=time.time(), data=data)
     return _STATS_CACHE["data"]
+
+
+STATS_EXCLUDED_IPS = {"127.0.0.1", "10.0.0.79", "88.96.49.31"}
+
+
+def _archiver_stats(data):
+    """
+    Les journaux nginx ne gardent que 14 jours : chaque jour terminé est
+    recopié dans app_state (« stats_historique »), en simples compteurs
+    (visites, pages, provenance, type d'appareil), pour garder des totaux
+    sur toute la vie du site. Le jour le plus ancien des journaux peut être
+    incomplet (rotation) : il n'est archivé que s'il ne l'est pas déjà.
+    """
+    historique = _state_get("stats_historique", {})
+    jours = sorted(data.get("detail", {}))
+    aujourd_hui = datetime.utcnow().date().isoformat()
+    change = False
+    for i, jour in enumerate(jours):
+        if jour >= aujourd_hui or (i == 0 and jour in historique):
+            continue
+        if historique.get(jour) != data["detail"][jour]:
+            historique[jour] = data["detail"][jour]
+            change = True
+    if change:
+        _state_set("stats_historique", historique)
+    return historique
+
+
+def _totaux_stats(historique, data):
+    """Totaux depuis le premier jour archivé, jour en cours compris."""
+    aujourd_hui = datetime.utcnow().date().isoformat()
+    jours = dict(historique)
+    if aujourd_hui in data.get("detail", {}):
+        jours[aujourd_hui] = data["detail"][aujourd_hui]
+    pages, sources, appareils = Counter(), Counter(), Counter()
+    for j in jours.values():
+        pages.update(j.get("pages", {}))
+        sources.update(j.get("sources", {}))
+        appareils.update(j.get("appareils", {}))
+    meilleur = max(jours.items(), key=lambda kv: kv[1].get("visiteurs", 0), default=(None, {}))
+    return {
+        "depuis": min(jours) if jours else aujourd_hui,
+        "jours": len(jours),
+        "visites": sum(j.get("visiteurs", 0) for j in jours.values()),
+        "pages_vues": sum(j.get("pages_vues", 0) for j in jours.values()),
+        "meilleur_jour": {"date": meilleur[0], "visiteurs": meilleur[1].get("visiteurs", 0)},
+        "pages": [{"page": p, "vues": n} for p, n in pages.most_common(10)],
+        "provenance": [{"source": s, "visites": n} for s, n in sources.most_common(10)],
+        "appareils": dict(appareils),
+    }
 
 
 @app.get("/api/admin/quotas")
@@ -6375,6 +6430,11 @@ async def controle_catalogue_loop():
         try:
             if await asyncio.to_thread(_task_is_due, "dernier_controle_catalogue", CONTROLE_INTERVAL_SECONDS):
                 nouveaux = await asyncio.to_thread(_run_controle_catalogue)
+                # Archive quotidienne des statistiques de visite (totaux).
+                try:
+                    await asyncio.to_thread(lambda: _archiver_stats(site_stats.compute(excluded_ips=STATS_EXCLUDED_IPS)))
+                except Exception as err:
+                    print(f"Archive des statistiques impossible : {err}")
                 await asyncio.to_thread(_mark_task_done, "dernier_controle_catalogue")
                 print(f"Contrôle du catalogue : {len(nouveaux)} nouveau(x) prix suspect(s).")
         except Exception as error:

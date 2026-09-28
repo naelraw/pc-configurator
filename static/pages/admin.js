@@ -820,6 +820,25 @@
       return `<ul class="rank">${rows.map(r => `<li><div class="bg" style="width:${Math.round(r[value] / top * 100)}%"></div>
         <span title="${escapeHtml(r[label])}">${escapeHtml(r[label])}</span><b>${nombre(r[value])}</b></li>`).join('')}</ul>`;
     };
+    // Totaux depuis le premier jour archivé (voir _archiver_stats côté serveur).
+    const T = s.total;
+    const dateLongue = d => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    const totalApp = T ? Object.values(T.appareils).reduce((a, b) => a + b, 0) : 0;
+    const partMobile = totalApp ? Math.round((T.appareils.Mobile || 0) / totalApp * 100) : 0;
+    const totaux = T ? `
+      <div class="panel">
+        <div class="panel-head"><h3>Total depuis le ${dateLongue(T.depuis)}</h3><span class="faint">${nombre(T.jours)} jour${T.jours > 1 ? 's' : ''}</span></div>
+        <div class="kpis" style="margin:0 0 16px;">
+          <div class="kpi"><span class="label">Visites au total</span><span class="value">${nombre(T.visites)}</span><span class="hint">${nombre(Math.round(T.visites / Math.max(1, T.jours)))} par jour en moyenne</span></div>
+          <div class="kpi"><span class="label">Pages vues au total</span><span class="value">${nombre(T.pages_vues)}</span><span class="hint">${(T.visites ? T.pages_vues / T.visites : 0).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} pages par visite</span></div>
+          <div class="kpi"><span class="label">Meilleur jour</span><span class="value">${nombre(T.meilleur_jour.visiteurs)}</span><span class="hint">${T.meilleur_jour.date ? dateLongue(T.meilleur_jour.date) : '—'}</span></div>
+          <div class="kpi"><span class="label">Sur téléphone</span><span class="value">${partMobile} %</span><span class="hint">${100 - partMobile} % sur ordinateur</span></div>
+        </div>
+        <div class="grid-2">
+          <div><div class="panel-head" style="margin:0;"><h3>Pages les plus vues</h3><span class="faint">au total</span></div>${rank(T.pages, 'page', 'vues')}</div>
+          <div><div class="panel-head" style="margin:0;"><h3>Provenance</h3><span class="faint">au total</span></div>${rank(T.provenance, 'source', 'visites')}</div>
+        </div>
+      </div>` : '';
     const total = Object.values(s.appareils).reduce((a, b) => a + b, 0) || 1;
     const shades = ['var(--accent)', '#2a9d6b', 'var(--line-strong)', 'var(--text-3)'];
     const devices = Object.entries(s.appareils).sort((a, b) => b[1] - a[1]);
@@ -842,7 +861,8 @@
           <div class="devices">${devices.map(([k, v], i) => `<span style="width:${v / total * 100}%; background:${shades[i % shades.length]}" title="${escapeHtml(k)}"></span>`).join('')}</div>
           <div class="devices-legend">${devices.map(([k, v], i) => `<span><i style="background:${shades[i % shades.length]}"></i>${escapeHtml(k)} ${Math.round(v / total * 100)} %</span>`).join('') || '<span>—</span>'}</div>
         </div>
-      </div>`;
+      </div>
+      ${totaux}`;
   }
 
   // ---------------------------------------------------------------------

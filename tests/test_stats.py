@@ -33,3 +33,18 @@ def test_un_appareil_qui_revient_ne_compte_qu_une_fois():
     assert r["appareils"] == {"Mobile": 1, "Ordinateur": 1}
     assert {"page": "/application", "vues": 1} in r["pages"]
     assert {"source": "tiktok.com", "visites": 1} in r["provenance"]
+
+
+def test_totaux_depuis_le_debut():
+    import main
+    from datetime import datetime
+    hier = {"visiteurs": 3, "pages_vues": 10, "pages": {"/": 8, "/configurateur": 2}, "sources": {"Google": 2}, "appareils": {"Mobile": 2, "Ordinateur": 1}}
+    avant = {"visiteurs": 5, "pages_vues": 7, "pages": {"/": 7}, "sources": {"Bing": 1}, "appareils": {"Ordinateur": 5}}
+    auj = datetime.utcnow().date().isoformat()
+    data = {"detail": {auj: {"visiteurs": 1, "pages_vues": 2, "pages": {"/application": 2}, "sources": {}, "appareils": {"Mobile": 1}}}}
+    t = main._totaux_stats({"2026-09-01": avant, "2026-09-02": hier}, data)
+    assert t["depuis"] == "2026-09-01" and t["jours"] == 3
+    assert t["visites"] == 9 and t["pages_vues"] == 19
+    assert t["meilleur_jour"] == {"date": "2026-09-01", "visiteurs": 5}
+    assert t["appareils"] == {"Mobile": 3, "Ordinateur": 6}
+    assert t["pages"][0] == {"page": "/", "vues": 15}
