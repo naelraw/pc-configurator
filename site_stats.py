@@ -1,8 +1,13 @@
 """
 Statistiques de visite à partir des journaux nginx (déjà tenus pour la
 sécurité, 14 jours) : aucun script, aucun cookie, rien de plus collecté.
-Les adresses IP ne servent qu'à compter les visiteurs uniques d'une journée
-(empreinte calculée en mémoire) et n'apparaissent jamais dans le résultat.
+Les adresses IP ne servent qu'à compter les appareils différents (empreinte
+adresse + navigateur, calculée en mémoire le temps du calcul) et
+n'apparaissent jamais dans le résultat.
+
+Un « appareil » = une même adresse IP avec le même navigateur. C'est une
+estimation : un téléphone qui passe du Wi-Fi à la 4G compte deux fois, deux
+personnes derrière la même box avec le même navigateur comptent une fois.
 """
 import glob
 import gzip
@@ -28,7 +33,7 @@ NOT_PAGES = re.compile(r"^/(api|static|admin)|\.(xml|txt|ico|png|svg|jpg|webp|js
 # Seules les vraies pages du site comptent : les adresses inventées par les
 # robots qui sondent le serveur (/wp-login, /.git...) sont ignorées.
 SITE_PAGES = re.compile(
-    r"^/(|configurateur|comparateur|assistant|estimer-fps|compte|mentions-legales|confidentialite|cgu|cookies"
+    r"^/(|configurateur|comparateur|assistant|estimer-fps|compte|application|mentions-legales|confidentialite|cgu|cookies"
     r"|guides(/[a-z0-9-]+)?|composants(/[a-z0-9-]+)?|composant/\d+-[a-z0-9-]+|comparer(/[a-z0-9-]+)?|build/\d+)$"
 )
 SEARCH_ENGINES = {"google": "Google", "bing": "Bing", "duckduckgo": "DuckDuckGo", "qwant": "Qwant",
@@ -60,8 +65,10 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
     since = (datetime.utcnow() - timedelta(days=days - 1)).date()
     week_start = (datetime.utcnow() - timedelta(days=6)).date()
     per_day_views, per_day_visitors = Counter(), defaultdict(set)
-    pages, sources, devices = Counter(), Counter(), Counter()
-    week_visitors = set()
+    pages, sources = Counter(), Counter()
+    # Appareils différents sur toute la période (sans la date dans
+    # l'empreinte) : quelqu'un qui revient 3 jours ne compte qu'une fois.
+    week_devices, all_devices = {}, set()
     for path in sorted(glob.glob(log_glob)):
         try:
             with _open(path) as f:
@@ -77,24 +84,28 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
                     day = datetime.strptime(m["day"], "%d/%b/%Y").date()
                     if day < since:
                         continue
-                    visitor = hashlib.sha256(f"{m['ip']}|{m['ua']}|{day}".encode()).hexdigest()[:16]
+                    device = hashlib.sha256(f"{m['ip']}|{m['ua']}".encode()).hexdigest()[:16]
                     per_day_views[day] += 1
-                    per_day_visitors[day].add(visitor)
+                    per_day_visitors[day].add(device)
+                    all_devices.add(device)
                     if day >= week_start:
                         pages[page] += 1
-                        week_visitors.add(visitor)
+                        week_devices[device] = "Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"
                         src = _source(m["ref"], host)
                         if src:
                             sources[src] += 1
-                        devices["Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"] += 1
         except OSError:
             continue
     days_list = [since + timedelta(days=i) for i in range(days)]
     return {
         "jours": [{"date": d.isoformat(), "pages_vues": per_day_views[d], "visiteurs": len(per_day_visitors[d])}
                   for d in days_list],
-        "semaine": {"pages_vues": sum(pages.values()), "visiteurs": len(week_visitors)},
+        # visiteurs = appareils différents sur 7 jours ; visites = somme des
+        # appareils de chaque jour (un habitué compte une visite par jour).
+        "semaine": {"pages_vues": sum(pages.values()), "visiteurs": len(week_devices),
+                    "visites": sum(len(per_day_visitors[d]) for d in days_list[-7:])},
+        "quinzaine": {"visiteurs": len(all_devices)},
         "pages": [{"page": p, "vues": n} for p, n in pages.most_common(15)],
         "provenance": [{"source": s, "visites": n} for s, n in sources.most_common(10)],
-        "appareils": dict(devices),
+        "appareils": dict(Counter(week_devices.values())),
     }

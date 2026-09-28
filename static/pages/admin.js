@@ -190,7 +190,7 @@
         <span class="label">${label}</span><span class="value">${value}</span>${hint ? `<span class="hint">${hint}</span>` : ''}
       </${view ? 'button' : 'div'}>`;
     $('dash-kpis').innerHTML = [
-      kpi('Visiteurs sur 7 jours', statsData ? nombre(statsData.semaine.visiteurs) : '—',
+      kpi('Appareils différents sur 7 jours', statsData ? nombre(statsData.semaine.visiteurs) : '—',
           statsData ? `${nombre(statsData.jours[statsData.jours.length - 1].visiteurs)} aujourd'hui` : '', '', 'stats'),
       kpi('Pages vues sur 7 jours', statsData ? nombre(statsData.semaine.pages_vues) : '—', '', '', 'stats'),
       kpi('Produits au catalogue', nombre(produits), `${nombre(components.length)} annonces, ${nombre(enStock)} en stock`, '', 'catalog'),
@@ -805,11 +805,12 @@
     const jours = s.jours;
     const today = jours[jours.length - 1];
     const moyenne = Math.round(jours.slice(-7).reduce((a, j) => a + j.visiteurs, 0) / 7);
-    const pagesParVisiteur = s.semaine.visiteurs ? (s.semaine.pages_vues / s.semaine.visiteurs) : 0;
+    const visites = s.semaine.visites ?? jours.slice(-7).reduce((a, j) => a + j.visiteurs, 0);
+    const revenus = Math.max(0, visites - s.semaine.visiteurs);
     const max = niceMax(Math.max(1, ...jours.map(j => j.visiteurs)));
     const axis = [4, 3, 2, 1, 0].map(i => `<span>${nombre(max * i / 4)}</span>`).join('');
     const bars = jours.map((j, i) => `
-      <div class="bar${i === jours.length - 1 ? ' is-today' : ''}" title="${new Date(j.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} : ${j.visiteurs} visiteurs, ${j.pages_vues} pages vues">
+      <div class="bar${i === jours.length - 1 ? ' is-today' : ''}" title="${new Date(j.date).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} : ${j.visiteurs} appareils, ${j.pages_vues} pages vues">
         <div class="fill" style="height:calc((100% - 22px) * ${j.visiteurs / max})"></div>
         <small>${j.date.slice(8, 10)}</small>
       </div>`).join('');
@@ -824,21 +825,20 @@
     const devices = Object.entries(s.appareils).sort((a, b) => b[1] - a[1]);
     $('stats-content').innerHTML = `
       <div class="kpis">
-        <div class="kpi"><span class="label">Visiteurs sur 7 jours</span><span class="value">${nombre(s.semaine.visiteurs)}</span><span class="hint">${nombre(moyenne)} par jour en moyenne</span></div>
-        <div class="kpi"><span class="label">Pages vues sur 7 jours</span><span class="value">${nombre(s.semaine.pages_vues)}</span><span class="hint">${pagesParVisiteur.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} pages par visiteur</span></div>
-        <div class="kpi"><span class="label">Visiteurs aujourd'hui</span><span class="value">${nombre(today.visiteurs)}</span><span class="hint">${nombre(today.pages_vues)} pages vues</span></div>
-        <div class="kpi"><span class="label">Meilleur jour (14 j)</span><span class="value">${nombre(Math.max(...jours.map(j => j.visiteurs)))}</span>
-          <span class="hint">${new Date(jours.reduce((a, j) => j.visiteurs > a.visiteurs ? j : a).date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</span></div>
+        <div class="kpi"><span class="label">Appareils différents aujourd'hui</span><span class="value">${nombre(today.visiteurs)}</span><span class="hint">${nombre(today.pages_vues)} pages vues</span></div>
+        <div class="kpi"><span class="label">Appareils différents sur 7 jours</span><span class="value">${nombre(s.semaine.visiteurs)}</span><span class="hint">${nombre(moyenne)} par jour · ${nombre(revenus)} retour${revenus > 1 ? 's' : ''}</span></div>
+        <div class="kpi"><span class="label">Appareils différents sur 14 jours</span><span class="value">${nombre(s.quinzaine ? s.quinzaine.visiteurs : 0)}</span><span class="hint">meilleur jour : ${nombre(Math.max(...jours.map(j => j.visiteurs)))}</span></div>
+        <div class="kpi"><span class="label">Pages vues sur 7 jours</span><span class="value">${nombre(s.semaine.pages_vues)}</span><span class="hint">${(s.semaine.visiteurs ? s.semaine.pages_vues / s.semaine.visiteurs : 0).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} pages par appareil</span></div>
       </div>
       <div class="panel">
-        <div class="panel-head"><h3>Visiteurs par jour</h3><div class="legend"><span><i style="background:var(--accent)"></i>Visiteurs uniques</span></div></div>
+        <div class="panel-head"><h3>Appareils différents par jour</h3><div class="legend"><span><i style="background:var(--accent)"></i>Téléphones et ordinateurs distincts</span></div></div>
         <div class="chart"><div class="chart-axis">${axis}</div><div class="chart-bars">${bars}</div></div>
       </div>
       <div class="grid-2">
         <div class="panel" style="margin:0;"><div class="panel-head"><h3>Pages les plus vues</h3><span class="faint">7 jours</span></div>${rank(s.pages, 'page', 'vues')}</div>
         <div class="panel" style="margin:0;">
           <div class="panel-head"><h3>Provenance</h3><span class="faint">7 jours</span></div>${rank(s.provenance, 'source', 'visites')}
-          <div class="panel-head" style="margin:18px 0 0;"><h3>Appareils</h3></div>
+          <div class="panel-head" style="margin:18px 0 0;"><h3>Appareils</h3><span class="faint">7 jours</span></div>
           <div class="devices">${devices.map(([k, v], i) => `<span style="width:${v / total * 100}%; background:${shades[i % shades.length]}" title="${escapeHtml(k)}"></span>`).join('')}</div>
           <div class="devices-legend">${devices.map(([k, v], i) => `<span><i style="background:${shades[i % shades.length]}"></i>${escapeHtml(k)} ${Math.round(v / total * 100)} %</span>`).join('') || '<span>—</span>'}</div>
         </div>
