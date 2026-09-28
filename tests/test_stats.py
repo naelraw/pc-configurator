@@ -8,10 +8,21 @@ import site_stats
 def test_un_appareil_qui_revient_ne_compte_qu_une_fois():
     iphone, pc = "Mozilla/5.0 (iPhone) Safari", "Mozilla/5.0 (Windows NT 10.0) Chrome"
     now = datetime.utcnow()
-    lignes = [f'1.1.1.1 - - [{(now - timedelta(days=d)).strftime("%d/%b/%Y")}:10:00:00 +0000] "GET / HTTP/1.1" 200 1 "-" "{iphone}"'
-              for d in range(3)]
-    lignes.append(f'2.2.2.2 - - [{now.strftime("%d/%b/%Y")}:10:00:00 +0000] "GET /application HTTP/1.1" 200 1 "https://www.tiktok.com/" "{pc}"')
-    lignes.append(f'3.3.3.3 - - [{now.strftime("%d/%b/%Y")}:10:00:00 +0000] "GET / HTTP/1.1" 200 1 "-" "Googlebot/2.1"')
+    jour = lambda d=0: (now - timedelta(days=d)).strftime("%d/%b/%Y")
+    ligne = lambda ip, d, chemin, ua, statut=200, ref="-": f'{ip} - - [{jour(d)}:10:00:00 +0000] "GET {chemin} HTTP/1.1" {statut} 1 "{ref}" "{ua}"'
+    lignes = []
+    for d in range(3):  # un vrai iPhone : page + feuille de style, 3 jours de suite
+        lignes += [ligne("1.1.1.1", d, "/", iphone), ligne("1.1.1.1", d, "/api/components", iphone, 304)]
+    lignes += [ligne("2.2.2.2", 0, "/application", pc, ref="https://www.tiktok.com/"), ligne("2.2.2.2", 0, "/api/config", pc)]
+    lignes.append(ligne("3.3.3.3", 0, "/", "Googlebot/2.1"))
+    # Robot déguisé en iPhone : ne charge que le HTML → ignoré
+    lignes.append(ligne("4.4.4.4", 0, "/", "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15"))
+    # Scanner qui charge page et API mais cherche aussi des secrets → ignoré
+    lignes += [ligne("6.6.6.6", 0, "/", pc), ligne("6.6.6.6", 0, "/api/config", pc), ligne("6.6.6.6", 0, "/api/.env", pc, 404)]
+    # Page + style seulement, sans appel à l'API (robot) → ignoré
+    lignes += [ligne("7.7.7.7", 0, "/", pc), ligne("7.7.7.7", 0, "/static/style.css", pc)]
+    # Le propriétaire (admin connecté) → ignoré
+    lignes += [ligne("5.5.5.5", 0, "/", pc), ligne("5.5.5.5", 0, "/static/style.css", pc), ligne("5.5.5.5", 0, "/api/admin/stats", pc)]
     chemin = os.path.join(tempfile.mkdtemp(), "access.log")
     open(chemin, "w").write("\n".join(lignes) + "\n")
     r = site_stats.compute(log_glob=chemin)
