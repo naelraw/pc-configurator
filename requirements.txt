@@ -8,3 +8,4 @@ groq
 google-genai
 python-dotenv>=1.2.2,<2
 itsdangerous
+pillow>=11,<13

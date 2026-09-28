@@ -49,6 +49,7 @@ import fps_data
 import featured_builds
 import guides
 import component_pages
+import emails
 import comparisons
 import variantes
 import controle_catalogue
@@ -1302,6 +1303,7 @@ def register(request: Request, payload: dict = Body(...)):
         client.close()
 
     request.session["user"] = {"id": user_id, "email": email}
+    send_site_email_later(email, emails.bienvenue, email)
     return {"status": "ok", "email": email}
 
 
@@ -1402,6 +1404,8 @@ def delete_my_account(request: Request, user=Depends(require_login)):
     finally:
         client.close()
     request.session.clear()
+    # Confirmation (dernier e-mail envoyé : l'adresse n'est conservée nulle part).
+    send_site_email_later(user["email"], emails.compte_supprime)
     return {"status": "ok"}
 
 
@@ -1501,6 +1505,7 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
     client = get_client()
     try:
         existing = client.execute("SELECT id FROM users WHERE email = ?", [email])
+        nouveau_compte = not existing.rows
         if existing.rows:
             user_id = existing.rows[0][0]
         else:
@@ -1513,6 +1518,8 @@ def google_callback(request: Request, code: str = "", state: str = "", error: st
         client.close()
 
     request.session["user"] = {"id": user_id, "email": email}
+    if nouveau_compte:
+        send_site_email_later(email, emails.bienvenue, email)
     return RedirectResponse(next_path)
 
 
@@ -1687,7 +1694,17 @@ def add_favorite(payload: dict = Body(...), user=Depends(require_login)):
         )
     finally:
         client.close()
+    if prix_cible is not None:
+        _confirm_component_alert(user["email"], component_id, prix_cible)
     return {"status": "ok"}
+
+
+def _confirm_component_alert(email: str, component_id: int, prix_cible: float):
+    """E-mail de confirmation quand un prix cible est posé sur un composant."""
+    component = next((c for c in get_catalog() if c["id"] == component_id), None)
+    if component:
+        send_site_email_later(email, emails.alerte_composant_activee, component["nom"],
+                              component.get("prix_indicatif") or 0, prix_cible, component_pages.page_url(component))
 
 
 @app.patch("/api/favorites/{component_id}")
@@ -1702,6 +1719,8 @@ def update_favorite(component_id: int, payload: dict = Body(...), user=Depends(r
         )
     finally:
         client.close()
+    if prix_cible is not None:
+        _confirm_component_alert(user["email"], component_id, prix_cible)
     return {"status": "ok", "prix_cible": prix_cible}
 
 
@@ -1725,7 +1744,7 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", "") or SMTP_USER
 
 
-def send_email(to: str, subject: str, text: str, html_body: str | None = None) -> bool:
+def send_email(to: str, subject: str, text: str, html_body: str | None = None, banniere_png: bytes | None = None) -> bool:
     if not (SMTP_HOST and SMTP_FROM):
         return False
     import smtplib
@@ -1738,6 +1757,10 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None) -
     message.set_content(text)
     if html_body:
         message.add_alternative(html_body, subtype="html")
+        if banniere_png:
+            # Image jointe « inline » (cid:banniere, voir emails.py) : affichée
+            # directement, sans le « Afficher les images » des messageries.
+            message.get_payload()[1].add_related(banniere_png, "image", "png", cid="<banniere>", filename="pc-radar.png")
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
             smtp.starttls()
@@ -1748,6 +1771,36 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None) -
     except Exception as err:
         print(f"Envoi d'e-mail à {to} échoué : {err}")
         return False
+
+
+def send_site_email(to: str, mail) -> bool:
+    """Envoie un e-mail de emails.py : (sujet, texte, html, bannière PNG)."""
+    subject, text, html_body, png = mail
+    return send_email(to, subject, text, html_body, png)
+
+
+def send_site_email_later(to: str, build_mail, *args):
+    """
+    Pour les e-mails déclenchés par une action du visiteur (inscription,
+    alerte activée...) : préparés et envoyés dans un fil à part, pour ne
+    jamais faire attendre la réponse (SMTP = jusqu'à 20 s). Un échec
+    d'envoi n'empêche jamais l'action elle-même.
+    """
+    if not (SMTP_HOST and SMTP_FROM):
+        return
+
+    def job():
+        try:
+            send_site_email(to, build_mail(*args))
+        except Exception as err:
+            print(f"E-mail « {getattr(build_mail, '__name__', '?')} » non envoyé à {to} : {err}")
+
+    threading.Thread(target=job, daemon=True).start()
+
+
+def _component_page(component_id: int) -> str:
+    component = next((c for c in get_catalog() if c["id"] == component_id), None)
+    return component_pages.page_url(component) if component else "/composants"
 
 
 def _affiliate_amazon_link(url: str | None) -> str | None:
@@ -1788,24 +1841,12 @@ def record_price_and_notify(client, component_id: int, nom: str, prix: float, li
         print(f"Historique/alertes de prix ignorés pour {component_id} : {err}")
         return
 
+    if not due:
+        return
     lien_affilie = _affiliate_amazon_link(lien)
-    prix_txt = f"{prix:.2f}".replace(".", ",") + " €"
+    page = _component_page(component_id)
     for favorite_id, email, prix_cible in due:
-        cible_txt = f"{prix_cible:.2f}".replace(".", ",") + " €"
-        text = (
-            f"Bonne nouvelle : {nom} est passé à {prix_txt}, sous ton prix cible de {cible_txt}.\n\n"
-            + (f"Voir l'offre : {lien_affilie}\n\n" if lien_affilie else "")
-            + f"Gérer tes alertes : {PUBLIC_BASE_URL}/compte\n"
-            "Les prix changent vite, vérifie-le sur la page du vendeur avant d'acheter."
-        )
-        html_body = (
-            f"<p>Bonne nouvelle : <strong>{html.escape(nom)}</strong> est passé à "
-            f"<strong>{prix_txt}</strong>, sous ton prix cible de {cible_txt}.</p>"
-            + (f'<p><a href="{html.escape(lien_affilie)}">Voir l\'offre</a></p>' if lien_affilie else "")
-            + f'<p style="color:#666;font-size:13px">Les prix changent vite, vérifie-le avant d\'acheter. '
-            f'<a href="{PUBLIC_BASE_URL}/compte">Gérer mes alertes</a></p>'
-        )
-        if send_email(email, f"Baisse de prix : {nom} à {prix_txt}", text, html_body):
+        if send_site_email(email, emails.baisse_prix_composant(nom, prix, prix_cible, lien_affilie, page)):
             try:
                 client.execute("UPDATE favorites SET derniere_alerte_prix = ? WHERE id = ?", [prix, favorite_id])
             except Exception as err:
@@ -1857,8 +1898,11 @@ def set_build_alert(build_id: int, payload: dict = Body(...), user=Depends(requi
             "ON CONFLICT(user_id, build_id) DO UPDATE SET prix_cible = excluded.prix_cible, derniere_alerte_prix = NULL",
             [user["id"], build_id, total, prix_cible, datetime.utcnow().isoformat()],
         )
+        nom_rows = client.execute("SELECT nom FROM builds WHERE id = ?", [build_id]).rows
     finally:
         client.close()
+    nom_config = nom_rows[0][0] if nom_rows else "Ma configuration"
+    send_site_email_later(user["email"], emails.alerte_config_activee, nom_config, total, prix_cible, build_id)
     return {"status": "ok", "prix_cible": prix_cible, "prix_actuel": total}
 
 
@@ -1905,25 +1949,7 @@ def check_build_alerts():
                     f"SELECT categorie, nom, prix_indicatif FROM components WHERE id IN ({placeholders}) ORDER BY categorie",
                     ids,
                 ).rows
-            euros = lambda v: f"{v:.2f}".replace(".", ",") + " €"
-            lignes = "\n".join(f"  - {cat} : {n} ({euros(p or 0)})" for cat, n, p in pieces)
-            lien_build = f"{PUBLIC_BASE_URL}/build/{build_id}"
-            text = (
-                f"Bonne nouvelle : ta configuration « {nom} » coûte maintenant {euros(total)}, "
-                f"sous ton prix cible de {euros(prix_cible)}.\n\n{lignes}\n\n"
-                f"Voir la configuration : {lien_build}\n"
-                f"Gérer tes alertes : {PUBLIC_BASE_URL}/compte\n"
-                "Les prix changent vite, vérifie-les sur la page du vendeur avant d'acheter."
-            )
-            html_body = (
-                f"<p>Bonne nouvelle : ta configuration <strong>{html.escape(nom)}</strong> coûte maintenant "
-                f"<strong>{euros(total)}</strong>, sous ton prix cible de {euros(prix_cible)}.</p><ul>"
-                + "".join(f"<li>{html.escape(cat)} : {html.escape(n)} ({euros(p or 0)})</li>" for cat, n, p in pieces)
-                + f'</ul><p><a href="{lien_build}">Voir la configuration</a></p>'
-                f'<p style="color:#666;font-size:13px">Les prix changent vite, vérifie-les avant d\'acheter. '
-                f'<a href="{PUBLIC_BASE_URL}/compte">Gérer mes alertes</a></p>'
-            )
-            if send_email(email, f"Baisse de prix : ta config « {nom} » à {euros(total)}", text, html_body):
+            if send_site_email(email, emails.baisse_prix_config(nom, total, prix_cible, pieces, build_id)):
                 client.execute("UPDATE build_alerts SET derniere_alerte_prix = ? WHERE id = ?", [total, alert_id])
                 sent += 1
         if sent:
@@ -6321,16 +6347,7 @@ def _run_controle_catalogue():
         client.close()
     nouveaux = [s for s, cle in zip(suspects, cles) if cle not in deja]
     if nouveaux and SMTP_FROM:
-        lignes = "\n".join(
-            f"- {s['nom']} ({s['categorie']}) : {s['prix']:.2f} € au lieu d'environ {s['reference']:.2f} € "
-            f"({s['motif']}). {SITE_URL}{s['page'] or ''}"
-            for s in nouveaux
-        )
-        send_email(
-            SMTP_FROM, f"[PC Radar] {len(nouveaux)} prix suspect(s) dans le catalogue",
-            f"Le contrôle quotidien du catalogue a repéré :\n\n{lignes}\n\n"
-            f"Détail et actions dans la page admin : {SITE_URL}/admin",
-        )
+        send_site_email(SMTP_FROM, emails.controle_admin(nouveaux, f"{SITE_URL}/admin#watch"))
     return nouveaux
 
 
