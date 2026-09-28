@@ -198,11 +198,14 @@ def gabarit(titre, intro_html, contenu_html="", cta=None, note_html="", pied_htm
 <meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>{escape(titre)}</title></head>
 <body style="margin:0;padding:0;background-color:{BG};" bgcolor="{BG}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="{BG}" style="background-color:{BG};">
-<tr><td align="center" style="padding:24px 10px;">
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="{SURFACE}"
-  style="width:100%;max-width:600px;background-color:{SURFACE};border:1px solid {LINE_STRONG};border-radius:16px;">
-  <tr><td style="padding:0;"><img src="cid:banniere" width="600" alt="{escape(titre)}"
-    style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:16px 16px 0 0;"></td></tr>
+<tr><td align="center" style="padding:0;">
+<!-- Même fond que la bannière, sans cadre : l'e-mail forme un seul bloc
+     sombre sur toute la largeur. La bannière est un lien : Gmail n'affiche
+     alors pas ses boutons Télécharger / Drive / Lens au survol. -->
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" bgcolor="{BG}"
+  style="width:100%;max-width:600px;background-color:{BG};">
+  <tr><td style="padding:0;"><a href="https://pcradar.tech" style="display:block;text-decoration:none;"><img src="cid:banniere" width="600" alt="{escape(titre)}"
+    style="display:block;width:100%;max-width:600px;height:auto;border:0;"></a></td></tr>
   <tr><td style="padding:30px 36px 0;font-family:{FONT_STACK};">
     <h1 style="margin:0 0 12px;font-size:23px;line-height:1.3;font-weight:700;color:{TEXT};">{escape(titre)}</h1>
     <div style="font-size:16px;line-height:1.6;color:{TEXT_2};">{intro_html}</div>
