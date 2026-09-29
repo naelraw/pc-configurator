@@ -1749,6 +1749,13 @@ SMTP_FROM = os.getenv("SMTP_FROM", "") or SMTP_USER
 SMTP_REPLY_TO = os.getenv("SMTP_REPLY_TO", "") or SMTP_FROM
 # Destinataire des e-mails réservés à l'admin (contrôle du catalogue).
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "") or SMTP_REPLY_TO
+# Serveur de secours (Gmail avec mot de passe d'application), utilisé si le
+# principal échoue : quota du jour épuisé, panne... Facultatif.
+SMTP_SECOURS_HOST = os.getenv("SMTP_SECOURS_HOST", "")
+SMTP_SECOURS_PORT = int(os.getenv("SMTP_SECOURS_PORT", "587"))
+SMTP_SECOURS_USER = os.getenv("SMTP_SECOURS_USER", "")
+SMTP_SECOURS_PASSWORD = os.getenv("SMTP_SECOURS_PASSWORD", "")
+SMTP_SECOURS_FROM = os.getenv("SMTP_SECOURS_FROM", "") or SMTP_SECOURS_USER
 
 
 def send_email(to: str, subject: str, text: str, html_body: str | None = None, banniere_png: bytes | None = None) -> bool:
@@ -1780,15 +1787,33 @@ def send_email(to: str, subject: str, text: str, html_body: str | None = None, b
             # Image jointe « inline » (cid:banniere, voir emails.py) : affichée
             # directement, sans le « Afficher les images » des messageries.
             message.get_payload()[1].add_related(banniere_png, "image", "png", cid="<banniere>", filename="pc-radar.png")
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+    def envoyer(host, port, user, password):
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
             smtp.starttls()
-            if SMTP_USER:
-                smtp.login(SMTP_USER, SMTP_PASSWORD)
+            if user:
+                smtp.login(user, password)
             smtp.send_message(message)
+
+    try:
+        envoyer(SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD)
         return True
+    except smtplib.SMTPRecipientsRefused as err:
+        print(f"Envoi d'e-mail à {to} refusé (adresse invalide) : {err}")
+        return False
     except Exception as err:
         print(f"Envoi d'e-mail à {to} échoué : {err}")
+        if not (SMTP_SECOURS_HOST and SMTP_SECOURS_FROM):
+            return False
+    # Serveur principal indisponible ou quota du jour épuisé (Brevo : 300
+    # e-mails par jour en gratuit) : on passe par le serveur de secours
+    # (Gmail), avec sa propre adresse d'expéditeur, que Gmail exige.
+    try:
+        message.replace_header("From", f"PC Radar <{SMTP_SECOURS_FROM}>")
+        envoyer(SMTP_SECOURS_HOST, SMTP_SECOURS_PORT, SMTP_SECOURS_USER, SMTP_SECOURS_PASSWORD)
+        print(f"E-mail à {to} envoyé par le serveur de secours.")
+        return True
+    except Exception as err:
+        print(f"Envoi de secours à {to} échoué aussi : {err}")
         return False
 
 

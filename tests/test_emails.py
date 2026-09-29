@@ -16,3 +16,27 @@ def test_chaque_email_a_sa_banniere_et_son_texte():
         assert 'src="cid:banniere"' in html_body and 'bgcolor="#141517"' in html_body and '<a href="https://pcradar.tech" style="display:block;text-decoration:none;"><img src="cid:banniere"' in html_body
     # Le nom saisi par l'utilisateur est échappé dans le HTML.
     assert "&lt;gaming&gt;" in mails[2][2] and "<gaming>" not in mails[2][2]
+
+
+def test_secours_gmail_si_brevo_echoue(monkeypatch):
+    import smtplib, main
+    envois = []
+
+    class FauxSMTP:
+        def __init__(self, host, port, timeout=None):
+            self.host = host
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def starttls(self): pass
+        def login(self, u, p): pass
+        def send_message(self, m):
+            if self.host == "smtp-relay.brevo.com":
+                raise smtplib.SMTPDataError(450, b"quota journalier atteint")
+            envois.append((self.host, m["From"]))
+
+    monkeypatch.setattr(smtplib, "SMTP", FauxSMTP)
+    for k, v in {"SMTP_HOST": "smtp-relay.brevo.com", "SMTP_FROM": "contact@pcradar.tech",
+                 "SMTP_SECOURS_HOST": "smtp.gmail.com", "SMTP_SECOURS_FROM": "contact.pcradar@gmail.com"}.items():
+        monkeypatch.setattr(main, k, v)
+    assert main.send_email("x@example.com", "Test", "texte")
+    assert envois == [("smtp.gmail.com", "PC Radar <contact.pcradar@gmail.com>")]
