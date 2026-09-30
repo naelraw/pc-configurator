@@ -849,6 +849,13 @@ a.bento-cell:hover .more{ color:var(--accent); }
   transition:border-color .2s var(--ease), background-color .2s var(--ease);
 }
 .chat-exemple:hover{ border-color:var(--accent-line); background:var(--accent-soft); }
+.chat-exemple.is-selected{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
+.chat-exemple-guide{ display:inline-flex; align-items:center; gap:6px; border-color:var(--accent-line); color:var(--accent); }
+.guide-pied{ display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px 12px; margin-top:12px; }
+.guide-etape{ font-size:0.78rem; color:var(--text-3); }
+.guide-boutons{ display:flex; gap:6px; margin-top:0; }
+.msg-corps > .guide-boutons{ margin-top:10px; }
+.cfg-btn:disabled{ opacity:0.45; cursor:not-allowed; }
 .chat-ecrit{ display:inline-flex; gap:4px; padding:8px 0; }
 .chat-ecrit i{ width:7px; height:7px; border-radius:50%; background:var(--text-3); animation:chat-ecrit 1.2s infinite ease-in-out; }
 .chat-ecrit i:nth-child(2){ animation-delay:.15s; }

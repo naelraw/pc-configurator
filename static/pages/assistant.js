@@ -23,6 +23,38 @@
     'DDR4 ou DDR5, je prends quoi ?',
   ];
 
+  // Parcours « Je débute » : l'assistant pose les questions une par une
+  // (réponse en un clic ou écrite), puis l'IA propose la config à partir de
+  // toutes les réponses. « si » : question posée seulement si elle a du sens.
+  const GUIDE_KEY = 'assistantGuide';
+  const joue = r => /jouer|streamer|un peu de tout/i.test(r.usage || '');
+  const GUIDE = [
+    { id: 'usage', titre: 'Usage', multi: true, q: 'Pour commencer, à quoi va surtout servir ton PC ?',
+      options: ['Jouer', 'Travail ou études', 'Montage vidéo, création', 'Streamer', 'Un peu de tout'] },
+    { id: 'jeux', titre: 'Jeux', multi: true, si: joue, q: 'À quels jeux tu joues, ou aimerais jouer ? Tu peux en choisir plusieurs, ou en écrire d’autres.',
+      options: ['Fortnite', 'Valorant', 'Minecraft', 'GTA V', 'Call of Duty / Warzone', 'EA FC', 'Cyberpunk 2077', 'Roblox'] },
+    { id: 'budget', titre: 'Budget', q: 'Quel budget tu veux mettre dans le PC ? Juste la tour, sans écran, clavier ni souris.',
+      options: ['Moins de 600 €', 'Environ 800 €', 'Environ 1 000 €', 'Environ 1 500 €', '2 000 € ou plus', 'Je ne sais pas encore'] },
+    { id: 'ecran', titre: 'Écran', q: 'Sur quel écran tu vas l’utiliser ?',
+      options: ['Full HD (1080p)', '2K (1440p)', '4K', 'Je ne sais pas'] },
+    { id: 'fluidite', titre: 'Fluidité', si: joue, q: 'En jeu, tu préfères quoi ?',
+      options: ['Que ce soit fluide, sans plus', 'Un max d’images par seconde pour la compétition', 'Les plus beaux graphismes possibles'] },
+    { id: 'stockage', titre: 'Stockage', q: 'Tu as besoin de beaucoup de place pour tes jeux et tes fichiers ?',
+      options: ['Un peu (500 Go)', 'Normal (1 To)', 'Beaucoup (2 To ou plus)', 'Je ne sais pas'] },
+    { id: 'wifi', titre: 'Connexion', q: 'Ton PC sera relié à ta box par un câble, ou en Wi-Fi ?',
+      options: ['Câble', 'Wi-Fi', 'Je ne sais pas'] },
+    { id: 'style', titre: 'Look du boîtier', q: 'Pour le look du boîtier, tu préfères ?',
+      options: ['Avec des lumières (RGB)', 'Sobre et discret', 'Petit et compact', 'Peu importe'] },
+    { id: 'marque', titre: 'Marques', multi: true, q: 'Tu as une préférence de marque ?',
+      options: ['AMD', 'Intel', 'NVIDIA', 'Peu importe'] },
+    { id: 'evolution', titre: 'Évolution', q: 'Tu penses améliorer ton PC plus tard, par exemple changer la carte graphique dans quelques années ?',
+      options: ['Oui, je veux pouvoir l’améliorer', 'Non, je le garde tel quel', 'Je ne sais pas'] },
+    { id: 'plus', titre: 'Autre', q: 'Dernière question : un détail important à me dire ? Par exemple des pièces à récupérer, un PC silencieux…',
+      options: ['Non, c’est tout'] },
+  ];
+  let guide = { actif: false, reponses: {} };
+  let selectionGuide = new Set();
+
   let allComponents = [];
   let composantsParId = new Map();
   let discussion = [];     // [{role, content, suggestion?, fps?}]
@@ -246,20 +278,30 @@
     const maConfig = Object.keys(lireMaConfig()).length;
     return bulleAssistant(`<p>Salut ! Je peux te conseiller sur les composants, la compatibilité et les performances en jeu,
       ou te proposer une config complète selon ton budget.${maConfig ? ' Je vois aussi ta config en cours dans le configurateur : demande-moi ce que tu en penses.' : ''}</p>
-      <div class="chat-exemples">${EXEMPLES.map((e, i) => `<button type="button" class="chat-exemple" data-action="exemple" data-i="${i}">${escapeHtml(e)}</button>`).join('')}</div>`);
+      <div class="chat-exemples">
+        <button type="button" class="chat-exemple chat-exemple-guide" data-action="guide-demarrer"><i class="ph ph-list-checks" aria-hidden="true"></i> Je débute : pose-moi les questions</button>
+        ${EXEMPLES.map((e, i) => `<button type="button" class="chat-exemple" data-action="exemple" data-i="${i}">${escapeHtml(e)}</button>`).join('')}</div>`);
   }
 
   function afficher(defiler = true){
     const fil = $('chat-fil');
     let html = accueil();
+    const enCoursGuide = questionActuelle();
     discussion.forEach((m, i) => {
+      if(m.cache) return;
+      if(m.role === 'assistant' && m.guide && m.guide !== 'intro'){
+        html += bulleAssistant(formater(m.content) + (enCoursGuide && i === discussion.length - 1 ? blocQuestion(enCoursGuide) : ''));
+        return;
+      }
       if(m.role === 'user'){
         html += `<div class="msg msg-moi"><div class="msg-corps">${escapeHtml(m.content).replace(/\n/g, '<br>')}</div></div>`;
       }else{
-        html += bulleAssistant(formater(m.content) + (m.suggestion ? carteConfig(m.suggestion, i) : '') + panneauComposants(m.composants) + blocFps(m.fps), m.erreur ? 'msg-erreur' : '');
+        html += bulleAssistant(formater(m.content) + (m.suggestion ? carteConfig(m.suggestion, i) : '') + panneauComposants(m.composants) + blocFps(m.fps)
+          + (m.relancer && i === discussion.length - 1 ? '<div class="guide-boutons"><button type="button" class="cfg-btn cfg-ajouter" data-action="guide-relancer">Réessayer</button></div>' : ''),
+          m.erreur ? 'msg-erreur' : '');
       }
     });
-    if(enCours) html += bulleAssistant('<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span>');
+    if(enCours || ecritGuide) html += bulleAssistant('<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span>');
     fil.innerHTML = html;
     $('chat-nouvelle').hidden = discussion.length === 0;
     if(defiler){
@@ -269,7 +311,147 @@
   }
 
   function sauvegarder(){
-    try{ sessionStorage.setItem(DISCUSSION_KEY, JSON.stringify(discussion.filter(m => !m.erreur).slice(-40))); }catch(e){}
+    try{
+      sessionStorage.setItem(DISCUSSION_KEY, JSON.stringify(discussion.filter(m => !m.erreur).slice(-60)));
+      sessionStorage.setItem(GUIDE_KEY, JSON.stringify(guide));
+    }catch(e){}
+    $('ai-input').placeholder = questionActuelle() ? 'Écris ta réponse, ou pose-moi une question…' : 'Écris ton message…';
+  }
+
+  // ------------------------------------------------------------------
+  // Parcours guidé « Je débute »
+  // ------------------------------------------------------------------
+  let ecritGuide = false;
+
+  const questionsApplicables = () => GUIDE.filter(g => !g.si || g.si(guide.reponses));
+
+  // Question en attente de réponse : la dernière question posée, si le guide est en cours.
+  function questionActuelle(){
+    if(!guide.actif || enCours || ecritGuide) return null;
+    const dernier = discussion[discussion.length - 1];
+    return dernier && dernier.role === 'assistant' && dernier.guide ? GUIDE.find(g => g.id === dernier.guide) || null : null;
+  }
+
+  function blocQuestion(g){
+    const liste = questionsApplicables();
+    const rang = liste.findIndex(x => x.id === g.id) + 1;
+    const options = g.options.map((o, i) => `<button type="button" class="chat-exemple${selectionGuide.has(i) ? ' is-selected' : ''}" data-action="guide-choix" data-i="${i}" aria-pressed="${selectionGuide.has(i)}">${escapeHtml(o)}</button>`).join('');
+    const dejaRepondu = Object.keys(guide.reponses).length > 0;
+    return `<div class="chat-exemples guide-options">${options}</div>
+      <div class="guide-pied">
+        <span class="guide-etape">Question ${rang} sur ${liste.length}${g.multi ? ' · plusieurs choix possibles' : ''}</span>
+        <span class="guide-boutons">
+          ${dejaRepondu ? '<button type="button" class="cfg-btn" data-action="guide-retour"><i class="ph ph-arrow-left" aria-hidden="true"></i> Revenir</button>' : ''}
+          ${g.multi ? `<button type="button" class="cfg-btn cfg-ajouter" data-action="guide-valider"${selectionGuide.size ? '' : ' disabled'}>Valider</button>` : ''}
+        </span>
+      </div>`;
+  }
+
+  function poserSuivante(){
+    const suivante = questionsApplicables().find(g => !(g.id in guide.reponses));
+    if(!suivante){ terminerGuide(); return; }
+    ecritGuide = true;
+    afficher();
+    setTimeout(() => {
+      ecritGuide = false;
+      selectionGuide = new Set();
+      discussion.push({ role: 'assistant', content: suivante.q, guide: suivante.id });
+      sauvegarder();
+      afficher();
+    }, 450);
+  }
+
+  function demarrerGuide(){
+    if(enCours) return;
+    discussion = [{ role: 'assistant', guide: 'intro',
+      content: 'Parfait, on va trouver ton PC ensemble. Je te pose une dizaine de questions rapides : clique sur une réponse, ou écris-la toi-même. Et si un mot te parle pas, demande-moi.' }];
+    guide = { actif: true, reponses: {} };
+    selectionGuide = new Set();
+    sauvegarder();
+    poserSuivante();
+  }
+
+  function choisirGuide(i){
+    const g = questionActuelle();
+    if(!g) return;
+    if(!g.multi){ repondreGuide(g.options[i]); return; }
+    // « Peu importe » exclut les autres choix, et inversement.
+    const neutre = g.options.findIndex(o => /peu importe/i.test(o));
+    if(selectionGuide.has(i)) selectionGuide.delete(i);
+    else{
+      if(i === neutre) selectionGuide.clear();
+      else selectionGuide.delete(neutre);
+      selectionGuide.add(i);
+    }
+    afficher(false);
+  }
+
+  async function repondreGuide(texte){
+    const g = questionActuelle();
+    if(!g) return;
+    texte = (texte || '').trim();
+    // Une question pendant le parcours : l'IA répond, puis on repose la même question.
+    if(texte.endsWith('?')){
+      $('ai-input').value = '';
+      ajusterHauteur();
+      await envoyer(texte, { envoi: `Je débute et tu m'aides à choisir un PC. Tu m'as demandé : « ${g.q} ». Avant de répondre, j'ai une question : ${texte} Réponds simplement, sans me proposer de config pour l'instant.` });
+      if(guide.actif){
+        discussion.push({ role: 'assistant', content: g.q, guide: g.id });
+        sauvegarder();
+        afficher();
+      }
+      return;
+    }
+    const choix = g.multi ? [...selectionGuide].sort((a, b) => a - b).map(i => g.options[i]) : [];
+    const reponse = [...choix, texte].filter(Boolean).join(', ');
+    if(!reponse) return;
+    guide.reponses[g.id] = reponse;
+    discussion.push({ role: 'user', content: reponse, guide: g.id });
+    $('ai-input').value = '';
+    ajusterHauteur();
+    selectionGuide = new Set();
+    sauvegarder();
+    poserSuivante();
+  }
+
+  function retourGuide(){
+    if(!questionActuelle()) return;
+    // Retire la question actuelle et la dernière réponse (avec ce qui a suivi).
+    let i = discussion.length - 1;
+    while(i >= 0 && !(discussion[i].role === 'user' && discussion[i].guide)) i--;
+    if(i < 0) return;
+    const id = discussion[i].guide;
+    delete guide.reponses[id];
+    discussion = discussion.slice(0, i);
+    const g = GUIDE.find(x => x.id === id);
+    discussion.push({ role: 'assistant', content: g.q, guide: g.id });
+    selectionGuide = new Set();
+    sauvegarder();
+    afficher();
+  }
+
+  function resumeGuide(){
+    const lignes = questionsApplicables()
+      .filter(g => guide.reponses[g.id])
+      .map(g => `- ${g.titre} : ${guide.reponses[g.id]}`);
+    const budgetInconnu = /je ne sais pas/i.test(guide.reponses.budget || '');
+    return `Je débute en PC et je pars de zéro (aucune pièce déjà choisie). Voici mes réponses à tes questions :\n${lignes.join('\n')}\n\n`
+      + (budgetInconnu ? 'Je n\'ai pas d\'idée de budget : propose le meilleur rapport qualité-prix pour mon usage, sans dépenser plus que nécessaire. ' : '')
+      + 'Propose-moi la config complète qui me correspond, en m\'expliquant simplement pourquoi elle me va.';
+  }
+
+  function terminerGuide(){
+    guide.actif = false;
+    discussion.push({ role: 'assistant', content: 'Merci, j’ai tout ce qu’il me faut. Je te prépare ta config…' });
+    sauvegarder();
+    envoyer(resumeGuide(), { cache: true, sansMaConfig: true });
+  }
+
+  function relancerGuide(){
+    const dernier = discussion[discussion.length - 1];
+    if(dernier && dernier.erreur) discussion.pop();
+    const resume = discussion.pop();
+    if(resume && resume.cache) envoyer(resume.content, { cache: true, sansMaConfig: true });
   }
 
   // ------------------------------------------------------------------
@@ -281,20 +463,21 @@
       .filter(Boolean).join(', ');
   }
 
-  async function envoyer(texte){
+  async function envoyer(texte, options = {}){
     texte = (texte || '').trim();
     if(!texte || enCours) return;
     discussion = discussion.filter(m => !m.erreur);
-    discussion.push({ role: 'user', content: texte });
+    discussion.push({ role: 'user', content: texte, ...(options.cache ? { cache: true } : {}), ...(options.envoi ? { envoi: options.envoi } : {}) });
     enCours = true;
     $('ai-input').value = '';
     ajusterHauteur();
     afficher();
 
     const derniere = [...discussion].reverse().find(m => m.suggestion);
-    const messages = discussion.map(m => ({
+    // Les questions/réponses du parcours guidé sont résumées dans un seul message.
+    const messages = discussion.filter(m => !m.guide).map(m => ({
       role: m.role,
-      content: m.content
+      content: (m.envoi || m.content)
         + (m.suggestion ? `\n(Config proposée : ${resumeConfig(m.suggestion)})` : '')
         + ((m.composants || []).length ? `\n(Composants montrés : ${m.composants.map(id => composantsParId.get(id)).filter(Boolean).map(c => `${c.nom} [id ${c.id}]`).join(', ')})` : ''),
     }));
@@ -304,7 +487,7 @@
       const res = await fetch(API_BASE + '/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, derniere_config: derniere ? derniere.suggestion : null, ma_config: lireMaConfig() }),
+        body: JSON.stringify({ messages, derniere_config: derniere ? derniere.suggestion : null, ma_config: options.sansMaConfig ? null : lireMaConfig() }),
       });
       const data = await res.json().catch(() => ({}));
       if(res.ok && data.status === 'ok'){
@@ -319,9 +502,14 @@
     enCours = false;
     if(reponse.erreur){
       // Le message non traité revient dans la zone de saisie pour être renvoyé.
-      discussion.pop();
-      $('ai-input').value = texte;
-      ajusterHauteur();
+      const perdu = discussion.pop();
+      if(perdu.cache){
+        reponse.relancer = true;       // fin du parcours guidé : bouton « Réessayer »
+        discussion.push(perdu);
+      }else{
+        $('ai-input').value = texte;
+        ajusterHauteur();
+      }
     }
     discussion.push(reponse);
     sauvegarder();
@@ -363,6 +551,11 @@
     if(!b) return;
     const action = b.dataset.action;
     if(action === 'exemple'){ envoyer(EXEMPLES[Number(b.dataset.i)]); return; }
+    if(action === 'guide-demarrer'){ demarrerGuide(); return; }
+    if(action === 'guide-choix'){ choisirGuide(Number(b.dataset.i)); return; }
+    if(action === 'guide-valider'){ repondreGuide(''); return; }
+    if(action === 'guide-retour'){ retourGuide(); return; }
+    if(action === 'guide-relancer'){ relancerGuide(); return; }
     if(action === 'detail'){ showComponentDetail(Number(b.dataset.id)); return; }
     if(action === 'ajouter-id'){ ajouterId(Number(b.dataset.id)); return; }
     const m = discussion[Number(b.dataset.msg)];
@@ -385,18 +578,25 @@
     t.style.height = Math.min(t.scrollHeight, 180) + 'px';
   }
 
-  $('chat-form').addEventListener('submit', e => { e.preventDefault(); envoyer($('ai-input').value); });
+  function soumettre(){
+    const texte = $('ai-input').value;
+    if(questionActuelle()) repondreGuide(texte);
+    else envoyer(texte);
+  }
+
+  $('chat-form').addEventListener('submit', e => { e.preventDefault(); soumettre(); });
   $('ai-input').addEventListener('input', ajusterHauteur);
   $('ai-input').addEventListener('keydown', e => {
     // Entrée envoie, Maj+Entrée va à la ligne (sauf sur mobile : le clavier n'a pas Maj pratique).
     if(e.key === 'Enter' && !e.shiftKey && !e.isComposing && !matchMedia('(pointer: coarse)').matches){
       e.preventDefault();
-      envoyer($('ai-input').value);
+      soumettre();
     }
   });
   $('chat-nouvelle').addEventListener('click', () => {
     if(enCours) return;
     discussion = [];
+    guide = { actif: false, reponses: {} };
     sauvegarder();
     afficher();
     $('ai-input').focus();
@@ -410,6 +610,7 @@
   // ------------------------------------------------------------------
   async function demarrer(){
     try{ discussion = JSON.parse(sessionStorage.getItem(DISCUSSION_KEY)) || []; }catch(e){ discussion = []; }
+    try{ guide = JSON.parse(sessionStorage.getItem(GUIDE_KEY)) || guide; }catch(e){}
     afficher(false);
     try{
       const res = await fetch(API_BASE + '/api/components');
@@ -421,12 +622,15 @@
     }
     afficher(discussion.length > 0);
 
-    // Arrivée depuis le bouton « Débutant » de l'accueil.
-    if(new URLSearchParams(location.search).get('prefill') === 'debutant' && !discussion.length){
-      $('ai-input').value = 'Je débute, je ne connais rien aux composants PC. Aide-moi à choisir une config adaptée à mon usage.';
-      ajusterHauteur();
-      $('ai-input').focus();
+    // Arrivée depuis « Je débute » sur l'accueil : lance le parcours guidé
+    // (ou le reprend s'il est en cours), puis retire le paramètre de l'adresse
+    // pour qu'un rechargement ne le relance pas.
+    const params = new URLSearchParams(location.search);
+    if(params.get('mode') === 'guide' || params.get('prefill') === 'debutant'){
+      if(!guide.actif) demarrerGuide();
+      history.replaceState(null, '', location.pathname);
     }
+    sauvegarder();
   }
 
   demarrer();
