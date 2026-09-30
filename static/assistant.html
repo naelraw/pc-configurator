@@ -5,7 +5,7 @@
 <meta name="theme-color" content="#0e0f11">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Assistant IA pour configurer son PC — PC Radar</title>
-<meta name="description" content="Décrivez votre besoin (jeu, budget, usage) et laissez notre assistant IA vous proposer une configuration PC compatible et adaptée, gratuitement.">
+<meta name="description" content="Discute avec l'assistant IA de PC Radar : questions sur les composants, les jeux et ta config, et configurations PC compatibles à ajouter en un clic, gratuitement.">
 <link rel="canonical" href="https://pcradar.tech/assistant">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://pcradar.tech/assistant">
@@ -48,23 +48,23 @@
 </header>
 
 <main>
-<section id="assistant-ia" style="padding-top:56px; border-top:none;">
-  <div class="section-title">
-    <h1>Décrivez votre besoin</h1>
-    <p>En langage naturel : l'IA propose, la compatibilité vérifie</p>
+<section id="assistant-ia" class="assistant-page">
+  <div class="assistant-tete">
+    <div>
+      <h1>Assistant IA</h1>
+      <p>Pose tes questions sur les composants, les jeux ou ta config. Demande une config&nbsp;: tu pourras ajouter ses composants à la tienne en un clic.</p>
+    </div>
+    <button type="button" class="btn btn-secondary btn-nouvelle" id="chat-nouvelle" hidden><i class="ph ph-plus" aria-hidden="true"></i> Nouvelle discussion</button>
   </div>
-  <div class="chat-box chip-card">
-    <div class="chat-input-row">
-      <label for="ai-input" class="visually-hidden">Décrivez le PC que vous cherchez</label>
-      <input type="text" id="ai-input" placeholder="Ex: Je veux jouer en 1440p avec un budget de 1200€..." data-onkeydown="if(event.key==='Enter') askAI()">
-      <button class="btn btn-primary" data-onclick="askAI()">Envoyer</button>
-    </div>
-    <div class="chat-response" id="ai-response"></div>
-    <div class="chat-input-row chat-refine-row hidden" id="chat-refine-row">
-      <label for="ai-refine-input" class="visually-hidden">Demander un conseil ou une modification de cette configuration</label>
-      <input type="text" id="ai-refine-input" placeholder="Ex: remplace le GPU par moins cher, ou quel ventirad me conseilles-tu ?" data-onkeydown="if(event.key==='Enter') refineAI()">
-      <button class="btn btn-secondary" data-onclick="refineAI()">Demander</button>
-    </div>
+
+  <div class="chat" id="chat">
+    <div class="chat-fil" id="chat-fil" role="log" aria-live="polite" aria-label="Discussion avec l'assistant"></div>
+    <form class="chat-saisie" id="chat-form">
+      <label for="ai-input" class="visually-hidden">Ton message à l'assistant</label>
+      <textarea id="ai-input" rows="1" maxlength="2000" placeholder="Écris ton message…" autocomplete="off"></textarea>
+      <button type="submit" class="chat-envoyer" id="chat-envoyer" aria-label="Envoyer"><i class="ph ph-paper-plane-right" aria-hidden="true"></i></button>
+    </form>
+    <p class="chat-note">L'IA peut se tromper. La compatibilité et le budget des configs proposées sont vérifiés par le site.</p>
   </div>
 </section>
 </main>

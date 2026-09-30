@@ -5320,7 +5320,7 @@ def _budget_from_text(text):
     return None
 
 
-def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None):
+def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800):
     """
     Boucle de génération + correction partagée par /suggest-config (nouvelle
     config) et /api/refine-config (modification d'une config existante) :
@@ -5339,7 +5339,8 @@ def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=
     last_errors = None
 
     for attempt in range(1, MAX_AI_ATTEMPTS + 1):
-        suggestion_text = call_ai_model(current_prompt)
+        ajustee_par_serveur = False     # composants changés par le serveur après l'IA
+        suggestion_text = call_ai_model(current_prompt, max_tokens=max_tokens)
 
         parsed = parse_ai_json(suggestion_text)
         if parsed is None:
@@ -5367,13 +5368,14 @@ Réponds UNIQUEMENT avec le JSON demandé."""
             return {"status": "error", "message": parsed["error"]}
 
         if allow_advice and isinstance(parsed, dict) and parsed.get("type") == "advice":
-            return {"status": "advice", "message": parsed.get("message") or ""}
+            return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or []}
 
         compatibility_result = verify_compatibility(parsed)
         if not compatibility_result["compatible"] and isinstance(parsed, dict):
             reparee = _repair_compatibility(parsed, components_by_id)
             if reparee is not None:
                 parsed = reparee
+                ajustee_par_serveur = True
                 compatibility_result = verify_compatibility(parsed)
         errors = list(compatibility_result["errors"])
 
@@ -5383,7 +5385,7 @@ Réponds UNIQUEMENT avec le JSON demandé."""
             if real_total > budget_max:
                 ajustee = _fit_to_budget(parsed, budget_max, components_by_id)
                 if ajustee is not None:
-                    return {"status": "ok", "suggestion": ajustee}
+                    return {"status": "ok", "suggestion": ajustee, "ajustee": True}
                 overage = real_total - budget_max
                 errors.append(
                     f"Le total réel de cette configuration ({real_total:.2f}€) dépasse le "
@@ -5395,7 +5397,7 @@ Réponds UNIQUEMENT avec le JSON demandé."""
                 )
 
         if not errors:
-            return {"status": "ok", "suggestion": parsed}
+            return {"status": "ok", "suggestion": parsed, "ajustee": ajustee_par_serveur}
 
         last_errors = errors
         if attempt < MAX_AI_ATTEMPTS:
@@ -5624,6 +5626,212 @@ Réponds UNIQUEMENT avec un JSON valide, l'une des deux formes ci-dessus — jam
 
     except Exception as error:
         print(f"[refine-config] échec inattendu : {error}")
+        return {"status": "error", "message": AI_PROVIDERS_UNAVAILABLE_MESSAGE}
+
+
+# ---------------------------------------------------------------------------
+# Assistant en mode discussion (/assistant) : un seul point d'entrée pour
+# les questions (composants, jeux, compatibilité...), les nouvelles configs
+# et les modifications de la dernière config proposée. L'IA choisit elle-même
+# le type de réponse ; une config passe toujours par la même vérification
+# serveur (compatibilité, budget) que /suggest-config.
+# ---------------------------------------------------------------------------
+CHAT_MAX_MESSAGES = 10          # messages d'historique envoyés à l'IA
+CHAT_MAX_CHARS = 700            # longueur gardée par message d'historique
+CHAT_MIN_INTERVAL = 4           # secondes entre deux messages d'une même IP
+CHAT_MAX_PER_HOUR = 60          # quotas IA gratuits : plafond par IP et par heure
+_chat_requests_by_ip = {}
+
+
+def enforce_chat_rate_limit(request: Request):
+    ip = _client_ip(request)
+    now = time.time()
+    recents = [t for t in _chat_requests_by_ip.get(ip, []) if now - t < 3600]
+    if recents and now - recents[-1] < CHAT_MIN_INTERVAL:
+        raise HTTPException(status_code=429, detail="Doucement, attends quelques secondes avant d'envoyer un autre message.")
+    if len(recents) >= CHAT_MAX_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Tu as envoyé beaucoup de messages : réessaie dans un moment.")
+    recents.append(now)
+    _chat_requests_by_ip[ip] = recents
+    if len(_chat_requests_by_ip) > 5000:        # pas de croissance sans fin
+        for vieille in [k for k, v in _chat_requests_by_ip.items() if now - v[-1] > 3600]:
+            _chat_requests_by_ip.pop(vieille, None)
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(pattern="^(user|assistant)$")
+    content: str = Field(max_length=MAX_USER_INPUT * 2)
+
+
+class AssistantChatRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=40)
+    derniere_config: dict | None = None     # dernière config proposée dans la discussion
+    ma_config: dict | None = None           # config en cours de la personne ({catégorie: id})
+
+
+def _mots_modele(texte):
+    """Numéros de modèle cités (« 4070 », « 7800x3d », « b650 ») pour ajouter
+    au prompt les composants dont on parle, même hors échantillon."""
+    texte = re.sub(r"\b(rtx|gtx|rx|arc)(\d)", r"\1 \2", (texte or "").lower())
+    return {m for m in re.findall(r"[a-z]*\d[a-z0-9]*", texte) if len(m) >= 3 and not re.fullmatch(r"\d{1,2}(go|gb|to|tb|w)?|\d+(€|e|eur|euros?|k)|20[1-3]\d", m)}
+
+
+def _composants_cites(texte, components, limite=24):
+    mots = _mots_modele(texte)
+    if not mots:
+        return []
+    trouves = []
+    for mot in mots:
+        candidats = [c for c in components
+                     if mot in re.findall(r"[a-z0-9]+", re.sub(r"\b(rtx|gtx|rx|arc)(\d)", r"\1 \2", c["nom"].lower()))]
+        # Un représentant par produit, en stock et le moins cher d'abord.
+        candidats.sort(key=lambda c: (not c.get("en_stock", True), c.get("prix_indicatif") or 0))
+        vus = set()
+        for c in candidats:
+            if c.get("groupe_id", c["id"]) in vus:
+                continue
+            vus.add(c.get("groupe_id", c["id"]))
+            trouves.append(c)
+            if len(vus) >= 4:
+                break
+    return trouves[:limite]
+
+
+def _ligne_composant(c):
+    specs = c.get("specs") or {}
+    utiles = [f"{k}={specs[k]}" for k in REQUIRED_FIELDS.get(c["categorie"], {}) if k in specs]
+    stock = "" if c.get("en_stock", True) else " (épuisé)"
+    return f"- id {c['id']}: [{c['categorie']}] {c['nom']}{' {' + ', '.join(utiles) + '}' if utiles else ''} ({c['prix_indicatif']}€){stock}"
+
+
+def _texte_config(ids, components_by_id):
+    lignes = [f"  - {FIELD_TO_CATEGORY_BACKEND[f]} : {components_by_id[ids[f]]['nom']} ({components_by_id[ids[f]]['prix_indicatif']}€) [id {ids[f]}]"
+              for f in CONFIG_ID_FIELDS if ids.get(f) in components_by_id]
+    return "\n".join(lignes) if lignes else "  (vide)"
+
+
+@app.post("/api/assistant/chat")
+def assistant_chat(request: AssistantChatRequest, _rate_limit=Depends(enforce_chat_rate_limit)):
+    try:
+        components = get_catalog()
+        if not components:
+            return {"status": "error", "message": "Aucun composant disponible"}
+        components_by_id = {c["id"]: c for c in components}
+
+        messages = [m for m in request.messages if m.content.strip()][-CHAT_MAX_MESSAGES:]
+        if not messages or messages[-1].role != "user":
+            raise HTTPException(status_code=400, detail="Le dernier message doit venir de l'utilisateur.")
+        question = messages[-1].content.strip()[:MAX_USER_INPUT]
+        historique = "\n".join(
+            f"{'Utilisateur' if m.role == 'user' else 'Assistant'} : {m.content.strip()[:CHAT_MAX_CHARS]}"
+            for m in messages[:-1]
+        ) or "(début de la discussion)"
+
+        # Config en cours de la personne : {catégorie: id} -> {champ: id}
+        categorie_vers_champ = {v: k for k, v in FIELD_TO_CATEGORY_BACKEND.items()}
+        ma_config = {categorie_vers_champ[cat]: cid for cat, cid in (request.ma_config or {}).items()
+                     if cat in categorie_vers_champ and isinstance(cid, int)}
+        derniere = {f: v for f, v in (request.derniere_config or {}).items() if f in CONFIG_ID_FIELDS and isinstance(v, int)}
+        budget_precedent = (request.derniere_config or {}).get("budget_max")
+
+        cites = _composants_cites(" ".join(m.content for m in messages if m.role == "user")[-1500:], components)
+        catalogue = _sample_catalog_for_prompt(components)
+        if cites:
+            catalogue += "\n" + "\n".join(_ligne_composant(c) for c in cites)
+
+        prompt = f"""Tu es l'assistant de PC Radar, un site français qui aide à monter son PC (configurateur,
+comparateur, estimation des FPS, prix Amazon suivis chaque jour). Tu discutes avec l'utilisateur comme un
+vrai conseiller PC : clair, sympa, concret, en français, en le tutoyant. Tu peux répondre à toute question
+sur les composants, la compatibilité, les jeux et les performances, le montage, les configurations.
+Si la question n'a aucun rapport avec les PC ou le jeu vidéo, dis-le gentiment en une phrase et ramène
+la discussion sur le PC.
+
+Discussion jusqu'ici :
+{historique}
+
+Config en cours de l'utilisateur (dans son configurateur) :
+{_texte_config(ma_config, components_by_id)}
+
+Dernière config que TU as proposée dans cette discussion :
+{_texte_config(derniere, components_by_id)}
+Budget de cette config : {budget_precedent if budget_precedent else "aucun"}
+
+Composants disponibles sur le site (utilise EXACTEMENT ces "id", ne les invente jamais ; les specs de
+compatibilité sont entre accolades) :
+{catalogue}
+
+Nouveau message de l'utilisateur : {question}
+
+Choisis UNE des deux formes de réponse :
+
+(1) Une réponse de discussion (question, conseil, explication, comparaison, avis sur sa config...) :
+{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>]}}
+- Réponse utile et directe, 2 à 6 phrases, ou une courte liste avec des tirets si ça aide.
+  Tu peux mettre un mot important en **gras**. Pas de titres, pas de tableaux.
+- Quand tu cites un composant du site, donne son nom tel qu'il est listé et son prix.
+- Ne donne jamais de chiffres de FPS toi-même : si l'utilisateur demande les performances dans un
+  jeu, remplis "jeux" et le site ajoutera sa propre estimation sous ta réponse.
+- Si la demande de config est trop vague (ni usage, ni budget), pose UNE question courte ici.
+
+(2) Une configuration complète : nouvelle demande de config, OU modification de la dernière config
+proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
+{{"type": "config", "message": "<1 à 3 phrases : ce que tu as choisi et pourquoi, sans lister tous les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>]}}
+- Dans "message", ne cite pas de modèle précis (la liste des composants s'affiche à côté) : explique
+  tes choix en termes généraux (gamme du processeur, niveau de la carte graphique, usage visé).
+- Pour une modification, reprends TOUS les autres composants SANS LES CHANGER, sauf ceux qu'il faut
+  ajuster pour rester compatible (ex : alimentation plus puissante pour un GPU plus gourmand).
+- Compatibilité obligatoire : même socket CPU/carte mère, même type de RAM que la carte mère, format de
+  carte mère accepté par le boîtier, alimentation suffisante. Utilise les specs entre accolades.
+- Budget : si l'utilisateur en donne un (ou garde celui de la config modifiée), mets-le dans
+  "budget_max" et ne le dépasse jamais ; vise 85 à 100 % du budget en mettant l'argent d'abord dans le
+  GPU (jeu) ou le CPU (travail). Sans budget, "budget_max": null. Ne refuse jamais un budget serré :
+  propose la meilleure config possible.
+- CPU et GPU de gamme comparable pour le jeu. Pas moins de 16 Go de RAM ni de SSD sous 500 Go si le
+  budget le permet. Ne propose pas de composant épuisé.
+
+Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans markdown autour."""
+
+        result = _generate_and_verify_suggestion(
+            prompt, components_by_id, allow_advice=True,
+            budget_hint=_budget_from_text(question), max_tokens=1200,
+        )
+
+        def estimation(ids, jeux):
+            if not jeux:
+                return None
+            chosen = [components_by_id[ids[f]] for f in CONFIG_ID_FIELDS if ids.get(f) in components_by_id]
+            return _run_fps_estimation(chosen, jeux)
+
+        jeux = result.get("jeux") if isinstance(result.get("jeux"), list) else []
+        if result["status"] == "advice":
+            base = ma_config if ma_config.get("cpu_id") and ma_config.get("gpu_id") else derniere
+            return {"status": "ok", "message": result["message"] or "Je n'ai pas compris, tu peux reformuler ?",
+                    "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]])}
+        if result["status"] == "error":
+            # Demande trop vague, budget introuvable... : c'est une réponse de la discussion.
+            return {"status": "ok", "message": result["message"]}
+
+        suggestion = result["suggestion"]
+        message = str(suggestion.pop("message", "") or "Voici ce que je te propose :")
+        suggestion.pop("type", None)
+        if result.get("ajustee"):
+            # Le serveur a changé des composants (budget, compatibilité) : le texte
+            # de l'IA peut citer des pièces qui ne sont plus dans la config.
+            cpu = components_by_id.get(suggestion.get("cpu_id"))
+            gpu = components_by_id.get(suggestion.get("gpu_id"))
+            total = compute_real_total(suggestion, components_by_id)
+            budget = suggestion.get("budget_max")
+            message = (f"Voici une config à {total:.0f} €" + (f" pour ton budget de {budget:.0f} €" if isinstance(budget, (int, float)) and budget > 0 else "")
+                       + (f", construite autour du **{cpu['nom']}** et de la **{gpu['nom']}**" if cpu and gpu else "")
+                       + ". Tout est compatible ; dis-moi si tu veux changer une pièce.")
+        jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
+        return {"status": "ok", "message": message, "suggestion": suggestion,
+                "fps_estimation": estimation(suggestion, jeux)}
+
+    except HTTPException:
+        raise
+    except Exception as error:
+        print(f"[assistant-chat] échec inattendu : {error}")
         return {"status": "error", "message": AI_PROVIDERS_UNAVAILABLE_MESSAGE}
 
 
