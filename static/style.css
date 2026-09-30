@@ -1063,6 +1063,7 @@ footer{
 }
 .footer-brand{ display:flex; flex-direction:column; gap:6px; max-width:46ch; }
 .footer-brand strong{ color:var(--text); font-weight:600; font-size:0.95rem; }
+.footer-brand .footer-amazon{ font-size:0.78rem; color:var(--text-3); }
 .footer-legal-links{ display:flex; gap:6px 20px; flex-wrap:wrap; }
 .footer-legal-links a{ color:var(--text-2); font-size:0.85rem; transition:color .2s var(--ease); }
 .footer-legal-links a:hover{ color:var(--text); }
