@@ -64,3 +64,21 @@ def test_liens_de_partage(client):
     open(chemin, "w").write("\n".join(lignes) + "\n")
     r = site_stats.compute(log_glob=chemin)
     assert {"source": "TikTok", "visites": 1} in r["provenance"]
+
+
+def test_suivi_des_liens(client):
+    import os, tempfile, main
+    from datetime import datetime
+    jour = datetime.utcnow().strftime("%d/%b/%Y")
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15"
+    l = lambda ip, chemin, statut: f'{ip} - - [{jour}:10:00:00 +0000] "GET {chemin} HTTP/1.1" {statut} 1 "-" "{ua}"'
+    lignes = [l("8.8.8.8", "/tiktok", 302), l("8.8.8.8", "/?utm_source=tiktok", 200), l("8.8.8.8", "/api/components", 200),
+              l("9.9.9.9", "/tt", 302),  # clic sans visite réelle ensuite
+              l("5.5.5.5", "/insta", 302), l("5.5.5.5", "/api/admin/stats", 200)]  # propriétaire : ignoré
+    chemin = os.path.join(tempfile.mkdtemp(), "access.log")
+    open(chemin, "w").write("\n".join(lignes) + "\n")
+    d = site_stats.compute(log_glob=chemin)
+    liens = {x["source"]: x for x in main._stats_liens({}, d)}
+    assert liens["TikTok"]["aujourdhui"] == {"clics": 2, "visiteurs": 1}
+    assert liens["Instagram"]["total"] == {"clics": 0, "visiteurs": 0}
+    assert liens["TikTok"]["lien"].endswith("/tiktok")

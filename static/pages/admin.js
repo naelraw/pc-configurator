@@ -128,6 +128,11 @@
 
   function openSite(){ window.open('/', '_blank', 'noopener'); }
 
+  async function copyLink(url){
+    try{ await navigator.clipboard.writeText(url); toast('Lien copié : ' + url.replace('https://', '')); }
+    catch(e){ toast('Copie impossible : ' + url, true); }
+  }
+
   // Le .zip est protégé par le mot de passe admin (en-tête) : un simple lien
   // ne l'enverrait pas, d'où le passage par fetch puis un lien temporaire.
   async function downloadExtension(){
@@ -820,6 +825,21 @@
       return `<ul class="rank">${rows.map(r => `<li><div class="bg" style="width:${Math.round(r[value] / top * 100)}%"></div>
         <span title="${escapeHtml(r[label])}">${escapeHtml(r[label])}</span><b>${nombre(r[value])}</b></li>`).join('')}</ul>`;
     };
+    // Liens de partage (pcradar.tech/tiktok, /insta...) : clics et visiteurs réels.
+    const L = s.liens || [];
+    const cellule = p => `<td class="num"><b>${nombre(p.visiteurs)}</b><span class="faint"> / ${nombre(p.clics)}</span></td>`;
+    const liensPanel = L.length ? `
+      <div class="panel">
+        <div class="panel-head"><h3>Liens de partage</h3><span class="faint">visiteurs / clics</span></div>
+        <div class="table-wrap" style="overflow-x:auto;"><table class="list liens-table">
+          <thead><tr><th>Réseau</th><th>Lien</th><th class="num">Aujourd'hui</th><th class="num">7 jours</th><th class="num">Total</th></tr></thead>
+          <tbody>${L.map(l => `<tr>
+            <td>${escapeHtml(l.source)}</td>
+            <td><button class="btn btn-ghost btn-sm" data-onclick="copyLink('${jsArg(l.lien)}')" title="Copier le lien"><i class="ph ph-copy"></i>${escapeHtml(l.lien.replace('https://', ''))}</button></td>
+            ${cellule(l.aujourdhui)}${cellule(l.semaine)}${cellule(l.total)}</tr>`).join('')}</tbody>
+        </table></div>
+        <p class="faint" style="margin-top:10px;font-size:0.82rem;">Clics : ouvertures du lien. Visiteurs : personnes qui ont ensuite vraiment utilisé le site (robots et toi exclus).</p>
+      </div>` : '';
     // Totaux depuis le premier jour archivé (voir _archiver_stats côté serveur).
     const T = s.total;
     const dateLongue = d => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -862,6 +882,7 @@
           <div class="devices-legend">${devices.map(([k, v], i) => `<span><i style="background:${shades[i % shades.length]}"></i>${escapeHtml(k)} ${Math.round(v / total * 100)} %</span>`).join('') || '<span>—</span>'}</div>
         </div>
       </div>
+      ${liensPanel}
       ${totaux}`;
   }
 

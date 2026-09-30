@@ -317,3 +317,8 @@ table.list .thumb.transparent img{ mix-blend-mode:normal; }
   .item .actions{ justify-content:flex-start; }
 }
 @media (prefers-reduced-motion:reduce){ *{ animation:none !important; transition:none !important; } }
+
+/* Suivi des liens de partage (vue Statistiques) */
+table.liens-table tbody tr{ cursor:default; }
+table.liens-table th.num, table.liens-table td.num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+table.liens-table td .btn{ display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); }

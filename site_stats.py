@@ -50,6 +50,16 @@ SEARCH_ENGINES = {"google": "Google", "bing": "Bing", "duckduckgo": "DuckDuckGo"
 UTM_NOMS = {"tiktok": "TikTok", "instagram": "Instagram", "youtube": "YouTube", "discord": "Discord",
             "reddit": "Reddit", "x": "X (Twitter)", "facebook": "Facebook", "snapchat": "Snapchat",
             "whatsapp": "WhatsApp", "email": "E-mail"}
+# Liens courts (pcradar.tech/<code>) → source. Utilisé aussi par main.py
+# pour créer les redirections.
+LIENS_PARTAGE = {
+    "tiktok": "tiktok", "tt": "tiktok", "insta": "instagram", "instagram": "instagram", "ig": "instagram",
+    "youtube": "youtube", "yt": "youtube", "discord": "discord", "reddit": "reddit", "x": "x",
+    "facebook": "facebook", "fb": "facebook", "snap": "snapchat", "whatsapp": "whatsapp", "wa": "whatsapp",
+}
+# Lien principal de chaque source, affiché dans l'admin.
+LIEN_PRINCIPAL = {"tiktok": "tiktok", "instagram": "insta", "youtube": "youtube", "discord": "discord",
+                  "reddit": "reddit", "x": "x", "facebook": "facebook", "snapchat": "snap", "whatsapp": "whatsapp"}
 UTM = re.compile(r"[?&]utm_source=([a-z0-9_-]{1,30})", re.IGNORECASE)
 
 
@@ -107,14 +117,22 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
     """
     since = (datetime.utcnow() - timedelta(days=days - 1)).date()
     navigateurs, exclus = set(), set()
+    # Clics sur les liens courts (redirection 302), robots exclus.
+    clics, clics_bruts = defaultdict(Counter), []
     for m in _lines(log_glob):
         path = m["path"]
+        code = path.split("?", 1)[0].strip("/").lower()
+        if code in LIENS_PARTAGE and m["status"] == "302" and m["ua"] not in ("", "-") and not BOTS.search(m["ua"])                 and m["ip"] not in excluded_ips:
+            clics_bruts.append((m["ip"], m["day"], LIENS_PARTAGE[code]))
         if path.startswith("/api/admin/") and m["status"] == "200":
             exclus.add((m["ip"], m["day"]))
         elif PROBES.search(path):
             exclus.add((m["ip"], m["day"]))
         elif path.startswith("/api/") and m["status"] in ("200", "304"):
             navigateurs.add((m["ip"], m["ua"], m["day"]))
+    for ip, jour, source in clics_bruts:
+        if (ip, jour) not in exclus:  # pas les clics du propriétaire
+            clics[datetime.strptime(jour, "%d/%b/%Y").date()][source] += 1
     week_start = (datetime.utcnow() - timedelta(days=6)).date()
     per_day_views, per_day_visitors = Counter(), defaultdict(set)
     pages, sources = Counter(), Counter()
@@ -124,6 +142,7 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
     # Détail par jour, pour l'archive des totaux (main.py) : uniquement des
     # compteurs, aucune adresse ni empreinte.
     day_pages, day_sources, day_types = defaultdict(Counter), defaultdict(Counter), defaultdict(dict)
+    day_liens = defaultdict(lambda: defaultdict(set))  # jour → source → appareils arrivés par le lien
     for m in _lines(log_glob):
         if m["method"] != "GET" or m["status"] not in ("200", "304"):
             continue
@@ -143,6 +162,9 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
         all_devices.add(device)
         day_pages[day][page] += 1
         day_types[day][device] = "Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"
+        utm = UTM.search(m["path"])
+        if utm:
+            day_liens[day][utm.group(1).lower()].add(device)
         day_src = _utm(m["path"]) or _source(m["ref"], host)
         if day_src:
             day_sources[day][day_src] += 1
@@ -166,6 +188,8 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
         "appareils": dict(Counter(week_devices.values())),
         "detail": {d.isoformat(): {"visiteurs": len(per_day_visitors[d]), "pages_vues": per_day_views[d],
                                    "pages": dict(day_pages[d]), "sources": dict(day_sources[d]),
-                                   "appareils": dict(Counter(day_types[d].values()))}
+                                   "appareils": dict(Counter(day_types[d].values())),
+                                   "liens": {src: {"clics": clics[d][src], "visiteurs": len(day_liens[d][src])}
+                                             for src in set(clics[d]) | set(day_liens[d])}}
                    for d in days_list},
     }

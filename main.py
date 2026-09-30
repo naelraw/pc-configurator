@@ -885,11 +885,7 @@ def application_page():
 # Liens courts à mettre sur les réseaux (bio TikTok, Instagram...) : ils
 # mènent à l'accueil en marquant la provenance (utm_source), que les
 # statistiques de l'admin reconnaissent (site_stats.py).
-LIENS_PARTAGE = {
-    "tiktok": "tiktok", "tt": "tiktok", "insta": "instagram", "instagram": "instagram", "ig": "instagram",
-    "youtube": "youtube", "yt": "youtube", "discord": "discord", "reddit": "reddit", "x": "x",
-    "facebook": "facebook", "fb": "facebook", "snap": "snapchat", "whatsapp": "whatsapp", "wa": "whatsapp",
-}
+LIENS_PARTAGE = site_stats.LIENS_PARTAGE
 
 
 def _lien_partage(code: str):
@@ -3638,6 +3634,7 @@ def admin_site_stats(_admin=Depends(require_admin)):
         data = site_stats.compute(excluded_ips=STATS_EXCLUDED_IPS)
         historique = _archiver_stats(data)
         data["total"] = _totaux_stats(historique, data)
+        data["liens"] = _stats_liens(historique, data)
         data.pop("detail", None)
         _STATS_CACHE.update(at=time.time(), data=data)
     return _STATS_CACHE["data"]
@@ -3667,6 +3664,30 @@ def _archiver_stats(data):
     if change:
         _state_set("stats_historique", historique)
     return historique
+
+
+def _stats_liens(historique, data):
+    """Suivi des liens de partage : clics et visiteurs par réseau,
+    aujourd'hui, sur 7 jours et depuis le début de l'archive."""
+    aujourd_hui = datetime.utcnow().date()
+    jours = dict(historique)
+    jours.update(data.get("detail", {}))
+    lignes = []
+    for source, code in site_stats.LIEN_PRINCIPAL.items():
+        periodes = {"aujourdhui": [0, 0], "semaine": [0, 0], "total": [0, 0]}
+        for jour, j in jours.items():
+            l = (j.get("liens") or {}).get(source)
+            if not l:
+                continue
+            ecart = (aujourd_hui - datetime.fromisoformat(jour).date()).days
+            for nom, ok in (("aujourdhui", ecart == 0), ("semaine", 0 <= ecart < 7), ("total", True)):
+                if ok:
+                    periodes[nom][0] += l.get("clics", 0)
+                    periodes[nom][1] += l.get("visiteurs", 0)
+        lignes.append({"source": site_stats.UTM_NOMS.get(source, source), "lien": f"{SITE_URL}/{code}",
+                       **{nom: {"clics": v[0], "visiteurs": v[1]} for nom, v in periodes.items()}})
+    lignes.sort(key=lambda l: (-l["total"]["visiteurs"], -l["total"]["clics"]))
+    return lignes
 
 
 def _totaux_stats(historique, data):
