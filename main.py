@@ -2210,6 +2210,11 @@ FEATURED_LOCK = threading.Lock()
 
 
 @app.get("/api/configs-vedette")
+def configs_vedette_api():
+    """Configs du moment de l'accueil (sans les guides par budget, inutiles à la page)."""
+    return {k: v for k, v in featured_configs().items() if k != "budgets"}
+
+
 def featured_configs():
     """
     Configurations de la page d'accueil, recalculées depuis le catalogue en
@@ -2235,8 +2240,8 @@ def featured_configs():
 
 def _compute_featured_configs():
     components = get_catalog()
-    configs = []
-    for profile in featured_builds.PROFILES:
+    configs, budgets = [], []
+    for profile in featured_builds.PROFILES + featured_builds.BUDGET_PROFILES:
         try:
             built = featured_builds.build_profile(components, profile)
         except Exception as error:
@@ -2250,7 +2255,7 @@ def _compute_featured_configs():
         for r in (estimation or {}).get("resultats", []):
             if r.get("couvert"):
                 fps.append({"jeu": r["jeu"], "fps": r["resolutions"][profile["resolution"]]["fps"]})
-        configs.append({
+        (budgets if profile["id"].startswith("budget-") else configs).append({
             "id": profile["id"],
             "titre": profile["titre"],
             "onglet": profile["onglet"],
@@ -2269,7 +2274,7 @@ def _compute_featured_configs():
                 for cat, c in parts.items()
             ],
         })
-    data = {"status": "ok", "nb_composants": len(components), "configs": configs}
+    data = {"status": "ok", "nb_composants": len(components), "configs": configs, "budgets": budgets}
     if configs:
         FEATURED_CACHE.update(at=time.time(), data=data)
 
@@ -2371,10 +2376,11 @@ def comparison_page(slug: str):
 
 @app.get("/guides")
 def guides_index_page():
-    configs = featured_configs().get("configs", [])
+    donnees = featured_configs()
+    configs = donnees.get("configs", [])
     if not configs:
         raise HTTPException(status_code=503, detail="Guides momentanément indisponibles.")
-    return HTMLResponse(guides.render_index(configs))
+    return HTMLResponse(guides.render_index(configs, donnees.get("budgets", [])))
 
 
 @app.get("/guides/{slug}")
@@ -2383,7 +2389,8 @@ def guide_page(slug: str):
     profile_id = guides.GUIDES.get(slug)
     if not profile_id:
         raise HTTPException(status_code=404, detail="Guide introuvable.")
-    configs = featured_configs().get("configs", [])
+    donnees = featured_configs()
+    configs = donnees.get("configs", []) + donnees.get("budgets", [])
     config = next((c for c in configs if c["id"] == profile_id), None)
     if not config:
         raise HTTPException(status_code=503, detail="Guide momentanément indisponible.")

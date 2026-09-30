@@ -43,6 +43,29 @@ PROFILES = [
     },
 ]
 
+# Pages « Config PC gamer à X € » (guides par budget, /guides/config-pc-gamer-X-euros) :
+# même moteur, mais pas affichées dans les « Configs du moment » de l'accueil.
+def _profil_budget(budget):
+    haut = budget >= 1500
+    return {
+        "id": f"budget-{budget}", "onglet": f"{budget} €", "titre": f"PC gamer à {budget} €",
+        "usage": "Jouer en 1080p" if budget < 1100 else "Jouer en 1440p",
+        "budget": budget, "resolution": "1080p" if budget < 1100 else "1440p",
+        "qualite": "ultra" if budget >= 1000 else "eleve",
+        "ram_go": 32 if haut else 16, "ssd_go": 2000 if budget >= 2500 else 1000 if budget >= 900 else 500,
+        **({"ram_type": "DDR5"} if budget >= 1800 else {}),
+        "min_prix": {
+            "Carte mère": 60 if budget < 900 else 90 if budget < 1500 else 130,
+            "Boîtier": 40 if budget < 900 else 55 if budget < 1500 else 80,
+            "Alimentation": 40 if budget < 900 else 55 if budget < 1500 else 80,
+            "Refroidissement": 15 if budget < 1500 else 30,
+        },
+    }
+
+
+BUDGETS_GUIDES = (700, 800, 900, 1000, 1200, 1500, 1800, 2500)
+BUDGET_PROFILES = [_profil_budget(b) for b in BUDGETS_GUIDES]
+
 # Jeux affichés pour chaque config (noms tels que connus de fps_data).
 SHOWCASE_GAMES = ["Cyberpunk 2077", "Fortnite", "Counter-Strike 2"]
 

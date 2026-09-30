@@ -16,6 +16,8 @@ GUIDES = {
     "pc-gamer-haut-de-gamme": "1440p-plus",
     "pc-gamer-4k": "4k",
 }
+# Guides par budget : « Config PC gamer à 800 € » (voir featured_builds.BUDGET_PROFILES).
+GUIDES.update({f"config-pc-gamer-{b}-euros": f"budget-{b}" for b in (700, 800, 900, 1000, 1200, 1500, 1800, 2500)})
 SLUG_BY_PROFILE = {v: k for k, v in GUIDES.items()}
 
 MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
@@ -169,6 +171,8 @@ def render_guide(config, all_configs, catalog_by_id):
     title = f"Meilleur PC gamer {res} à {total} ({mois}) — PC Radar"
     if config["id"] == "1440p-plus":
         title = f"Meilleur PC gamer haut de gamme à {total} ({mois}) — PC Radar"
+    if config["id"].startswith("budget-"):
+        title = f"Config PC gamer à {_euros(config['budget'], False)} ({mois}) — PC Radar"
     description = (
         f"{config['titre']} : {cpu['nom'] if cpu else ''} + {gpu['nom'] if gpu else ''}, "
         f"{total}, compatibilité vérifiée. FPS estimés en {res} et prix mis à jour chaque jour."
@@ -186,7 +190,7 @@ def render_guide(config, all_configs, catalog_by_id):
     others = "".join(
         f"<a class=\"guide-other\" href=\"/guides/{SLUG_BY_PROFILE[c['id']]}\">"
         f"<span>{escape(c['onglet'])} · {escape(c['titre'])}</span><b>{_euros(c['total'], False)}</b></a>"
-        for c in all_configs if c["id"] != config["id"]
+        for c in sorted(all_configs, key=lambda c: c["budget"]) if c["id"] != config["id"]
     )
     reasons = "".join(f"<li>{r}</li>" for r in _reasons(config, catalog_by_id))
     build_json = escape(json.dumps(config["composants_json"]))
@@ -237,7 +241,7 @@ def render_guide(config, all_configs, catalog_by_id):
     return _page(title, description, canonical, body)
 
 
-def render_index(all_configs):
+def render_index(all_configs, budgets=()):
     date_long, mois = _today()
     cards = "".join(
         f"<a class=\"guide-other\" href=\"/guides/{SLUG_BY_PROFILE[c['id']]}\">"
@@ -245,6 +249,14 @@ def render_index(all_configs):
         f"<b>{_euros(c['total'], False)}</b></a>"
         for c in all_configs
     )
+    par_budget = "".join(
+        f"<a class=\"guide-other\" href=\"/guides/{SLUG_BY_PROFILE[c['id']]}\">"
+        f"<span>Config PC gamer à {_euros(c['budget'], False)} — {escape(c['usage'])}</span>"
+        f"<b>{_euros(c['total'], False)}</b></a>"
+        for c in sorted(budgets, key=lambda c: c["budget"])
+    )
+    if par_budget:
+        cards += f"</div>\n  <h2>Par budget</h2>\n  <div class=\"guide-others\">{par_budget}"
     body = f"""
 <main class="legal-page guide-page">
   <a href="/" class="legal-back">← Retour à l'accueil</a>
@@ -252,7 +264,7 @@ def render_index(all_configs):
   <h1>Quel PC gamer acheter selon ton budget</h1>
   <div class="legal-updated">Mis à jour le {date_long} · prix relevés chaque jour</div>
   <p class="guide-lede">
-    Quatre configurations complètes, recalculées chaque jour à partir des composants en stock :
+    Des configurations complètes par résolution et par budget, recalculées chaque jour à partir des composants en stock :
     la combinaison processeur + carte graphique qui donne le plus de FPS pour le budget, et des
     pièces compatibles autour.
   </p>
