@@ -1180,22 +1180,22 @@ a.bento-cell:hover .more{ color:var(--accent); }
    FOOTER ET PAGES LÉGALES
    ========================================================================== */
 footer{
-  border-top:1px solid var(--line); margin-top:40px;
-  color:var(--text-3); font-size:0.85rem;
+  border-top:1px solid var(--line); margin-top:24px;
+  color:var(--text-3); font-size:0.78rem; line-height:1.45;
 }
 .footer-inner{
-  max-width:1200px; margin:0 auto; padding:36px 24px 40px;
-  display:flex; justify-content:space-between; align-items:flex-start; gap:24px; flex-wrap:wrap;
+  max-width:1200px; margin:0 auto; padding:16px 24px 18px;
+  display:flex; justify-content:space-between; align-items:center; gap:10px 24px; flex-wrap:wrap;
 }
-.footer-brand{ display:flex; flex-direction:column; gap:6px; max-width:46ch; }
-.footer-brand strong{ color:var(--text); font-weight:600; font-size:0.95rem; }
-.footer-brand .footer-amazon{ font-size:0.78rem; color:var(--text-3); }
-.footer-legal-links{ display:flex; gap:6px 20px; flex-wrap:wrap; }
-.footer-legal-links a{ color:var(--text-2); font-size:0.85rem; transition:color .2s var(--ease); }
+.footer-brand{ display:flex; flex-direction:column; gap:2px; max-width:78ch; }
+.footer-brand strong{ color:var(--text); font-weight:600; font-size:0.85rem; }
+.footer-brand .footer-amazon{ font-size:0.72rem; color:var(--text-3); }
+.footer-legal-links{ display:flex; gap:4px 16px; flex-wrap:wrap; }
+.footer-legal-links a{ color:var(--text-2); font-size:0.78rem; transition:color .2s var(--ease); }
 .footer-legal-links a:hover{ color:var(--text); }
 /* Pages sans .footer-inner (ancienne structure) */
-footer > p{ max-width:1200px; margin:0 auto; padding:36px 24px 0; }
-footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:14px 24px 40px; }
+footer > p{ max-width:1200px; margin:0 auto; padding:16px 24px 0; }
+footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:8px 24px 18px; }
 
 .legal-page{ max-width:760px; margin:0 auto; padding:56px 24px 40px; }
 .legal-page .legal-back{ display:inline-flex; align-items:center; gap:6px; margin-bottom:28px; color:var(--text-2); font-size:0.86rem; }
@@ -1254,7 +1254,7 @@ footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:14px 24px
   .price-row{ flex-wrap:wrap; }
   .price-row .vendeur{ flex-basis:100%; }
   .price-row .prix{ text-align:left; }
-  .footer-inner{ padding:32px 16px; flex-direction:column; }
+  .footer-inner{ padding:14px 16px 16px; flex-direction:column; align-items:flex-start; }
 }
 
 @media (prefers-reduced-motion:reduce){
