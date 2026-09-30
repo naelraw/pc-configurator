@@ -638,6 +638,7 @@ def verify_compatibility(suggestion):
         "psu_id": "Alimentation",
         "storage_id": "Stockage",
         "case_id": "Boîtier",
+        "cooler_id": "Refroidissement",
     }
     required_fields = ("cpu_id", "ram_id", "gpu_id")
 
@@ -5089,7 +5090,7 @@ def compute_real_total(suggestion_json, components_by_id):
     Recalcule le prix total réel à partir des prix stockés en base — jamais
     confiance dans un total que l'IA pourrait annoncer elle-même.
     """
-    fields = ("cpu_id", "motherboard_id", "ram_id", "gpu_id", "psu_id", "storage_id", "case_id")
+    fields = ("cpu_id", "motherboard_id", "ram_id", "gpu_id", "psu_id", "storage_id", "case_id", "cooler_id")
     total = 0.0
     for field in fields:
         component = components_by_id.get(suggestion_json.get(field))
@@ -5274,6 +5275,73 @@ def _fit_to_budget(suggestion, budget, components_by_id):
 # ---------------------------------------------------------------------------
 CERTIFICATIONS_OK = ("Bronze", "Gold", "Platinum", "Titanium")
 
+# Ventirad fourni dans la boîte (versions « box ») : les fiches Amazon ne le
+# disent pas de façon fiable (« Méthode de refroidissement : Air » même sans
+# ventirad). Règles des fabricants : chez AMD, seuls ces modèles ont un Wraith ;
+# chez Intel, les processeurs non « K » ont un Laminar. Version « tray » : jamais.
+# Dans le doute on répond « non » : un ventirad en trop coûte 20 €, un ventirad
+# manquant empêche le PC de démarrer.
+AMD_AVEC_VENTIRAD = {
+    "1600", "2600", "3100", "3200g", "3400g", "3600", "4100", "4500", "4600g", "5300g", "5500", "5500gt", "5600", "5600g", "5600gt",
+    "5600t", "5600x", "5600xt", "5700", "5700g", "7600", "7700", "7900", "8300g", "8400f", "8500g",
+    "8600g", "8700g", "8700f",
+}
+CHAMP_VENTIRAD = "cooler_id"
+
+
+def ventirad_fourni(cpu):
+    nom = (cpu or {}).get("nom", "").lower()
+    if not nom or re.search(r"\b(tray|oem)\b", nom):
+        return False
+    m = re.search(r"ryzen\s*\d\s*(?:pro\s*)?(\d{4}[a-z0-9]*)", nom)
+    if m:
+        return m.group(1) in AMD_AVEC_VENTIRAD
+    m = re.search(r"i[3579]\W{0,2}\d{4,5}([a-z]*)", nom) or re.search(r"ultra\s*\d\s*\d{3}([a-z]*)", nom)
+    if m:
+        return "k" not in m.group(1)
+    return False
+
+
+def _choisir_ventirad(cpu, boitier, components_by_id):
+    """Refroidissement le moins cher compatible (socket, hauteur ou radiateur
+    dans le boîtier) ; watercooling 240 mm ou plus pour les processeurs de plus de 150 W."""
+    specs_cpu = (cpu or {}).get("specs") or {}
+    specs_boitier = (boitier or {}).get("specs") or {}
+    gros = (specs_cpu.get("tdp") or 0) >= 150
+    options = []
+    for c in components_by_id.values():
+        s = c.get("specs") or {}
+        if c.get("categorie") != "Refroidissement" or not c.get("en_stock", True) or not float(c.get("prix_indicatif") or 0):
+            continue
+        type_ = s.get("type_refroidissement")
+        if type_ not in ("Ventirad", "Watercooling AIO") or not s.get("sockets_supportes"):
+            continue
+        if gros and not (type_ == "Watercooling AIO" and (s.get("radiateur_mm") or 0) >= 240):
+            continue
+        if not check_refroidissement(specs_cpu, specs_boitier, s)[0]:
+            continue
+        options.append(c)
+    return min(options, key=lambda c: float(c["prix_indicatif"]), default=None)
+
+
+def _ajouter_ventirad(config, components_by_id):
+    """Ajoute un refroidissement quand le processeur est vendu sans (ou garde
+    celui choisi s'il est compatible), et le retire quand il est fourni."""
+    config = dict(config)
+    cpu = components_by_id.get(config.get("cpu_id"))
+    boitier = components_by_id.get(config.get("case_id"))
+    actuel = components_by_id.get(config.get(CHAMP_VENTIRAD))
+    config["ventirad_fourni"] = bool(cpu) and ventirad_fourni(cpu)
+    if actuel and actuel.get("categorie") == "Refroidissement" and cpu and \
+            check_refroidissement(cpu.get("specs") or {}, (boitier or {}).get("specs") or {}, actuel.get("specs") or {})[0]:
+        return config                       # choisi explicitement et compatible : on le garde
+    config.pop(CHAMP_VENTIRAD, None)
+    if cpu and not config["ventirad_fourni"]:
+        choisi = _choisir_ventirad(cpu, boitier, components_by_id)
+        if choisi:
+            config[CHAMP_VENTIRAD] = choisi["id"]
+    return config
+
 
 def _score_config(cpu, gpu, usage="jeu"):
     """Performance attendue pour l'usage. En jeu, la partie de la carte
@@ -5361,6 +5429,13 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
     sto_min = int(contraintes.get("stockage_min_go") or (1000 if budget >= 900 else 500))
     stockages = choix("storage_id", [c for c in par_cat.get("Stockage", []) if ((c.get("specs") or {}).get("capacite_go") or 0) >= sto_min * 0.93]
                       or par_cat.get("Stockage", []))
+    # Plus le budget est gros, plus le SSD suit : NVMe rapide puis 2 To.
+    if "storage_id" not in fixes:
+        if budget >= 1300:
+            stockages = [c for c in stockages if c["specs"].get("type") == "NVMe"
+                         and (c["specs"].get("lecture_mo_s") or 0) >= (5000 if budget >= 2000 else 3500)] or stockages
+        if budget >= 2500 and not contraintes.get("stockage_min_go"):
+            stockages = [c for c in stockages if (c["specs"].get("capacite_go") or 0) >= 1900] or stockages
     stockage = stockages[0] if stockages else None
 
     # Certifiée 80 PLUS au minimum Bronze, Gold à partir de 1 100 € : l'alimentation
@@ -5370,6 +5445,10 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
              if (c.get("specs") or {}).get("wattage") and any(x in str(c["specs"].get("certification") or "") for x in certifs)]
     alims = choix("psu_id", alims)
     boitiers = choix("case_id", par_cat.get("Boîtier", []))
+    # Une part du budget pour le boîtier (flux d'air, finitions) au-delà de 900 €.
+    prix_min_boitier = 0 if budget < 900 else 55 if budget < 1300 else 75 if budget < 2000 else 95
+    if "case_id" not in fixes:
+        boitiers = [c for c in boitiers if prix(c) >= prix_min_boitier] or boitiers
     if contraintes.get("rgb") is True and "case_id" not in fixes:
         boitiers = [c for c in boitiers if re.search(r"rgb", c["nom"], re.I)] or boitiers
     elif contraintes.get("compact") is True and "case_id" not in fixes:
@@ -5406,6 +5485,7 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
         return None
 
     meilleur = None
+    ventirads = {}
     for cpu in cpus:
         for (socket, _type), (cout_plateforme, carte, ram) in plateformes.items():
             if socket != cpu["specs"]["socket"]:
@@ -5420,7 +5500,15 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
                 boitier = boitier_pour(carte, gpu)
                 if not alim or not boitier:
                     continue
-                total = base + prix(gpu) + prix(alim) + prix(boitier)
+                refroid = None
+                if not ventirad_fourni(cpu):
+                    cle = (cpu["specs"]["socket"], (cpu["specs"].get("tdp") or 0) >= 150, boitier["id"])
+                    if cle not in ventirads:
+                        ventirads[cle] = _choisir_ventirad(cpu, boitier, components_by_id)
+                    refroid = ventirads[cle]
+                    if not refroid:
+                        continue
+                total = base + prix(gpu) + prix(alim) + prix(boitier) + (prix(refroid) if refroid else 0)
                 if total > budget:
                     continue
                 score = _score_config(cpu, gpu, usage)
@@ -5428,6 +5516,7 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
                     meilleur = (score, total, {
                         "cpu_id": cpu["id"], "motherboard_id": carte["id"], "ram_id": ram["id"], "gpu_id": gpu["id"],
                         "psu_id": alim["id"], "storage_id": stockage["id"], "case_id": boitier["id"],
+                        **({CHAMP_VENTIRAD: refroid["id"]} if refroid else {}),
                     })
     if not meilleur:
         return None
@@ -5569,11 +5658,14 @@ Réponds UNIQUEMENT avec le JSON demandé."""
             return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or [],
                     "composants": parsed.get("composants") or []}
 
+        # Processeur vendu sans ventirad : le site en ajoute un (compté dans le budget).
+        if isinstance(parsed, dict) and parsed.get("cpu_id"):
+            parsed = _ajouter_ventirad(parsed, components_by_id)
         compatibility_result = verify_compatibility(parsed)
         if not compatibility_result["compatible"] and isinstance(parsed, dict):
             reparee = _repair_compatibility(parsed, components_by_id)
             if reparee is not None:
-                parsed = reparee
+                parsed = _ajouter_ventirad(reparee, components_by_id)
                 ajustee_par_serveur = True
                 compatibility_result = verify_compatibility(parsed)
         errors = list(compatibility_result["errors"])
@@ -5595,18 +5687,18 @@ Réponds UNIQUEMENT avec le JSON demandé."""
                 score_opt = _score_config(components_by_id[optimale["cpu_id"]], components_by_id[optimale["gpu_id"]], usage or "jeu")
                 ia_valable = compatibility_result["compatible"] and compute_real_total(parsed, components_by_id) <= budget_max
                 if not ia_valable or score_opt > score_ia * 1.08:
-                    return {"status": "ok", "suggestion": {**parsed, **optimale}, "ajustee": True}
+                    return {"status": "ok", "suggestion": _ajouter_ventirad({**{k: v for k, v in parsed.items() if k != CHAMP_VENTIRAD}, **optimale}, components_by_id), "ajustee": True}
 
         if compatibility_result["compatible"] and isinstance(budget_max, (int, float)) and budget_max > 0:
             real_total = compute_real_total(parsed, components_by_id)
             if real_total > budget_max and modification and precedente:
                 ajustee = _ajuster_modification(parsed, precedente, budget_max, components_by_id)
                 if ajustee is not None:
-                    return {"status": "ok", "suggestion": ajustee, "ajustee": True}
+                    return {"status": "ok", "suggestion": _ajouter_ventirad(ajustee, components_by_id), "ajustee": True}
             if real_total > budget_max:
                 ajustee = _fit_to_budget(parsed, budget_max, components_by_id)
                 if ajustee is not None:
-                    return {"status": "ok", "suggestion": ajustee, "ajustee": True}
+                    return {"status": "ok", "suggestion": _ajouter_ventirad(ajustee, components_by_id), "ajustee": True}
                 overage = real_total - budget_max
                 errors.append(
                     f"Le total réel de cette configuration ({real_total:.2f}€) dépasse le "
@@ -5618,7 +5710,7 @@ Réponds UNIQUEMENT avec le JSON demandé."""
                 )
 
         if not errors:
-            return {"status": "ok", "suggestion": parsed, "ajustee": ajustee_par_serveur}
+            return {"status": "ok", "suggestion": _ajouter_ventirad(parsed, components_by_id), "ajustee": ajustee_par_serveur}
 
         last_errors = errors
         if attempt < MAX_AI_ATTEMPTS:
@@ -5926,8 +6018,9 @@ def _ligne_composant(c):
 
 
 def _texte_config(ids, components_by_id):
-    lignes = [f"  - {FIELD_TO_CATEGORY_BACKEND[f]} : {components_by_id[ids[f]]['nom']} ({components_by_id[ids[f]]['prix_indicatif']}€) [id {ids[f]}]"
-              for f in CONFIG_ID_FIELDS if ids.get(f) in components_by_id]
+    champs = {**FIELD_TO_CATEGORY_BACKEND, CHAMP_VENTIRAD: "Refroidissement"}
+    lignes = [f"  - {champs[f]} : {components_by_id[ids[f]]['nom']} ({components_by_id[ids[f]]['prix_indicatif']}€) [id {ids[f]}]"
+              for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD) if ids.get(f) in components_by_id]
     return "\n".join(lignes) if lignes else "  (vide)"
 
 
@@ -5949,10 +6042,10 @@ def assistant_chat(request: AssistantChatRequest, _rate_limit=Depends(enforce_ch
         ) or "(début de la discussion)"
 
         # Config en cours de la personne : {catégorie: id} -> {champ: id}
-        categorie_vers_champ = {v: k for k, v in FIELD_TO_CATEGORY_BACKEND.items()}
+        categorie_vers_champ = {**{v: k for k, v in FIELD_TO_CATEGORY_BACKEND.items()}, "Refroidissement": CHAMP_VENTIRAD}
         ma_config = {categorie_vers_champ[cat]: cid for cat, cid in (request.ma_config or {}).items()
                      if cat in categorie_vers_champ and isinstance(cid, int)}
-        derniere = {f: v for f, v in (request.derniere_config or {}).items() if f in CONFIG_ID_FIELDS and isinstance(v, int)}
+        derniere = {f: v for f, v in (request.derniere_config or {}).items() if f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD) and isinstance(v, int)}
         budget_precedent = (request.derniere_config or {}).get("budget_max")
 
         cites = _composants_cites(" ".join(m.content for m in messages if m.role == "user")[-1500:], components)
@@ -6016,11 +6109,13 @@ Choisis UNE des deux formes de réponse :
 
 (2) Une configuration complète : nouvelle demande de config, OU modification de la dernière config
 proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
-{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>}}}}
+{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "cooler_id": <id d'un refroidissement ou null>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>}}}}
 - "contraintes" résume les souhaits exprimés dans toute la discussion (null quand il n'a rien dit) : le site
   s'en sert pour optimiser la config dans le budget.
 - Dans "message", ne cite pas de modèle précis (la liste des composants s'affiche à côté) : explique
   tes choix en termes généraux (gamme du processeur, niveau de la carte graphique, usage visé).
+- "cooler_id" : laisse null, le site ajoute seul un ventirad quand le processeur est vendu sans. Mets un id
+  seulement si l'utilisateur demande un refroidissement précis ou d'en changer.
 - Pour une modification, reprends TOUS les autres composants SANS LES CHANGER, sauf ceux qu'il faut
   ajuster pour rester compatible (ex : alimentation plus puissante pour un GPU plus gourmand).
 - Compatibilité obligatoire : même socket CPU/carte mère, même type de RAM que la carte mère, format de

@@ -13,6 +13,7 @@
     psu_id: 'Alimentation',
     storage_id: 'Stockage',
     case_id: 'Boîtier',
+    cooler_id: 'Refroidissement',
   };
 
   // Bouton "Plus de filtres", visible seulement sur mobile (voir CSS) :
@@ -909,9 +910,10 @@
       saveDraftToLocalStorage();
 
       const hint = document.getElementById('config-hint');
-      hint.textContent = appliedCount === Object.keys(FIELD_TO_CATEGORY).length
+      const attendus = Object.keys(FIELD_TO_CATEGORY).filter(f => suggestion[f] != null).length;
+      hint.textContent = appliedCount === attendus
         ? "Configuration proposée par l'assistant IA appliquée ci-dessous."
-        : `Configuration IA appliquée partiellement (${appliedCount}/${Object.keys(FIELD_TO_CATEGORY).length} composants trouvés).`;
+        : `Configuration IA appliquée partiellement (${appliedCount}/${attendus} composants trouvés).`;
       hint.classList.add('show');
       checkCompatibilityLive();
       return;

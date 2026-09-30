@@ -15,6 +15,7 @@
     psu_id: 'Alimentation',
     storage_id: 'Stockage',
     case_id: 'Boîtier',
+    cooler_id: 'Refroidissement',
   };
   const EXEMPLES = [
     'Une config gaming à 1000 €',
@@ -117,6 +118,13 @@
     let total = 0, toutDedans = true;
     const lignes = Object.entries(FIELD_TO_CATEGORY).map(([champ, cat]) => {
       const item = composantsParId.get(suggestion[champ]);
+      if(!item && champ === 'cooler_id'){
+        // Refroidissement : ajouté seulement si le processeur est vendu sans.
+        return suggestion.ventirad_fourni
+          ? `<li class="cfg-ligne"><span class="cfg-cat">${escapeHtml(cat)}</span>
+              <span class="cfg-nom cfg-vide">Ventirad fourni avec le processeur</span></li>`
+          : '';
+      }
       if(!item){
         return `<li class="cfg-ligne"><span class="cfg-cat">${escapeHtml(cat)}</span>
           <span class="cfg-nom cfg-vide">Pas disponible sur le site</span></li>`;
