@@ -482,6 +482,62 @@
         ],
         "createdAt": "2026-09-23T19:45:25.416Z",
         "reason": "user confirmed: asked for more effects 'comme cet effet', showing the emerald radial glow of the home CTA block"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/index.html"
+        ],
+        "createdAt": "2026-09-30T15:44:02.363Z"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/configurateur.html"
+        ],
+        "createdAt": "2026-09-30T15:44:05.583Z"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/compte.html"
+        ],
+        "createdAt": "2026-09-30T15:44:08.931Z"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/build-view.html"
+        ],
+        "createdAt": "2026-09-30T15:44:12.412Z"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/comparateur.html"
+        ],
+        "createdAt": "2026-09-30T15:44:15.729Z"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/mentions-legales.html"
+        ],
+        "createdAt": "2026-09-30T15:44:19.214Z"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "static/confidentialite.html"
+        ],
+        "createdAt": "2026-09-30T15:44:22.709Z"
       }
     ]
   }
