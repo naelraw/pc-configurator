@@ -5230,6 +5230,8 @@ def _fit_to_budget(suggestion, budget, components_by_id):
             return (specs_new.get("capacite_go") or 0) >= min(500, specs_old.get("capacite_go") or 0)
         if field == "ram_id":
             return (specs_new.get("capacite_go") or 0) >= min(16, specs_old.get("capacite_go") or 0)
+        if field == "psu_id":
+            return any(x in str(specs_new.get("certification") or "") for x in CERTIFICATIONS_OK)
         return True
 
     by_category = {}
@@ -5260,6 +5262,202 @@ def _fit_to_budget(suggestion, budget, components_by_id):
             return None
         config[swap[0]] = swap[1]
     return config if compute_real_total(config, components_by_id) <= budget else None
+
+
+# ---------------------------------------------------------------------------
+# Optimiseur de config sous budget. Les IA additionnent mal et _fit_to_budget
+# ne change qu'une pièce à la fois : il ne peut pas passer d'une plateforme
+# DDR5 à DDR4 (carte mère + RAM ensemble) et sacrifie donc la carte
+# graphique quand la RAM est chère. Ici on cherche la meilleure combinaison
+# complète qui tient dans le budget, en respectant les souhaits de la
+# personne (Wi-Fi, stockage, marques, look) et une alimentation certifiée.
+# ---------------------------------------------------------------------------
+CERTIFICATIONS_OK = ("Bronze", "Gold", "Platinum", "Titanium")
+
+
+def _score_config(cpu, gpu, usage="jeu"):
+    """Performance attendue pour l'usage. En jeu, la partie de la carte
+    graphique que le processeur ne peut pas suivre ne compte pas
+    (RTX 5060 ≈ 100 veut un CPU ≈ 85 ; RX 9070 XT ≈ 197 un CPU ≈ 114)."""
+    pc = float((cpu or {}).get("perf_index") or 0)
+    pg = float((gpu or {}).get("perf_index") or 0)
+    if usage == "travail":
+        return pc + 0.15 * pg
+    if usage == "creation":
+        return pc + 0.5 * pg
+    utile = min(pg, max(0.0, (pc - 55) / 0.3))
+    return utile + (0.5 if usage == "mixte" else 0.25) * pc
+
+
+def _optimiser_config(budget, components_by_id, contraintes=None, fixes=None):
+    """Meilleure config complète et compatible dont le total tient dans le
+    budget, ou None. `fixes` : pièces demandées explicitement, gardées telles
+    quelles. Si les règles de qualité (RAM rapide, marge d'alimentation, Gold
+    au-delà de 1 100 €) rendent le budget impossible, on réessaie sans elles."""
+    return (_optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigeant=True)
+            or _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigeant=False))
+
+
+def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigeant):
+    contraintes = contraintes if isinstance(contraintes, dict) else {}
+    fixes = {k: v for k, v in (fixes or {}).items() if v in components_by_id}
+    usage = contraintes.get("usage") if contraintes.get("usage") in ("jeu", "travail", "creation", "mixte") else "jeu"
+
+    def prix(c):
+        return float(c.get("prix_indicatif") or 0)
+
+    def marque_ok(c, cle):
+        voulu = str(contraintes.get(cle) or "").lower()
+        return not voulu or voulu in c["nom"].lower() or (voulu == "nvidia" and ("geforce" in c["nom"].lower() or "rtx" in c["nom"].lower()))
+
+    par_cat = {}
+    for c in components_by_id.values():
+        if c.get("en_stock", True) and prix(c) > 0:
+            par_cat.setdefault(c.get("categorie"), []).append(c)
+    for liste in par_cat.values():
+        liste.sort(key=prix)
+
+    def frontiere(items):
+        # Ne garde que les pièces qu'aucune autre moins chère ne bat en performance.
+        garde, meilleur = [], -1
+        for c in sorted(items, key=lambda c: (prix(c), -(c.get("perf_index") or 0))):
+            if (c.get("perf_index") or 0) > meilleur:
+                garde.append(c)
+                meilleur = c.get("perf_index") or 0
+        return garde
+
+    def choix(champ, candidats):
+        if champ in fixes:
+            return [components_by_id[fixes[champ]]]
+        return candidats
+
+    cpus = [c for c in par_cat.get("CPU", []) if c.get("perf_index") and (c.get("specs") or {}).get("socket") and (c.get("specs") or {}).get("tdp")]
+    cpus = [c for c in cpus if marque_ok(c, "marque_cpu")] or cpus
+    gpus = [c for c in par_cat.get("GPU", []) if c.get("perf_index") and (c.get("specs") or {}).get("tdp")]
+    gpus = [c for c in gpus if marque_ok(c, "marque_gpu")] or gpus
+    par_socket = {}
+    for c in cpus:
+        par_socket.setdefault(c["specs"]["socket"], []).append(c)
+    cpus = [c for groupe in par_socket.values() for c in frontiere(groupe)]
+    gpus = frontiere(gpus)
+    cpus, gpus = choix("cpu_id", cpus), choix("gpu_id", gpus)
+
+    wifi = contraintes.get("wifi")
+    cartes = [c for c in par_cat.get("Carte mère", []) if (c.get("specs") or {}).get("socket") and (c.get("specs") or {}).get("ram_type")]
+    if budget >= 1400:
+        # Gros budget : pas de carte mère d'entrée de gamme (A520, A620, H610...).
+        cartes = [c for c in cartes if not re.search(r"(^|\s)(A5|A6|H4|H5|H6)\d0", str(c["specs"].get("chipset") or "").upper())] or cartes
+    if wifi is True:
+        cartes = [c for c in cartes if (c["specs"].get("wifi") or "Non") != "Non"] or cartes
+    cartes = choix("motherboard_id", cartes)
+
+    ram_min = int(contraintes.get("ram_min_go") or (32 if budget >= 1600 or (usage == "creation" and budget >= 1200) else 16))
+    rams = [c for c in par_cat.get("RAM", []) if (c.get("specs") or {}).get("type") in ("DDR4", "DDR5")]
+    # Pas de barrette lente : 3200 MT/s minimum en DDR4, 5200 en DDR5.
+    if exigeant:
+        rams = [c for c in rams if (c["specs"].get("frequence_mt_s") or 0) >= (3200 if c["specs"]["type"] == "DDR4" else 5200)] or rams
+    rams = choix("ram_id", rams)
+
+    sto_min = int(contraintes.get("stockage_min_go") or (1000 if budget >= 900 else 500))
+    stockages = choix("storage_id", [c for c in par_cat.get("Stockage", []) if ((c.get("specs") or {}).get("capacite_go") or 0) >= sto_min * 0.93]
+                      or par_cat.get("Stockage", []))
+    stockage = stockages[0] if stockages else None
+
+    # Certifiée 80 PLUS au minimum Bronze, Gold à partir de 1 100 € : l'alimentation
+    # protège toutes les autres pièces, ce n'est pas là qu'on économise.
+    certifs = CERTIFICATIONS_OK[1:] if budget >= 1100 and exigeant else CERTIFICATIONS_OK
+    alims = [c for c in par_cat.get("Alimentation", [])
+             if (c.get("specs") or {}).get("wattage") and any(x in str(c["specs"].get("certification") or "") for x in certifs)]
+    alims = choix("psu_id", alims)
+    boitiers = choix("case_id", par_cat.get("Boîtier", []))
+    if contraintes.get("rgb") is True and "case_id" not in fixes:
+        boitiers = [c for c in boitiers if re.search(r"rgb", c["nom"], re.I)] or boitiers
+    elif contraintes.get("compact") is True and "case_id" not in fixes:
+        boitiers = [c for c in boitiers if "ATX" not in (c.get("specs") or {}).get("formats_supportes", ["ATX"])] or boitiers
+    if not (cpus and gpus and cartes and rams and stockage and alims and boitiers):
+        return None
+
+    # Plateforme la moins chère par (socket, type de RAM) : carte mère + RAM.
+    plateformes = {}
+    for carte in cartes:
+        cle = (carte["specs"]["socket"], carte["specs"]["ram_type"])
+        ram = next((r for r in rams if r["specs"].get("type") == cle[1] and (r["specs"].get("capacite_go") or 0) >= ram_min), None) \
+            or next((r for r in rams if r["specs"].get("type") == cle[1]), None)
+        if not ram:
+            continue
+        if (carte["specs"].get("m2_slots") or 0) < 1 and (stockage.get("specs") or {}).get("type") == "NVMe":
+            continue
+        cout = prix(carte) + prix(ram)
+        if cle not in plateformes or cout < plateformes[cle][0]:
+            plateformes[cle] = (cout, carte, ram)
+
+    def alim_pour(cpu, gpu):
+        # Marge de 150 W (au lieu des 100 W du minimum de compatibilité) pour les pics de consommation.
+        besoin = cpu["specs"]["tdp"] + gpu["specs"]["tdp"] + (150 if exigeant else 100)
+        return next((a for a in alims if a["specs"]["wattage"] >= besoin), None)
+
+    def boitier_pour(carte, gpu):
+        for b in boitiers:
+            s = b.get("specs") or {}
+            ok_format = check_carte_mere_boitier(carte["specs"], s)[0]
+            ok_gpu = check_gpu_boitier(gpu.get("specs") or {}, s)[0]
+            if ok_format and ok_gpu:
+                return b
+        return None
+
+    meilleur = None
+    for cpu in cpus:
+        for (socket, _type), (cout_plateforme, carte, ram) in plateformes.items():
+            if socket != cpu["specs"]["socket"]:
+                continue
+            base = prix(cpu) + cout_plateforme + prix(stockage)
+            if base > budget:
+                continue
+            for gpu in gpus:
+                if base + prix(gpu) > budget:
+                    continue
+                alim = alim_pour(cpu, gpu)
+                boitier = boitier_pour(carte, gpu)
+                if not alim or not boitier:
+                    continue
+                total = base + prix(gpu) + prix(alim) + prix(boitier)
+                if total > budget:
+                    continue
+                score = _score_config(cpu, gpu, usage)
+                if meilleur is None or (score, -total) > (meilleur[0], -meilleur[1]):
+                    meilleur = (score, total, {
+                        "cpu_id": cpu["id"], "motherboard_id": carte["id"], "ram_id": ram["id"], "gpu_id": gpu["id"],
+                        "psu_id": alim["id"], "storage_id": stockage["id"], "case_id": boitier["id"],
+                    })
+    if not meilleur:
+        return None
+    config = meilleur[2]
+    return config if verify_compatibility(config)["compatible"] else None
+
+
+def _ajuster_modification(suggestion, precedente, budget, components_by_id):
+    """Une modification (« un autre boîtier ») fait dépasser le budget : on
+    cherche, pour la pièce changée seulement, une autre option de la même
+    catégorie qui tient dans le budget et reste compatible, au prix le plus
+    proche de celle choisie par l'IA. Les autres pièces ne bougent pas."""
+    def prix(c):
+        return float((c or {}).get("prix_indicatif") or 0)
+
+    changes = [f for f in CONFIG_ID_FIELDS if suggestion.get(f) != precedente.get(f) and suggestion.get(f) in components_by_id]
+    for champ in changes:
+        voulu = components_by_id[suggestion[champ]]
+        options = sorted(
+            (c for c in components_by_id.values()
+             if c.get("categorie") == voulu.get("categorie") and c.get("en_stock", True) and prix(c) > 0
+             and c["id"] != precedente.get(champ)
+             and (champ != "psu_id" or any(x in str((c.get("specs") or {}).get("certification") or "") for x in CERTIFICATIONS_OK))),
+            key=lambda c: abs(prix(c) - prix(voulu)),
+        )
+        for c in options[:120]:
+            essai = {**suggestion, champ: c["id"]}
+            if compute_real_total(essai, components_by_id) <= budget and verify_compatibility(essai)["compatible"]:
+                return essai
+    return None
 
 
 def _repair_compatibility(suggestion, components_by_id):
@@ -5320,7 +5518,7 @@ def _budget_from_text(text):
     return None
 
 
-def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800):
+def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800, precedente=None):
     """
     Boucle de génération + correction partagée par /suggest-config (nouvelle
     config) et /api/refine-config (modification d'une config existante) :
@@ -5381,8 +5579,30 @@ Réponds UNIQUEMENT avec le JSON demandé."""
         errors = list(compatibility_result["errors"])
 
         budget_max = parsed.get("budget_max") if isinstance(parsed, dict) else None
+
+        # Nouvelle config avec budget : le serveur cherche lui-même la meilleure
+        # combinaison qui tient dans le budget et garde celle de l'IA seulement
+        # si elle est aussi bonne (compatible, dans le budget, performances
+        # proches). Une modification demandée reste, elle, pièce par pièce.
+        modification = isinstance(parsed, dict) and (parsed.get("type") == "modification" or parsed.get("modification") is True)
+        if isinstance(parsed, dict) and isinstance(budget_max, (int, float)) and budget_max > 0 and not modification:
+            demandees = parsed.get("pieces_demandees") if isinstance(parsed.get("pieces_demandees"), list) else []
+            fixes = {f: parsed.get(f) for f in demandees if f in CONFIG_ID_FIELDS}
+            optimale = _optimiser_config(budget_max, components_by_id, parsed.get("contraintes"), fixes)
+            if optimale:
+                usage = (parsed.get("contraintes") or {}).get("usage") if isinstance(parsed.get("contraintes"), dict) else None
+                score_ia = _score_config(components_by_id.get(parsed.get("cpu_id")), components_by_id.get(parsed.get("gpu_id")), usage or "jeu")
+                score_opt = _score_config(components_by_id[optimale["cpu_id"]], components_by_id[optimale["gpu_id"]], usage or "jeu")
+                ia_valable = compatibility_result["compatible"] and compute_real_total(parsed, components_by_id) <= budget_max
+                if not ia_valable or score_opt > score_ia * 1.08:
+                    return {"status": "ok", "suggestion": {**parsed, **optimale}, "ajustee": True}
+
         if compatibility_result["compatible"] and isinstance(budget_max, (int, float)) and budget_max > 0:
             real_total = compute_real_total(parsed, components_by_id)
+            if real_total > budget_max and modification and precedente:
+                ajustee = _ajuster_modification(parsed, precedente, budget_max, components_by_id)
+                if ajustee is not None:
+                    return {"status": "ok", "suggestion": ajustee, "ajustee": True}
             if real_total > budget_max:
                 ajustee = _fit_to_budget(parsed, budget_max, components_by_id)
                 if ajustee is not None:
@@ -5796,7 +6016,9 @@ Choisis UNE des deux formes de réponse :
 
 (2) Une configuration complète : nouvelle demande de config, OU modification de la dernière config
 proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
-{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>]}}
+{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>}}}}
+- "contraintes" résume les souhaits exprimés dans toute la discussion (null quand il n'a rien dit) : le site
+  s'en sert pour optimiser la config dans le budget.
 - Dans "message", ne cite pas de modèle précis (la liste des composants s'affiche à côté) : explique
   tes choix en termes généraux (gamme du processeur, niveau de la carte graphique, usage visé).
 - Pour une modification, reprends TOUS les autres composants SANS LES CHANGER, sauf ceux qu'il faut
@@ -5815,6 +6037,7 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
         result = _generate_and_verify_suggestion(
             prompt, components_by_id, allow_advice=True,
             budget_hint=_budget_from_text(question), max_tokens=1200,
+            precedente=derniere or ma_config,
         )
 
         def estimation(ids, jeux):
@@ -5844,7 +6067,16 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
         suggestion = result["suggestion"]
         message = str(suggestion.pop("message", "") or "Voici ce que je te propose :")
         suggestion.pop("type", None)
-        if result.get("ajustee"):
+        precedente = derniere or ma_config
+        changes = [f for f in CONFIG_ID_FIELDS if precedente and suggestion.get(f) != precedente.get(f) and suggestion.get(f) in components_by_id]
+        if result.get("ajustee") and suggestion.get("modification") is True and precedente and 0 < len(changes) <= 2:
+            # Petite modification : on dit simplement ce qui a changé.
+            total = compute_real_total(suggestion, components_by_id)
+            details = " et ".join(
+                f"{FIELD_TO_CATEGORY_BACKEND[f].lower()} : **{components_by_id[suggestion[f]]['nom']}** "
+                f"({float(components_by_id[suggestion[f]]['prix_indicatif']):.2f} €)".replace(".", ",") for f in changes)
+            message = f"C'est fait, nouveau {details}. Le reste ne bouge pas, total {total:.0f} €."
+        elif result.get("ajustee"):
             # Le serveur a changé des composants (budget, compatibilité) : le texte
             # de l'IA peut citer des pièces qui ne sont plus dans la config.
             cpu = components_by_id.get(suggestion.get("cpu_id"))
@@ -5853,7 +6085,10 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             budget = suggestion.get("budget_max")
             message = (f"Voici une config à {total:.0f} €" + (f" pour ton budget de {budget:.0f} €" if isinstance(budget, (int, float)) and budget > 0 else "")
                        + (f", construite autour du **{cpu['nom']}** et de la **{gpu['nom']}**" if cpu and gpu else "")
-                       + ". Tout est compatible ; dis-moi si tu veux changer une pièce.")
+                       + (f", de quoi bien profiter de {', '.join(str(j) for j in suggestion['jeux'][:3])}"
+                          if isinstance(suggestion.get("jeux"), list) and suggestion["jeux"] else "")
+                       + ". Tout est compatible, et j'ai mis le maximum du budget dans ce qui compte pour tes performances. "
+                       + "Dis-moi si tu veux changer une pièce.")
         jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
         return {"status": "ok", "message": message, "suggestion": suggestion,
                 "fps_estimation": estimation(suggestion, jeux)}
