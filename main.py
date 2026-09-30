@@ -53,6 +53,7 @@ import component_pages
 import emails
 import comparisons
 import variantes
+import auto_catalogue
 import controle_catalogue
 import site_stats
 
@@ -6396,10 +6397,93 @@ _CONTROLE = {"at": None, "rapport": None}
 CONTROLE_INTERVAL_SECONDS = 24 * 60 * 60
 
 
+def _journal_auto(entrees):
+    """Journal des corrections automatiques (100 dernières), affiché dans l'admin."""
+    if not entrees:
+        return
+    journal = _state_get("corrections_auto", [])
+    date = datetime.utcnow().isoformat(timespec="seconds")
+    journal = [{"date": date, **e} for e in entrees] + journal
+    _state_set("corrections_auto", journal[:100])
+
+
+def _corrections_auto(catalog):
+    """
+    Applique ce qui est sûr (voir auto_catalogue.py) et renvoie le catalogue à
+    jour. Fiches : champs devinés avec certitude. Doublons : rattachés. Prix
+    « un peu trop cher » d'une offre qui n'est pas la moins chère : classés.
+    """
+    journal = []
+    # 1. Fiches incomplètes.
+    completees = [(c, sur) for c, sur, _ in auto_catalogue.completer_fiches(catalog) if sur]
+    if completees:
+        client = get_client()
+        try:
+            for c, sur in completees:
+                specs = dict(c.get("specs") or {})
+                specs.update({k: v for k, (v, _) in sur.items()})
+                client.execute("UPDATE components SET specs_json = ? WHERE id = ?",
+                               [json.dumps(specs, ensure_ascii=False), c["id"]])
+                journal.append({"type": "fiche", "id": c["id"], "nom": c["nom"],
+                                "detail": ", ".join(f"{FIELD_LABELS_AUTO.get(k, k)} : {v} ({src})" for k, (v, src) in sur.items())})
+        finally:
+            client.close()
+    # 2. Doublons certains.
+    # Jamais contre une décision de l'admin : paire refusée (« Non ») ou annonce séparée.
+    refusees = set(_state_get("controle_ignores", []))
+    separees = set(_state_get("variantes_separer", []))
+    paires = [p for p in controle_catalogue.annonces_isolees(catalog)
+              if f"isolee:{min(p['id'], p['proche_id'])}:{max(p['id'], p['proche_id'])}" not in refusees
+              and p["id"] not in separees and p["proche_id"] not in separees]
+    surs = auto_catalogue.rattachements_surs(paires, catalog)
+    if surs:
+        rattacher = _state_get("variantes_rattacher", {})
+        for p in surs:
+            rattacher[str(p["id"])] = p["proche_id"]
+            journal.append({"type": "rattachement", "id": p["id"], "nom": p["nom"], "cible": p["proche_id"],
+                            "detail": f"rattaché à « {p['proche_nom']} » (mêmes caractéristiques)"})
+        _state_set("variantes_rattacher", rattacher)
+    if completees or surs:
+        invalidate_catalog()
+        catalog = get_catalog()
+    # 3. Prix sans conséquence pour le visiteur.
+    ignores = _state_get("controle_ignores", [])
+    a_ignorer = [s for s in auto_catalogue.prix_a_ignorer(controle_catalogue.prix_suspects(catalog), catalog)
+                 if f"prix:{s['id']}:{s['prix']}" not in ignores]
+    if a_ignorer:
+        for s in a_ignorer:
+            ignores.append(f"prix:{s['id']}:{s['prix']}")
+            journal.append({"type": "prix", "id": s["id"], "nom": s["nom"],
+                            "detail": f"{s['prix']:.2f} € (≈ {s['reference']:.2f} € ailleurs) : offre plus chère d'un produit "
+                                      "qui a une offre moins chère, le site affiche déjà le prix le plus bas"})
+        _state_set("controle_ignores", ignores[-500:])
+    _journal_auto(journal)
+    return catalog
+
+
+FIELD_LABELS_AUTO = {
+    "socket": "socket", "tdp": "consommation (W)", "ram_type": "type de RAM", "format": "format",
+    "m2_slots": "slots M.2", "sata_ports": "ports SATA", "type": "type", "wattage": "puissance (W)",
+    "longueur_mm": "longueur (mm)", "gpu_max_length_mm": "longueur GPU max (mm)",
+    "cpu_cooler_max_height_mm": "hauteur ventirad max (mm)", "formats_supportes": "formats supportés",
+    "sockets_supportes": "sockets supportés", "hauteur_mm": "hauteur (mm)",
+}
+
+
 def _controle_courant():
     catalog = get_catalog()
     if _CONTROLE["rapport"] is None or _CONTROLE["at"] != _CATALOG["at"]:
+        try:
+            catalog = _corrections_auto(catalog)
+        except Exception as err:
+            print(f"Corrections automatiques du catalogue impossibles : {err}")
         rapport = controle_catalogue.rapport(catalog)
+        # Suggestions (non appliquées) pour ce qui reste incomplet.
+        suggestions = {c["id"]: sug for c, _, sug in auto_catalogue.completer_fiches(catalog) if sug}
+        for f in rapport["fiches_incompletes"]:
+            if f["id"] in suggestions:
+                f["suggestions"] = {k: {"valeur": v, "source": src} for k, (v, src) in suggestions[f["id"]].items()}
+        rapport["corrections_auto"] = _state_get("corrections_auto", [])[:30]
         # Signalements marqués « normal » depuis l'admin : un prix ignoré revient
         # s'il change, une paire d'annonces ignorée ne revient pas.
         ignores = set(_state_get("controle_ignores", []))
@@ -6451,6 +6535,32 @@ def admin_variantes_rattacher(request: VarianteRequest, _admin=Depends(require_a
     invalidate_catalog()
     _CONTROLE["rapport"] = None
     return {"status": "ok"}
+
+
+class CompleterRequest(BaseModel):
+    champs: dict
+
+
+@app.post("/api/admin/components/{component_id}/completer")
+def admin_completer(component_id: int, request: CompleterRequest, _admin=Depends(require_admin)):
+    """Applique les suggestions validées depuis « À surveiller » (champs de specs)."""
+    autorises = set().union(*[set(v) for v in REQUIRED_FIELDS.values()])
+    champs = {k: v for k, v in request.champs.items() if k in autorises}
+    if not champs:
+        raise HTTPException(status_code=400, detail="Aucun champ valide.")
+    client = get_client()
+    try:
+        rows = client.execute("SELECT specs_json FROM components WHERE id = ?", [component_id]).rows
+        if not rows:
+            raise HTTPException(status_code=404, detail="Composant introuvable.")
+        specs = json.loads(rows[0][0] or "{}")
+        specs.update(champs)
+        client.execute("UPDATE components SET specs_json = ? WHERE id = ?", [json.dumps(specs, ensure_ascii=False), component_id])
+    finally:
+        client.close()
+    invalidate_catalog()
+    _CONTROLE["rapport"] = None
+    return {"status": "ok", "specs": specs}
 
 
 @app.post("/api/admin/variantes/separer")

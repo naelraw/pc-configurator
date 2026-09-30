@@ -57,7 +57,7 @@ def test_compatibilite_renvoie_les_avertissements(client):
 def test_routes_admin_du_controle(client, catalog):
     assert client.get("/api/admin/controle-catalogue").status_code == 401
     r = client.get("/api/admin/controle-catalogue", headers=ADMIN)
-    assert r.status_code == 200 and set(r.json()) == {"prix_suspects", "annonces_isolees", "fiches_incompletes"}
+    assert r.status_code == 200 and {"prix_suspects", "annonces_isolees", "fiches_incompletes", "corrections_auto"} <= set(r.json())
     assert client.post("/api/admin/controle/ignorer", json={"cle": "n'importe quoi"}, headers=ADMIN).status_code == 400
     # Rattacher puis séparer : la fiche change de produit, puis redevient seule.
     a, b = component(catalog, "RTX 4060"), component(catalog, "RX 7600")

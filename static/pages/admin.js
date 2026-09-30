@@ -254,8 +254,9 @@
   async function loadWatch(){
     try{
       watchData = await api('/api/admin/controle-catalogue');
-      const counts = { prix: watchData.prix_suspects.length, isolees: watchData.annonces_isolees.length, incompletes: watchData.fiches_incompletes.length };
-      const labels = { prix: 'Prix suspects', isolees: 'Annonces à rattacher', incompletes: 'Fiches incomplètes' };
+      const counts = { prix: watchData.prix_suspects.length, isolees: watchData.annonces_isolees.length,
+        incompletes: watchData.fiches_incompletes.length, auto: (watchData.corrections_auto || []).length };
+      const labels = { prix: 'Prix suspects', isolees: 'Annonces à rattacher', incompletes: 'Fiches incomplètes', auto: 'Corrigé automatiquement' };
       Object.entries(counts).forEach(([k, n]) => { $('watch-tab-' + k).innerHTML = `${labels[k]}<span class="n">${n}</span>`; });
       renderWatch();
     }catch(e){
@@ -271,7 +272,10 @@
   function priceItem(s){
     return `<div class="item">
       <div><div class="t">${escapeHtml(s.nom)}</div>
-        <div class="why"><b>${euros(s.prix)}</b> au lieu d'environ ${euros(s.reference)} · ${escapeHtml(s.motif)}</div></div>
+        <div class="why"><b>${euros(s.prix)}</b> au lieu d'environ ${euros(s.reference)} · ${escapeHtml(s.motif)}</div>
+        <div class="why conseil">${(s.ratio || 0) >= 3 || /moins cher/.test(s.motif)
+          ? 'Conseil : supprimer l’annonce (prix aberrant ou autre article que celui indiqué).'
+          : 'Conseil : ouvrir l’annonce pour vérifier le prix sur Amazon, puis « Prix normal » s’il est juste.'}</div></div>
       <div class="actions">
         <button class="btn btn-ghost btn-sm" data-onclick="openComponent(${s.id})">Ouvrir</button>
         <button class="btn btn-danger btn-sm" data-onclick="deleteComponent(${s.id})">Supprimer</button>
@@ -296,16 +300,51 @@
     let html;
     if(watchTab === 'prix'){
       html = watchData.prix_suspects.map(priceItem).join('') || '<p class="empty">Aucun prix suspect.</p>';
+    }else if(watchTab === 'auto'){
+      const icone = { fiche: 'ph-note-pencil', rattachement: 'ph-link-simple', prix: 'ph-tag' };
+      html = (watchData.corrections_auto || []).map(e => `<div class="item">
+        <div><div class="t"><i class="ph ${icone[e.type] || 'ph-check'}"></i> ${escapeHtml(e.nom)}</div>
+          <div class="why">${escapeHtml(e.detail)} <span class="faint">· ${new Date(e.date + 'Z').toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div></div>
+        <div class="actions">
+          ${e.type === 'rattachement' ? `<button class="btn btn-secondary btn-sm" data-onclick="separateById(${e.id})">Annuler (séparer)</button>` : ''}
+          <button class="btn btn-ghost btn-sm" data-onclick="openComponent(${e.id})">Ouvrir</button></div>
+      </div>`).join('') || '<p class="empty">Aucune correction automatique pour l’instant.</p>';
     }else if(watchTab === 'isolees'){
       html = watchData.annonces_isolees.map(isolatedItem).join('') || '<p class="empty">Aucune annonce à rattacher.</p>';
     }else{
-      html = watchData.fiches_incompletes.map(f => `<div class="item">
+      html = watchData.fiches_incompletes.map(f => {
+        const sug = Object.entries(f.suggestions || {});
+        return `<div class="item">
         <div><div class="t">${escapeHtml(f.nom)} <span class="faint">· ${escapeHtml(f.categorie)}</span></div>
-          <div class="why">${f.manques.map(m => `<span class="tag">${escapeHtml(FIELD_LABELS[m] || m)}</span>`).join('')}</div></div>
-        <div class="actions"><button class="btn btn-secondary btn-sm" data-onclick="openComponent(${f.id})">Compléter</button></div>
-      </div>`).join('') || '<p class="empty">Toutes les fiches sont complètes.</p>';
+          <div class="why">${f.manques.map(m => `<span class="tag">${escapeHtml(FIELD_LABELS[m] || m)}</span>`).join('')}</div>
+          ${sug.length ? `<div class="why conseil">Suggestion : ${sug.map(([k, v]) => `<b>${escapeHtml(FIELD_LABELS[k] || k)} = ${escapeHtml(Array.isArray(v.valeur) ? v.valeur.join(', ') : v.valeur)}</b> <span class="faint">(${escapeHtml(v.source)})</span>`).join(' · ')}</div>` : ''}</div>
+        <div class="actions">
+          ${sug.length ? `<button class="btn btn-primary btn-sm" data-onclick="applySuggestions(${f.id})">Appliquer la suggestion</button>` : ''}
+          <button class="btn btn-secondary btn-sm" data-onclick="openComponent(${f.id})">Compléter à la main</button></div>
+      </div>`;
+      }).join('') || '<p class="empty">Toutes les fiches sont complètes.</p>';
     }
     $('watch-content').innerHTML = html;
+  }
+
+  async function applySuggestions(id){
+    const f = (watchData.fiches_incompletes || []).find(x => x.id === id);
+    if(!f || !f.suggestions) return;
+    const champs = Object.fromEntries(Object.entries(f.suggestions).map(([k, v]) => [k, v.valeur]));
+    try{
+      await post(`/api/admin/components/${id}/completer`, { champs });
+      toast('Suggestion appliquée.');
+      await refreshAll();
+    }catch(e){ toast(e.message, true); }
+  }
+
+  async function separateById(id){
+    if(!await uiConfirm('Cette annonce redeviendra un produit à part.', { title: 'Annuler le rattachement ?', confirmLabel: 'Séparer' })) return;
+    try{
+      await post('/api/admin/variantes/separer', { id });
+      toast('Annonce séparée.');
+      await refreshAll();
+    }catch(e){ toast(e.message, true); }
   }
 
   async function ignoreWatch(cle){
@@ -339,7 +378,12 @@
   }
 
   function filteredComponents(){
-    const q = norm($('catalog-search').value.trim()).split(/\s+/).filter(Boolean);
+    const brut = $('catalog-search').value.trim();
+    // Un ASIN ou un numéro de fiche : recherche exacte. Sinon, recherche
+    // tolérante (static/recherche.js) : fautes, mots collés, abréviations.
+    const exact = /^(b0[a-z0-9]{8}|\d+)$/i.test(brut);
+    const q = exact ? [norm(brut)] : [];
+    const scores = new Map();
     const cat = $('catalog-category').value;
     const f = $('catalog-filter').value;
     return components.filter(c => {
@@ -352,9 +396,14 @@
       if(q.length){
         const hay = norm(`${c.nom} ${c.asin || ''} ${c.id}`);
         if(!q.every(t => hay.includes(t))) return false;
+      }else if(brut && window.pcrRecherche){
+        const sc = pcrRecherche.score(brut, c);
+        if(!sc) return false;
+        scores.set(c, sc);
       }
       return true;
-    }).sort((a, b) => a.categorie.localeCompare(b.categorie) || a.nom.localeCompare(b.nom));
+    }).sort((a, b) => (scores.get(b) || 0) - (scores.get(a) || 0)
+      || a.categorie.localeCompare(b.categorie) || a.nom.localeCompare(b.nom));
   }
 
   function renderCatalog(){

@@ -322,3 +322,6 @@ table.list .thumb.transparent img{ mix-blend-mode:normal; }
 table.liens-table tbody tr{ cursor:default; }
 table.liens-table th.num, table.liens-table td.num{ text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 table.liens-table td .btn{ display:inline-flex; align-items:center; gap:6px; font-family:var(--font-mono); }
+
+/* À surveiller : conseil ou suggestion sous chaque élément */
+.item .why.conseil{ color:var(--accent); margin-top:4px; }

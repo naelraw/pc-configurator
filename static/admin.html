@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/static/admin.css">
 <link rel="stylesheet" href="/static/dialog.css">
 <script src="/static/csp-handlers.js"></script>
+<script src="/static/recherche.js"></script>
 <script src="/static/dialog.js"></script>
 </head>
 <body>
@@ -71,13 +72,14 @@
     <!-- À surveiller -->
     <section data-section="watch" hidden>
       <div class="view-head">
-        <div><h2>À surveiller</h2><p>Contrôle automatique du catalogue, recalculé à chaque visite. Les nouveaux prix suspects arrivent aussi par e-mail chaque jour.</p></div>
+        <div><h2>À surveiller</h2><p>Le site corrige seul ce qui est certain (onglet « Corrigé automatiquement ») ; ici ne reste que ce qui demande ton avis, avec une proposition.</p></div>
       </div>
       <div class="panel">
         <div class="tabs" role="tablist">
           <button id="watch-tab-prix" data-onclick="showWatchTab('prix')">Prix suspects</button>
           <button id="watch-tab-isolees" data-onclick="showWatchTab('isolees')">Annonces à rattacher</button>
           <button id="watch-tab-incompletes" data-onclick="showWatchTab('incompletes')">Fiches incomplètes</button>
+          <button id="watch-tab-auto" data-onclick="showWatchTab('auto')">Corrigé automatiquement</button>
         </div>
         <div id="watch-content"><p class="empty">Chargement…</p></div>
       </div>

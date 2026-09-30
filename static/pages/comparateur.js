@@ -74,10 +74,12 @@
     // modèle) n'est jamais proposé : le comparer à lui-même n'a pas de sens.
     const other = slot === 'a' ? selectedB : selectedA;
 
-    const matches = allComponents
-      .filter(c => (!restrictCategory || c.categorie === restrictCategory) && matchesQuery(c.nom, query)
-        && !(other && isSameComponent(c, other)))
-      .sort((a, b) => scoreRelevance(b.nom, query) - scoreRelevance(a.nom, query))
+    // Recherche tolérante (static/recherche.js) : fautes, mots collés, abréviations.
+    const candidats = allComponents.filter(c => (!restrictCategory || c.categorie === restrictCategory)
+      && !(other && isSameComponent(c, other)));
+    const matches = (window.pcrRecherche
+      ? pcrRecherche.filtrer(query, candidats)
+      : candidats.filter(c => matchesQuery(c.nom, query)).sort((a, b) => scoreRelevance(b.nom, query) - scoreRelevance(a.nom, query)))
       // Une seule ligne par produit (ses variantes partagent un groupe_id).
       .filter((c, i, list) => list.findIndex(x => (x.groupe_id ?? x.id) === (c.groupe_id ?? c.id)) === i)
       .slice(0, 12);

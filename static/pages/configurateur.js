@@ -38,6 +38,8 @@
   // est le composant) quand disponible ; sinon repli sur le prix décroissant,
   // seul signal de qualité qu'on ait pour les catégories sans indice connu
   // (Boîtier, Carte mère, Refroidissement...).
+  const searchScores = new Map();
+
   function sortItems(items){
     const mode = document.getElementById('sort-select').value;
     const sorted = items.slice();
@@ -53,6 +55,9 @@
       });
     }
     else sorted.sort((a, b) => a.nom.localeCompare(b.nom));
+    // Avec une recherche, les résultats les plus pertinents d'abord (le tri
+    // choisi départage les ex æquo : le tri JavaScript est stable).
+    if(searchScores.size) sorted.sort((a, b) => (searchScores.get(b) || 0) - (searchScores.get(a) || 0));
     // Les ventilateurs de boîtier passent après les ventirads et watercoolings
     // (ils ne refroidissent pas le processeur), et les produits épuisés
     // (visibles seulement si la case est cochée) toujours en fin de liste,
@@ -291,7 +296,8 @@
     const priceMin = priceMinRaw === '' ? null : Number(priceMinRaw);
     const priceMaxRaw = document.getElementById('price-max-input').value;
     const priceMax = priceMaxRaw === '' ? null : Number(priceMaxRaw);
-    const search = document.getElementById('search-input').value.trim().toLowerCase();
+    const search = document.getElementById('search-input').value.trim();
+    searchScores.clear();
     const showOutOfStock = document.getElementById('show-out-of-stock-checkbox').checked;
     const fields = CATEGORY_FILTER_FIELDS[categoryFilter] || [];
 
@@ -301,7 +307,12 @@
       if(brand && getBrand(item) !== brand) return false;
       if(priceMin !== null && item.prix_indicatif < priceMin) return false;
       if(priceMax !== null && item.prix_indicatif > priceMax) return false;
-      if(search && !item.nom.toLowerCase().includes(search)) return false;
+      if(search){
+        // Recherche tolérante (static/recherche.js) : fautes, mots collés, abréviations.
+        const score = window.pcrRecherche ? pcrRecherche.score(search, item) : (item.nom.toLowerCase().includes(search.toLowerCase()) ? 1 : 0);
+        if(!score) return false;
+        searchScores.set(item, score);
+      }
 
       if(categoryFilter && item.categorie === categoryFilter){
         const specs = item.specs || {};
