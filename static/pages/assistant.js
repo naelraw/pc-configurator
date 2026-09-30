@@ -314,13 +314,58 @@
           m.erreur ? 'msg-erreur' : '');
       }
     });
-    if(enCours || ecritGuide) html += bulleAssistant('<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span>');
+    if(enCours || ecritGuide) html += bulleAssistant(`<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span><span class="chat-attente">${enCours ? escapeHtml(texteAttente()) : ''}</span>`);
     fil.innerHTML = html;
     $('chat-nouvelle').hidden = discussion.length === 0;
     if(defiler){
       const dernier = fil.lastElementChild;
       if(dernier) dernier.scrollIntoView({ behavior: 'smooth', block: discussion.length ? 'start' : 'nearest' });
     }
+  }
+
+  // Pendant l'attente : ce que fait l'assistant (une demande de config peut
+  // prendre plusieurs secondes : IA, puis vérification par le site).
+  let debutAttente = 0;
+  const ETAPES_ATTENTE = [
+    [2, 'Je réfléchis…'], [6, 'Je parcours le catalogue…'],
+    [12, 'Je vérifie la compatibilité et le budget…'], [22, 'Presque fini…'],
+  ];
+  function texteAttente(){
+    const ecoule = (Date.now() - debutAttente) / 1000;
+    let texte = '';
+    ETAPES_ATTENTE.forEach(([seconde, t]) => { if(ecoule >= seconde) texte = t; });
+    return texte;
+  }
+
+  // La réponse apparaît mot par mot (environ une seconde), puis la carte de
+  // config ou le panneau des composants.
+  function animerReponse(corps){
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const blocs = [...corps.querySelectorAll('.cfg-carte, .ai-verification, .guide-boutons')];
+    blocs.forEach(b => b.classList.add('apparait-ensuite'));
+    const noeuds = [];
+    const parcours = document.createTreeWalker(corps, NodeFilter.SHOW_TEXT);
+    while(parcours.nextNode()){
+      const n = parcours.currentNode;
+      if(n.textContent.trim() && !n.parentElement.closest('.cfg-carte, .ai-verification, .guide-boutons')) noeuds.push(n);
+    }
+    const mots = [];
+    noeuds.forEach(n => {
+      const morceaux = document.createDocumentFragment();
+      n.textContent.split(/(\s+)/).forEach(partie => {
+        if(!partie) return;
+        if(/^\s+$/.test(partie)){ morceaux.appendChild(document.createTextNode(partie)); return; }
+        const mot = document.createElement('span');
+        mot.className = 'mot-cache';
+        mot.textContent = partie;
+        mots.push(mot);
+        morceaux.appendChild(mot);
+      });
+      n.replaceWith(morceaux);
+    });
+    const pas = Math.max(8, Math.min(35, 1100 / Math.max(1, mots.length)));
+    mots.forEach((mot, i) => setTimeout(() => mot.classList.remove('mot-cache'), i * pas));
+    setTimeout(() => blocs.forEach(b => b.classList.remove('apparait-ensuite')), mots.length * pas + 60);
   }
 
   function sauvegarder(){
@@ -481,6 +526,7 @@
     texte = (texte || '').trim();
     if(!texte || enCours) return;
     discussion = discussion.filter(m => !m.erreur);
+    debutAttente = Date.now();
     discussion.push({ role: 'user', content: texte, ...(options.cache ? { cache: true } : {}), ...(options.envoi ? { envoi: options.envoi } : {}) });
     enCours = true;
     $('ai-input').value = '';
@@ -496,6 +542,10 @@
         + ((m.composants || []).length ? `\n(Composants montrés : ${m.composants.map(id => composantsParId.get(id)).filter(Boolean).map(c => `${c.nom} [id ${c.id}]`).join(', ')})` : ''),
     }));
 
+    const minuterie = setInterval(() => {
+      const el = document.querySelector('.chat-attente');
+      if(el) el.textContent = texteAttente();
+    }, 1000);
     let reponse;
     try{
       const res = await fetch(API_BASE + '/api/assistant/chat', {
@@ -513,6 +563,7 @@
     }catch(e){
       reponse = { role: 'assistant', content: 'Connexion impossible avec l’assistant. Vérifie ta connexion et réessaie.', erreur: true };
     }
+    clearInterval(minuterie);
     enCours = false;
     if(reponse.erreur){
       // Le message non traité revient dans la zone de saisie pour être renvoyé.
@@ -528,6 +579,10 @@
     discussion.push(reponse);
     sauvegarder();
     afficher();
+    if(!reponse.erreur){
+      const bulles = document.querySelectorAll('#chat-fil .msg-ia .msg-corps');
+      if(bulles.length) animerReponse(bulles[bulles.length - 1]);
+    }
     $('ai-input').focus();
   }
 
