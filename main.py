@@ -943,22 +943,28 @@ def build_view_page(build_id: int):
         description = "Ce lien ne correspond à aucune configuration (peut-être supprimée)."
         image_url = None
 
+    return _page_build(page_html, title, description, image_url, f"https://pcradar.tech/build/{build_id}")
+
+
+def _page_build(page_html, title, description, image_url, canonical_url, indexable=True):
+    """Injecte titre, description et aperçu (Open Graph) dans build-view.html :
+    WhatsApp, Discord... ne lisent que le HTML initial, pas le JavaScript."""
     # Toujours échapper : le nom de la build est saisi par un utilisateur,
     # jamais fiable tel quel dans du HTML.
     og_title = html.escape(title)
     og_description = html.escape(description)
-    canonical_url = f"https://pcradar.tech/build/{build_id}"
     if image_url and image_url.startswith("/"):
         image_url = SITE_URL + image_url
     og_image_tag = f'<meta property="og:image" content="{html.escape(image_url)}">' if image_url else ""
+    robots = "" if indexable else '<meta name="robots" content="noindex">\n'
 
     meta_tags = f"""<title>{og_title}</title>
 <meta name="description" content="{og_description}">
-<link rel="canonical" href="{canonical_url}">
+{robots}<link rel="canonical" href="{html.escape(canonical_url)}">
 <meta property="og:title" content="{og_title}">
 <meta property="og:description" content="{og_description}">
 <meta property="og:type" content="website">
-<meta property="og:url" content="{canonical_url}">
+<meta property="og:url" content="{html.escape(canonical_url)}">
 <meta property="og:site_name" content="PC Radar">
 {og_image_tag}
 <meta name="twitter:card" content="{'summary_large_image' if image_url else 'summary'}">"""
@@ -969,6 +975,31 @@ def build_view_page(build_id: int):
         meta_tags, 1,
     )
     return HTMLResponse(content=page_html)
+
+
+@app.get("/partage")
+def partage_page(c: str = ""):
+    """
+    Config partagée sans compte (bouton « Partager » de l'assistant) : les
+    identifiants des composants sont dans l'adresse (?c=12-34-56), rien n'est
+    stocké en base. Pas indexée : une infinité de combinaisons possibles.
+    """
+    with open("static/build-view.html", encoding="utf-8") as f:
+        page_html = f.read()
+    components_by_id = {cp["id"]: cp for cp in get_catalog()}
+    ids = [int(x) for x in re.findall(r"\d+", c or "")[:12]]
+    composants = [components_by_id[i] for i in ids if i in components_by_id]
+    if composants:
+        total = sum(float(cp.get("prix_indicatif") or 0) for cp in composants)
+        title = f"Config PC à {total:.0f} € — PC Radar"
+        description = ", ".join(cp["nom"] for cp in composants)[:200]
+        image_url = next((cp["image_url"] for cp in composants if cp.get("image_url")), None)
+    else:
+        title = "Configuration introuvable — PC Radar"
+        description = "Ce lien ne correspond à aucune configuration."
+        image_url = None
+    canonical = f"https://pcradar.tech/partage?c={'-'.join(str(cp['id']) for cp in composants)}"
+    return _page_build(page_html, title, description, image_url, canonical, indexable=False)
 
 
 # Catalogue léger (sans le contenu des images) gardé en mémoire : relu en
@@ -3653,7 +3684,7 @@ def admin_site_stats(_admin=Depends(require_admin)):
         data["liens"] = _stats_liens(historique, data)
         data.pop("detail", None)
         _STATS_CACHE.update(at=time.time(), data=data)
-    return _STATS_CACHE["data"]
+    return {**_STATS_CACHE["data"], "assistant": _stats_assistant()}
 
 
 STATS_EXCLUDED_IPS = {"127.0.0.1", "10.0.0.79", "88.96.49.31"}
@@ -5971,6 +6002,69 @@ def enforce_chat_rate_limit(request: Request):
             _chat_requests_by_ip.pop(vieille, None)
 
 
+# Statistiques de l'assistant (admin) : simples compteurs par jour dans
+# app_state (« AAAA-MM-JJ|événement »), incrémentés en une seule requête pour
+# ne rien perdre avec plusieurs processus. Aucune donnée personnelle.
+EVENEMENTS_ASSISTANT = ("discussion", "message", "config", "guide_debut", "guide_fini",
+                        "ajout", "tout_ajouter", "amazon", "partage")
+EVENEMENTS_PAGE = {"guide_debut", "ajout", "tout_ajouter", "amazon", "partage"}
+_evenements_par_ip = {}
+
+
+def _compter_assistant(evenement):
+    if evenement not in EVENEMENTS_ASSISTANT:
+        return
+    cle = f"{datetime.utcnow().date().isoformat()}|{evenement}"
+    client = get_client()
+    try:
+        client.execute("INSERT OR IGNORE INTO app_state (cle, valeur) VALUES ('stats_assistant', '{}')")
+        client.execute(
+            "UPDATE app_state SET valeur = json_set(valeur, '$.\"' || ? || '\"', "
+            "coalesce(json_extract(valeur, '$.\"' || ? || '\"'), 0) + 1) WHERE cle = 'stats_assistant'",
+            [cle, cle],
+        )
+    except Exception as erreur:
+        print(f"[stats-assistant] {erreur}")
+    finally:
+        client.close()
+
+
+def _stats_assistant():
+    """Totaux aujourd'hui / 7 jours / depuis le début, par événement."""
+    brut = _state_get("stats_assistant", {})
+    aujourd_hui = datetime.utcnow().date()
+    semaine = {(aujourd_hui - timedelta(days=i)).isoformat() for i in range(7)}
+    resultat = {ev: {"jour": 0, "semaine": 0, "total": 0} for ev in EVENEMENTS_ASSISTANT}
+    for cle, n in brut.items():
+        jour, _, ev = cle.partition("|")
+        if ev not in resultat or not isinstance(n, int):
+            continue
+        resultat[ev]["total"] += n
+        if jour in semaine:
+            resultat[ev]["semaine"] += n
+        if jour == aujourd_hui.isoformat():
+            resultat[ev]["jour"] += n
+    return resultat
+
+
+class EvenementAssistant(BaseModel):
+    type: str = Field(max_length=30)
+
+
+@app.post("/api/assistant/evenement")
+def assistant_evenement(evenement: EvenementAssistant, request: Request):
+    """Clics de la page de l'assistant (ajout à la config, panier Amazon, partage...)."""
+    if evenement.type not in EVENEMENTS_PAGE:
+        raise HTTPException(status_code=400, detail="Événement inconnu.")
+    ip, now = _client_ip(request), time.time()
+    recents = [t for t in _evenements_par_ip.get(ip, []) if now - t < 600][-60:]
+    if len(recents) >= 60:                     # un robot ne gonfle pas les chiffres
+        return {"status": "ignore"}
+    _evenements_par_ip[ip] = recents + [now]
+    _compter_assistant(evenement.type)
+    return {"status": "ok"}
+
+
 class ChatMessage(BaseModel):
     role: str = Field(pattern="^(user|assistant)$")
     content: str = Field(max_length=MAX_USER_INPUT * 2)
@@ -6036,6 +6130,11 @@ def assistant_chat(request: AssistantChatRequest, _rate_limit=Depends(enforce_ch
         if not messages or messages[-1].role != "user":
             raise HTTPException(status_code=400, detail="Le dernier message doit venir de l'utilisateur.")
         question = messages[-1].content.strip()[:MAX_USER_INPUT]
+        _compter_assistant("message")
+        if sum(1 for m in messages if m.role == "user") == 1:
+            _compter_assistant("discussion")
+        if question.startswith("Je débute en PC et je pars de zéro"):
+            _compter_assistant("guide_fini")
         historique = "\n".join(
             f"{'Utilisateur' if m.role == 'user' else 'Assistant'} : {m.content.strip()[:CHAT_MAX_CHARS]}"
             for m in messages[:-1]
@@ -6116,6 +6215,9 @@ proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
   tes choix en termes généraux (gamme du processeur, niveau de la carte graphique, usage visé).
 - "cooler_id" : laisse null, le site ajoute seul un ventirad quand le processeur est vendu sans. Mets un id
   seulement si l'utilisateur demande un refroidissement précis ou d'en changer.
+- Une NOUVELLE demande de config (« une config à 1300 € », « un PC pour Warzone ») part de zéro : ne
+  garde aucune pièce de sa config en cours, sauf s'il le demande (« garde ma carte graphique », « complète
+  ma config »). Ne refuse jamais une config pour une question de budget : le site ajuste lui-même.
 - Pour une modification, reprends TOUS les autres composants SANS LES CHANGER, sauf ceux qu'il faut
   ajuster pour rester compatible (ex : alimentation plus puissante pour un GPU plus gourmand).
 - Compatibilité obligatoire : même socket CPU/carte mère, même type de RAM que la carte mère, format de
@@ -6185,6 +6287,7 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
                        + ". Tout est compatible, et j'ai mis le maximum du budget dans ce qui compte pour tes performances. "
                        + "Dis-moi si tu veux changer une pièce.")
         jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
+        _compter_assistant("config")
         return {"status": "ok", "message": message, "suggestion": suggestion,
                 "fps_estimation": estimation(suggestion, jeux)}
 

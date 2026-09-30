@@ -910,6 +910,23 @@
         </table></div>
         <p class="faint" style="margin-top:10px;font-size:0.82rem;">Clics : ouvertures du lien. Visiteurs : personnes qui ont ensuite vraiment utilisé le site (robots et toi exclus).</p>
       </div>` : '';
+    // Assistant IA : de la discussion jusqu'au panier Amazon.
+    const A = s.assistant;
+    const LIGNES_ASSISTANT = [
+      ['discussion', 'Discussions commencées'], ['message', 'Messages envoyés'],
+      ['guide_debut', 'Parcours « Je débute » commencés'], ['guide_fini', 'Parcours « Je débute » terminés'],
+      ['config', 'Configs proposées'], ['ajout', 'Composants ajoutés un par un'],
+      ['tout_ajouter', 'Configs ajoutées en entier'], ['amazon', 'Paniers Amazon ouverts'], ['partage', 'Configs partagées'],
+    ];
+    const assistantPanel = A ? `
+      <div class="panel">
+        <div class="panel-head"><h3>Assistant IA</h3><span class="faint">de la discussion au panier</span></div>
+        <div class="table-wrap" style="overflow-x:auto;"><table class="list liens-table">
+          <thead><tr><th>Étape</th><th class="num">Aujourd'hui</th><th class="num">7 jours</th><th class="num">Total</th></tr></thead>
+          <tbody>${LIGNES_ASSISTANT.map(([cle, libelle]) => { const v = A[cle] || { jour: 0, semaine: 0, total: 0 }; return `<tr>
+            <td>${libelle}</td><td class="num"><b>${nombre(v.jour)}</b></td><td class="num">${nombre(v.semaine)}</td><td class="num">${nombre(v.total)}</td></tr>`; }).join('')}</tbody>
+        </table></div>
+      </div>` : '';
     // Totaux depuis le premier jour archivé (voir _archiver_stats côté serveur).
     const T = s.total;
     const dateLongue = d => new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -952,6 +969,7 @@
           <div class="devices-legend">${devices.map(([k, v], i) => `<span><i style="background:${shades[i % shades.length]}"></i>${escapeHtml(k)} ${Math.round(v / total * 100)} %</span>`).join('') || '<span>—</span>'}</div>
         </div>
       </div>
+      ${assistantPanel}
       ${liensPanel}
       ${totaux}`;
   }

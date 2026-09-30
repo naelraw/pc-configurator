@@ -960,6 +960,7 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .cfg-total strong{ font-family:var(--font-mono); font-size:1.1rem; font-variant-numeric:tabular-nums; }
 .cfg-total .cfg-budget{ font-size:0.78rem; color:var(--text-3); }
 .cfg-boutons{ display:flex; flex-wrap:wrap; gap:8px; }
+.cfg-extras{ display:flex; flex-wrap:wrap; gap:8px; padding:10px 14px 12px; background:var(--surface-2); border-top:1px solid var(--line); }
 .cfg-boutons .btn{ padding:9px 14px; font-size:0.85rem; }
 @media (max-width:640px){
   .assistant-page{ padding:28px 16px 24px; }

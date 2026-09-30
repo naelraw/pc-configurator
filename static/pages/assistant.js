@@ -157,6 +157,10 @@
                <a class="btn btn-secondary" href="/configurateur">Voir ma config</a>`}
         </div>
       </div>
+      <div class="cfg-extras">
+        <button type="button" class="cfg-btn" data-action="amazon" data-msg="${index}"><i class="ph ph-shopping-cart" aria-hidden="true"></i> Tout mettre dans le panier Amazon</button>
+        <button type="button" class="cfg-btn" data-action="partager" data-msg="${index}"><i class="ph ph-share-network" aria-hidden="true"></i> <span>Partager</span></button>
+      </div>
     </div>`;
   }
 
@@ -372,6 +376,7 @@
 
   function demarrerGuide(){
     if(enCours) return;
+    suivre('guide_debut');
     discussion = [{ role: 'assistant', guide: 'intro',
       content: 'Parfait, on va trouver ton PC ensemble. Je te pose une dizaine de questions rapides : clique sur une réponse, ou écris-la toi-même. Et si un mot te parle pas, demande-moi.' }];
     guide = { actif: true, reponses: {} };
@@ -539,9 +544,61 @@
     afficher(false);
   }
 
+  // Statistiques de l'assistant (admin) : juste le type de clic, rien d'autre.
+  function suivre(type){
+    try{
+      fetch(API_BASE + '/api/assistant/evenement', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type }), keepalive: true }).catch(() => {});
+    }catch(e){}
+  }
+
+  const composantsDe = suggestion => Object.keys(FIELD_TO_CATEGORY)
+    .map(champ => composantsParId.get(suggestion[champ])).filter(Boolean);
+
+  // Même panier groupé que le configurateur : tous les composants en un clic.
+  async function panierAmazon(suggestion){
+    const items = composantsDe(suggestion);
+    const avecAsin = items.filter(c => c.asin);
+    if(!avecAsin.length){
+      await uiAlert('Aucun de ces composants n’a de lien Amazon connu.', { title: 'Panier Amazon indisponible' });
+      return;
+    }
+    if(avecAsin.length < items.length){
+      const suite = await uiConfirm(`${items.length - avecAsin.length} composant(s) sans lien Amazon connu ne seront pas ajoutés au panier.`,
+        { title: 'Panier incomplet', confirmLabel: 'Continuer vers Amazon' });
+      if(!suite) return;
+    }
+    const params = new URLSearchParams();
+    if(typeof amazonTag !== 'undefined' && amazonTag) params.set('AssociateTag', amazonTag);
+    avecAsin.forEach((c, i) => { params.set(`ASIN.${i + 1}`, c.asin); params.set(`Quantity.${i + 1}`, '1'); });
+    suivre('amazon');
+    window.open(`https://www.amazon.fr/gp/aws/cart/add.html?${params.toString()}`, '_blank', 'noopener');
+  }
+
+  // Lien vers la config, sans compte (/partage?c=...) : partage natif du
+  // téléphone s'il existe, sinon copie dans le presse-papiers.
+  async function partager(suggestion, bouton){
+    const ids = composantsDe(suggestion).map(c => c.id);
+    if(!ids.length) return;
+    const lien = `${location.origin}/partage?c=${ids.join('-')}`;
+    suivre('partage');
+    if(navigator.share){
+      try{ await navigator.share({ title: 'Ma config PC', text: 'Regarde la config que PC Radar m’a proposée :', url: lien }); return; }
+      catch(e){ if(e && e.name === 'AbortError') return; }
+    }
+    try{
+      await navigator.clipboard.writeText(lien);
+      const texte = bouton.querySelector('span');
+      if(texte){ texte.textContent = 'Lien copié'; setTimeout(() => { texte.textContent = 'Partager'; }, 2500); }
+    }catch(e){
+      await uiAlert(lien, { title: 'Lien de ta config' });
+    }
+  }
+
   function ajouterId(id){
     const item = composantsParId.get(id);
     if(!item) return;
+    suivre('ajout');
     const config = lireMaConfig();
     config[item.categorie] = item.id;
     ecrireMaConfig(config);
@@ -569,8 +626,10 @@
     if(action === 'ajouter-id'){ ajouterId(Number(b.dataset.id)); return; }
     const m = discussion[Number(b.dataset.msg)];
     if(!m || !m.suggestion) return;
-    if(action === 'ajouter') ajouter(m.suggestion, [b.dataset.champ]);
-    else if(action === 'tout') ajouter(m.suggestion, Object.keys(FIELD_TO_CATEGORY));
+    if(action === 'ajouter'){ ajouter(m.suggestion, [b.dataset.champ]); suivre('ajout'); }
+    else if(action === 'tout'){ ajouter(m.suggestion, Object.keys(FIELD_TO_CATEGORY)); suivre('tout_ajouter'); }
+    else if(action === 'amazon') panierAmazon(m.suggestion);
+    else if(action === 'partager') partager(m.suggestion, b);
     else if(action === 'changer'){
       const item = composantsParId.get(m.suggestion[b.dataset.champ]);
       const cat = FIELD_TO_CATEGORY[b.dataset.champ];
@@ -618,6 +677,7 @@
   // Démarrage
   // ------------------------------------------------------------------
   async function demarrer(){
+    loadAffiliateConfig();      // identifiant Amazon Partenaires (panier, liens « Voir l'offre »)
     try{ discussion = JSON.parse(sessionStorage.getItem(DISCUSSION_KEY)) || []; }catch(e){ discussion = []; }
     try{ guide = JSON.parse(sessionStorage.getItem(GUIDE_KEY)) || guide; }catch(e){}
     afficher(false);

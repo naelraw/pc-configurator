@@ -67,7 +67,31 @@
     return `<div class="build-card chip-card"><div class="build-detail show" style="border-top:none;">${rows}</div></div>`;
   }
 
+  // Lien de partage sans compte (/partage?c=12-34-56, bouton de l'assistant) :
+  // les composants sont dans l'adresse, rien n'est stocké.
+  async function loadPartage(){
+    await loadComponents();
+    const ids = (new URLSearchParams(location.search).get('c') || '').match(/\d+/g) || [];
+    const composants = {};
+    ids.slice(0, 12).forEach(id => {
+      const item = allComponents.find(c => c.id === Number(id));
+      if(item) composants[item.categorie] = item.id;
+    });
+    if(!Object.keys(composants).length){
+      document.getElementById('build-name').textContent = 'Configuration introuvable';
+      document.getElementById('build-date').textContent = 'Ce lien ne correspond à aucune configuration.';
+      return;
+    }
+    document.getElementById('build-name').textContent = 'Config PC proposée par l’assistant PC Radar';
+    document.getElementById('build-date').textContent = 'Prix du jour, compatibilité vérifiée';
+    document.getElementById('build-content').innerHTML = renderBuildComponents(composants);
+    currentComposantsJson = composants;
+    document.getElementById('reuse-btn').style.display = 'inline-block';
+    document.getElementById('fps-picker-box').classList.remove('hidden');
+  }
+
   async function load(){
+    if(location.pathname === '/partage') return loadPartage();
     const buildId = getBuildIdFromPath();
     if(!buildId){
       document.getElementById('build-name').textContent = 'Lien invalide';
