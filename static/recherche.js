@@ -79,16 +79,23 @@
     return d[a.length][b.length];
   }
 
+  // Gammes de cartes graphiques : le nombre tapé juste après doit être le début
+  // du numéro de la carte (« rtx 30 » → 3050, 3060… ; « rtx 3 » ≠ « Infinity 3 »).
+  const GAMMES_GPU = new Set(['rtx', 'gtx', 'rx']);
+
   // Meilleure correspondance d'un mot de la requête parmi les mots du produit.
-  function scoreMot(q, mots){
+  // « enCours » : dernier mot de la requête, peut-être pas fini de taper
+  // (« 40 » doit déjà proposer les 4060, 4070…).
+  function scoreMot(q, mots, enCours){
     const numerique = /^\d+$/.test(q);
     // Un mot qui contient un chiffre est un numéro de modèle : jamais « corrigé »
     // (9800x3d ≠ 5800x3d, 14400f ≠ 12400f).
     const modele = /\d/.test(q);
+    const debutMin = numerique ? (enCours ? 2 : 4) : 2;
     let best = 0;
     for(const m of mots){
       if(m === q){ best = Math.max(best, 10); continue; }
-      if(m.startsWith(q) && q.length >= (numerique ? 3 : 2)){ best = Math.max(best, numerique ? 6 : 7); continue; }
+      if(m.startsWith(q) && q.length >= debutMin && !(numerique && m.length < 4)){ best = Math.max(best, numerique ? 6 : 7); continue; }
       if(modele) continue;                          // un numéro de modèle ne se « corrige » jamais (4060 ≠ 4070)
       if(q.length >= 4 && m.length >= 3){
         const max = q.length >= 8 ? 2 : 1;
@@ -107,8 +114,9 @@
     const extra = [specs.puce, specs.socket, specs.type, specs.ram_type, specs.chipset, specs.format, specs.type_refroidissement, c.marque]
       .filter(Boolean).join(' ');
     const mots = preparer(`${c.nom || ''} ${extra} ${CATEGORIE_MOTS[c.categorie] || ''}`);
-    const nom = new Set(preparer(c.nom || ''));
-    const r = { mots, nom };
+    const suite = preparer(`${c.nom || ''} | ${specs.puce || ''}`);   // mots dans l'ordre
+    const nom = new Set(suite);
+    const r = { mots, nom, suite };
     cache.set(c, r);
     return r;
   }
@@ -116,17 +124,29 @@
   function score(requete, c){
     const q = motsRequete(requete);
     if(!q.length) return 1;
-    const { mots, nom } = motsComposant(c);
+    const { mots, nom, suite } = motsComposant(c);
     let total = 0, rates = 0;
-    for(const m of q){
-      const s = scoreMot(m, mots);
+    const scores = q.map((m, k) => {
+      // Nombre juste après « rtx », « gtx » ou « rx » : il doit suivre la gamme
+      // dans le nom du produit et en être le début (même un seul chiffre).
+      if(k > 0 && GAMMES_GPU.has(q[k - 1]) && /^\d+$/.test(m)){
+        let s = 0;
+        suite.forEach((mot, i) => {
+          if(i && suite[i - 1] === q[k - 1] && mot.startsWith(m)) s = Math.max(s, mot === m ? 10 : 7);
+        });
+        return s;
+      }
+      return scoreMot(m, mots, k === q.length - 1);
+    });
+    for(const [k, m] of q.entries()){
+      const s = scores[k];
       if(!s) rates++;
       total += s + (nom.has(m) ? 2 : 0);            // bonus si le mot est dans le nom lui-même
     }
     // Tous les mots doivent correspondre ; au-delà de 3 mots, un oubli est toléré,
     // mais jamais celui d'un numéro de modèle (9800x3d ne doit pas donner la 5800X3D).
     if(rates > (q.length >= 4 ? 1 : 0)) return 0;
-    if(rates && q.some(m => /\d/.test(m) && !scoreMot(m, mots))) return 0;
+    if(rates && q.some((m, k) => /\d/.test(m) && !scores[k])) return 0;
     if(c.en_stock === false) total -= 1;
     const demandes = new Set(q);
     nom.forEach(m => { if(DECLINAISONS.has(m) && !demandes.has(m)) total -= 3; });
