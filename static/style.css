@@ -882,8 +882,28 @@ a.bento-cell:hover .more{ color:var(--accent); }
   padding:10px 14px; border-bottom:1px solid var(--line); font-size:0.88rem;
 }
 .cfg-cat{ color:var(--text-3); font-size:0.8rem; }
-.cfg-nom{ color:var(--text); font-weight:500; min-width:0; overflow-wrap:anywhere; }
-a.cfg-nom:hover{ color:var(--accent); }
+.cfg-nom{
+  color:var(--text); font-weight:500; min-width:0; overflow-wrap:anywhere;
+  background:none; border:none; padding:0; font:inherit; font-weight:500; text-align:left; cursor:pointer;
+  text-decoration:underline; text-decoration-color:var(--line-strong); text-underline-offset:3px;
+  transition:color .2s var(--ease), text-decoration-color .2s var(--ease);
+}
+.cfg-nom:hover{ color:var(--accent); text-decoration-color:var(--accent-line); }
+.cite-ligne{
+  display:grid; grid-template-columns:52px 1fr auto auto; align-items:center; gap:6px 12px;
+  padding:10px 14px; border-bottom:1px solid var(--line); font-size:0.88rem;
+}
+.cite-ligne:last-child, .cfg-ligne:last-child{ border-bottom:none; }
+.cite-image{
+  width:52px; height:52px; display:grid; place-items:center; padding:4px; cursor:pointer;
+  border:1px solid var(--line); border-radius:var(--r-sm); background:var(--photo-bg); color:var(--text-3); font-size:1.3rem;
+}
+.cite-image.is-transparent{ background:var(--surface-2); }
+.cite-image img{ max-width:100%; max-height:100%; object-fit:contain; }
+.cite-infos{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+.cite-specs{ color:var(--text-3); font-size:0.8rem; }
+.detail-ajout{ display:flex; flex-wrap:wrap; align-items:center; gap:10px 16px; margin:4px 0 12px; }
+.detail-ajout .detail-page-link{ margin:0; }
 .cfg-vide{ color:var(--text-3); font-weight:400; }
 .cfg-prix{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
 .cfg-actions{ display:flex; gap:6px; justify-content:flex-end; }
@@ -914,6 +934,9 @@ a.cfg-nom:hover{ color:var(--accent); }
   .cfg-ligne{ grid-template-columns:1fr auto; padding:10px 12px; }
   .cfg-cat{ grid-column:1 / -1; }
   .cfg-actions{ grid-column:1 / -1; justify-content:flex-start; }
+  .cite-ligne{ grid-template-columns:52px 1fr; padding:10px 12px; }
+  .cite-ligne .cfg-prix{ grid-column:2; }
+  .cite-ligne .cfg-actions{ grid-column:1 / -1; justify-content:flex-start; }
   .cfg-changer span{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .cfg-boutons, .cfg-boutons .btn{ width:100%; }
 }

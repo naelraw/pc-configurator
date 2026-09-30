@@ -26,6 +26,9 @@
 <link rel="manifest" href="/static/manifest.webmanifest">
 <script src="/static/pwa.js" defer></script>
 <link rel="stylesheet" href="/static/style.css">
+<script src="/static/affiliate-tag.js"></script>
+<script src="/static/account-features.js"></script>
+<script src="/static/price-history.js"></script>
 <script src="/static/csp-handlers.js"></script>
 </head>
 <body>
@@ -69,6 +72,13 @@
 </section>
 </main>
 
+<div class="modal-overlay" id="detail-modal-overlay" data-onclick="closeDetailModal()">
+  <div class="modal-box chip-card" data-onclick="event.stopPropagation()">
+    <button class="modal-close" data-onclick="closeDetailModal()" aria-label="Fermer">✕</button>
+    <div id="detail-modal-content"></div>
+  </div>
+</div>
+
 <footer>
   <div class="footer-inner">
     <div class="footer-brand">
@@ -90,6 +100,7 @@
 
 <script src="/static/nav-menu.js"></script>
 <script src="/static/effects.js"></script>
+<script src="/static/image-lightbox.js"></script>
 
 </body>
 </html>

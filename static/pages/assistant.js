@@ -97,7 +97,7 @@
         : `<button type="button" class="cfg-btn cfg-ajouter" data-action="ajouter" data-msg="${index}" data-champ="${champ}">${maConfig[cat] ? 'Remplacer' : 'Ajouter'}</button>`;
       return `<li class="cfg-ligne">
         <span class="cfg-cat">${escapeHtml(cat)}</span>
-        <a class="cfg-nom" href="${escapeHtml(item.page || '#')}" target="_blank" rel="noopener">${escapeHtml(item.nom)}</a>
+        <button type="button" class="cfg-nom" data-action="detail" data-id="${item.id}">${escapeHtml(item.nom)}</button>
         <span class="cfg-prix">${prix(item.prix_indicatif)}</span>
         <span class="cfg-actions">
           ${bouton}
@@ -118,6 +118,117 @@
         </div>
       </div>
     </div>`;
+  }
+
+  // Bouton d'ajout d'un composant à la config (même logique partout).
+  function boutonAjout(item, maConfig){
+    if(maConfig[item.categorie] === item.id){
+      return `<span class="cfg-ok"><i class="ph ph-check" aria-hidden="true"></i> Dans ta config</span>`;
+    }
+    return `<button type="button" class="cfg-btn cfg-ajouter" data-action="ajouter-id" data-id="${item.id}">${maConfig[item.categorie] ? 'Remplacer' : 'Ajouter'}</button>`;
+  }
+
+  // Les 3 caractéristiques qui comptent le plus, par catégorie.
+  const SPECS_RESUME = {
+    'CPU': [['coeurs', ' cœurs'], ['frequence_boost_ghz', ' GHz'], ['socket', '']],
+    'GPU': [['vram_go', ' Go'], ['type_memoire', ''], ['tdp', ' W']],
+    'Carte mère': [['socket', ''], ['ram_type', ''], ['format', '']],
+    'RAM': [['capacite_go', ' Go'], ['type', ''], ['frequence_mt_s', ' MT/s']],
+    'Stockage': [['capacite_go', ' Go'], ['type', ''], ['interface', '']],
+    'Alimentation': [['wattage', ' W'], ['certification', ''], ['modularite', '']],
+    'Boîtier': [['format', ''], ['formats_supportes', '']],
+    'Refroidissement': [['type_refroidissement', ''], ['hauteur_mm', ' mm']],
+  };
+  function resumeSpecs(item){
+    const specs = item.specs || {};
+    return (SPECS_RESUME[item.categorie] || [])
+      .map(([k, unite]) => specs[k] == null || specs[k] === '' ? null : (Array.isArray(specs[k]) ? specs[k].join(', ') : specs[k]) + unite)
+      .filter(Boolean).join(' · ');
+  }
+
+  // Composants dont parle une réponse (question, comparaison...) : chacun
+  // s'ouvre dans la fenêtre de détail et peut être ajouté à la config.
+  function panneauComposants(ids){
+    const items = (ids || []).map(id => composantsParId.get(id)).filter(Boolean);
+    if(!items.length) return '';
+    const maConfig = lireMaConfig();
+    return `<div class="cfg-carte cite-carte"><ul class="cfg-liste">${items.map(item => `
+      <li class="cite-ligne">
+        <button type="button" class="cite-image${item.image_processed ? ' is-transparent' : ''}" data-action="detail" data-id="${item.id}" aria-label="Voir ${escapeHtml(item.nom)}">
+          ${item.image_url ? `<img src="${escapeHtml(item.image_url)}" alt="" loading="lazy">` : '<i class="ph ph-cpu" aria-hidden="true"></i>'}
+        </button>
+        <div class="cite-infos">
+          <span class="cfg-cat">${escapeHtml(item.categorie)}${item.en_stock === false ? ' · épuisé' : ''}</span>
+          <button type="button" class="cfg-nom" data-action="detail" data-id="${item.id}">${escapeHtml(item.nom)}</button>
+          <span class="cite-specs">${escapeHtml(resumeSpecs(item))}</span>
+        </div>
+        <span class="cfg-prix">${prix(item.prix_indicatif)}</span>
+        <span class="cfg-actions">
+          ${boutonAjout(item, maConfig)}
+          <button type="button" class="cfg-btn" data-action="detail" data-id="${item.id}"><i class="ph ph-info" aria-hidden="true"></i><span>Détails</span></button>
+        </span>
+      </li>`).join('')}</ul></div>`;
+  }
+
+  // Même fenêtre de détail que le configurateur et le comparateur, pour
+  // rester dans la discussion.
+  function showComponentDetail(id){
+    const item = composantsParId.get(id);
+    if(!item) return;
+    const specs = item.specs || {};
+    const specsHtml = Object.entries(specs).map(([k, v]) => `
+      <div class="detail-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}</span></div>
+    `).join('') || '<p style="color:var(--text-dim); font-size:0.85rem;">Aucune spec enregistrée.</p>';
+    const prixMarche = (item.prix_marche || []).slice().sort((a, b) => a.prix - b.prix);
+    const pricesHtml = prixMarche.length
+      ? prixMarche.map(p => `
+          <div class="detail-row">
+            <span class="k">${escapeHtml(p.vendeur)}</span>
+            <span class="v">
+              ${p.prix}€
+              ${p.lien ? `<a href="${escapeHtml(withAffiliateTag(p.lien, p.vendeur))}" target="_blank" rel="noopener noreferrer sponsored" style="margin-left:8px; color:var(--led);">Voir l’offre ↗</a>` : ''}
+            </span>
+          </div>`).join('')
+      : '<p style="color:var(--text-dim); font-size:0.85rem;">Aucun prix de marché relevé.</p>';
+    const imageHtml = item.image_url ? `<div class="detail-image${item.image_processed ? ' is-transparent' : ''}"><img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.nom)}"></div>` : '';
+    const descriptionHtml = item.description
+      ? `<details style="margin-top:10px;">
+          <summary style="cursor:pointer; color:var(--led); font-size:0.88rem;">Description</summary>
+          <p style="color:var(--text-dim); font-size:0.88rem; margin-top:8px; line-height:1.5;">${escapeHtml(item.description)}</p>
+        </details>`
+      : '';
+    const amazonDetails = item.caracteristiques_amazon || [];
+    const amazonDetailsHtml = amazonDetails.length ? `
+      <details style="margin-top:14px;">
+        <summary style="cursor:pointer; color:var(--led);">Tous les détails</summary>
+        <div class="detail-specs" style="margin-top:8px;">
+          ${amazonDetails.map(d => `<div class="detail-row"><span class="k">${escapeHtml(d.type)}</span><span class="v">${escapeHtml(d.value)}</span></div>`).join('')}
+        </div>
+      </details>` : '';
+
+    const contenu = $('detail-modal-content');
+    contenu.innerHTML = `
+      <span class="cat-badge">${escapeHtml(item.categorie)}</span>
+      <h2>${escapeHtml(item.nom)}</h2>
+      ${imageHtml}
+      <p class="detail-price-ref">Prix de référence : ${item.prix_indicatif}€</p>
+      <div class="detail-ajout">${boutonAjout(item, lireMaConfig())}
+        ${item.page ? `<a class="detail-page-link" href="${escapeHtml(item.page)}" target="_blank" rel="noopener">Fiche complète <i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ''}</div>
+      <div class="follow-slot"></div>
+      <div class="price-history-slot"></div>
+      ${descriptionHtml}
+      <div class="detail-specs">${specsHtml}</div>
+      <h3 style="margin-top:18px; margin-bottom:8px;">Prix relevés</h3>
+      <div class="detail-prices">${pricesHtml}</div>
+      ${amazonDetailsHtml}`;
+    contenu.dataset.id = item.id;
+    $('detail-modal-overlay').classList.add('show');
+    if(window.PCAccount) PCAccount.mountFollow(contenu.querySelector('.follow-slot'), item);
+    if(window.PCPriceHistory) PCPriceHistory.mount(contenu.querySelector('.price-history-slot'), item.id);
+  }
+
+  function closeDetailModal(){
+    $('detail-modal-overlay').classList.remove('show');
   }
 
   function blocFps(fps){
@@ -145,7 +256,7 @@
       if(m.role === 'user'){
         html += `<div class="msg msg-moi"><div class="msg-corps">${escapeHtml(m.content).replace(/\n/g, '<br>')}</div></div>`;
       }else{
-        html += bulleAssistant(formater(m.content) + (m.suggestion ? carteConfig(m.suggestion, i) : '') + blocFps(m.fps), m.erreur ? 'msg-erreur' : '');
+        html += bulleAssistant(formater(m.content) + (m.suggestion ? carteConfig(m.suggestion, i) : '') + panneauComposants(m.composants) + blocFps(m.fps), m.erreur ? 'msg-erreur' : '');
       }
     });
     if(enCours) html += bulleAssistant('<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span>');
@@ -183,7 +294,9 @@
     const derniere = [...discussion].reverse().find(m => m.suggestion);
     const messages = discussion.map(m => ({
       role: m.role,
-      content: m.suggestion ? `${m.content}\n(Config proposée : ${resumeConfig(m.suggestion)})` : m.content,
+      content: m.content
+        + (m.suggestion ? `\n(Config proposée : ${resumeConfig(m.suggestion)})` : '')
+        + ((m.composants || []).length ? `\n(Composants montrés : ${m.composants.map(id => composantsParId.get(id)).filter(Boolean).map(c => `${c.nom} [id ${c.id}]`).join(', ')})` : ''),
     }));
 
     let reponse;
@@ -195,7 +308,8 @@
       });
       const data = await res.json().catch(() => ({}));
       if(res.ok && data.status === 'ok'){
-        reponse = { role: 'assistant', content: data.message || '', suggestion: data.suggestion || null, fps: data.fps_estimation || null };
+        reponse = { role: 'assistant', content: data.message || '', suggestion: data.suggestion || null,
+          composants: Array.isArray(data.composants) ? data.composants : [], fps: data.fps_estimation || null };
       }else{
         reponse = { role: 'assistant', content: data.message || data.detail || 'L’assistant n’a pas pu répondre, réessaie.', erreur: true };
       }
@@ -228,11 +342,29 @@
     afficher(false);
   }
 
+  function ajouterId(id){
+    const item = composantsParId.get(id);
+    if(!item) return;
+    const config = lireMaConfig();
+    config[item.categorie] = item.id;
+    ecrireMaConfig(config);
+    afficher(false);
+    if($('detail-modal-overlay').classList.contains('show')) showComponentDetail(Number($('detail-modal-content').dataset.id));
+  }
+
+  $('detail-modal-content').addEventListener('click', e => {
+    const b = e.target.closest('[data-action="ajouter-id"]');
+    if(b) ajouterId(Number(b.dataset.id));
+  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape') closeDetailModal(); });
+
   $('chat-fil').addEventListener('click', e => {
     const b = e.target.closest('[data-action]');
     if(!b) return;
     const action = b.dataset.action;
     if(action === 'exemple'){ envoyer(EXEMPLES[Number(b.dataset.i)]); return; }
+    if(action === 'detail'){ showComponentDetail(Number(b.dataset.id)); return; }
+    if(action === 'ajouter-id'){ ajouterId(Number(b.dataset.id)); return; }
     const m = discussion[Number(b.dataset.msg)];
     if(!m || !m.suggestion) return;
     if(action === 'ajouter') ajouter(m.suggestion, [b.dataset.champ]);

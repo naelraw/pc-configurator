@@ -5368,7 +5368,8 @@ Réponds UNIQUEMENT avec le JSON demandé."""
             return {"status": "error", "message": parsed["error"]}
 
         if allow_advice and isinstance(parsed, dict) and parsed.get("type") == "advice":
-            return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or []}
+            return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or [],
+                    "composants": parsed.get("composants") or []}
 
         compatibility_result = verify_compatibility(parsed)
         if not compatibility_result["compatible"] and isinstance(parsed, dict):
@@ -5765,10 +5766,14 @@ Nouveau message de l'utilisateur : {question}
 Choisis UNE des deux formes de réponse :
 
 (1) Une réponse de discussion (question, conseil, explication, comparaison, avis sur sa config...) :
-{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>]}}
+{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>]}}
 - Réponse utile et directe, 2 à 6 phrases, ou une courte liste avec des tirets si ça aide.
   Tu peux mettre un mot important en **gras**. Pas de titres, pas de tableaux.
-- Quand tu cites un composant du site, donne son nom tel qu'il est listé et son prix.
+- N'écris jamais les "id" dans "message" : ils ne servent qu'au champ "composants".
+- Quand tu cites un composant du site, donne son nom tel qu'il est listé et son prix, et mets son "id"
+  dans "composants" (6 au maximum, dans l'ordre où tu en parles) : le site les affiche sous ta réponse
+  avec leur fiche. Si l'utilisateur demande des infos sur un composant précis ou en compare plusieurs,
+  mets-les toujours dans "composants". Liste vide si tu ne parles d'aucun composant précis.
 - Ne donne jamais de chiffres de FPS toi-même : si l'utilisateur demande les performances dans un
   jeu, remplis "jeux" et le site ajoutera sa propre estimation sous ta réponse.
 - Si la demande de config est trop vague (ni usage, ni budget), pose UNE question courte ici.
@@ -5805,7 +5810,16 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
         jeux = result.get("jeux") if isinstance(result.get("jeux"), list) else []
         if result["status"] == "advice":
             base = ma_config if ma_config.get("cpu_id") and ma_config.get("gpu_id") else derniere
-            return {"status": "ok", "message": result["message"] or "Je n'ai pas compris, tu peux reformuler ?",
+            ids_cites = []
+            for cid in result.get("composants") if isinstance(result.get("composants"), list) else []:
+                cid = int(cid) if isinstance(cid, str) and cid.strip().isdigit() else cid
+                if isinstance(cid, int) and cid in components_by_id and cid not in ids_cites:
+                    ids_cites.append(cid)
+            # Les numéros internes (« id 2500 ») n'ont rien à faire dans le texte.
+            texte = re.sub(r"\(\s*id\s*\d+\s*[,;]\s*", "(", result["message"] or "")
+            texte = re.sub(r"\s*[\(\[]\s*id\s*\d+\s*[\)\]]|,?\s*\bid\s*\d+\b", "", texte)
+            return {"status": "ok", "message": texte.strip() or "Je n'ai pas compris, tu peux reformuler ?",
+                    "composants": ids_cites[:6],
                     "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]])}
         if result["status"] == "error":
             # Demande trop vague, budget introuvable... : c'est une réponse de la discussion.
