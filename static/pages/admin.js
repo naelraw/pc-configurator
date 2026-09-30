@@ -110,15 +110,31 @@
     }
   }
 
+  // Mot de passe déjà enregistré : on masque le formulaire pendant la
+  // vérification (plus de « flash » de la page de connexion). Le mot de
+  // passe n'est oublié que si le serveur le refuse vraiment (401) : pendant
+  // un redémarrage du site (502/503) ou une limite passagère (429), on
+  // réessaie quelques secondes au lieu de renvoyer vers la connexion.
   async function tryAutoLogin(){
     let saved = null;
     try{ saved = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY); }catch(e){}
     if(!saved) return;
-    try{
-      const res = await fetch(API_BASE + '/api/admin/verify', { headers: { 'X-Admin-Secret': saved } });
-      if(res.status === 200){ adminSecret = saved; startApp(); }
-      else{ try{ localStorage.removeItem(ADMIN_SECRET_STORAGE_KEY); }catch(e){} }
-    }catch(e){ /* formulaire de connexion laissé tel quel */ }
+    $('login-view').hidden = true;
+    let dernierStatut = null;
+    for(let essai = 0; essai < 6; essai++){
+      try{
+        const res = await fetch(API_BASE + '/api/admin/verify', { headers: { 'X-Admin-Secret': saved } });
+        dernierStatut = res.status;
+        if(res.status === 200){ adminSecret = saved; startApp(); return; }
+        if(res.status === 401){ try{ localStorage.removeItem(ADMIN_SECRET_STORAGE_KEY); }catch(e){} break; }
+      }catch(e){ dernierStatut = 'réseau'; }
+      await new Promise(r => setTimeout(r, 1500 + essai * 1000));
+    }
+    $('login-view').hidden = false;
+    if(dernierStatut !== 401){
+      $('login-error').textContent = 'Le serveur ne répond pas pour le moment (redémarrage ?). Recharge la page dans quelques secondes.';
+      $('login-error').hidden = false;
+    }
   }
 
   function logout(){
