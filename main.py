@@ -882,6 +882,24 @@ def application_page():
     return FileResponse("static/application.html")
 
 
+# Liens courts à mettre sur les réseaux (bio TikTok, Instagram...) : ils
+# mènent à l'accueil en marquant la provenance (utm_source), que les
+# statistiques de l'admin reconnaissent (site_stats.py).
+LIENS_PARTAGE = {
+    "tiktok": "tiktok", "tt": "tiktok", "insta": "instagram", "instagram": "instagram", "ig": "instagram",
+    "youtube": "youtube", "yt": "youtube", "discord": "discord", "reddit": "reddit", "x": "x",
+    "facebook": "facebook", "fb": "facebook", "snap": "snapchat", "whatsapp": "whatsapp", "wa": "whatsapp",
+}
+
+
+def _lien_partage(code: str):
+    return RedirectResponse(f"/?utm_source={LIENS_PARTAGE[code]}", status_code=302)
+
+
+for _code in LIENS_PARTAGE:
+    app.add_api_route(f"/{_code}", lambda _c=_code: _lien_partage(_c), methods=["GET"], include_in_schema=False)
+
+
 @app.get("/build/{build_id}")
 def build_view_page(build_id: int):
     """

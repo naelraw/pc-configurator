@@ -48,3 +48,19 @@ def test_totaux_depuis_le_debut():
     assert t["meilleur_jour"] == {"date": "2026-09-01", "visiteurs": 5}
     assert t["appareils"] == {"Mobile": 3, "Ordinateur": 6}
     assert t["pages"][0] == {"page": "/", "vues": 15}
+
+
+def test_liens_de_partage(client):
+    import os, tempfile
+    from datetime import datetime
+    r = client.get("/tiktok", follow_redirects=False)
+    assert r.status_code == 302 and r.headers["location"] == "/?utm_source=tiktok"
+    assert client.get("/insta", follow_redirects=False).headers["location"] == "/?utm_source=instagram"
+    jour = datetime.utcnow().strftime("%d/%b/%Y")
+    ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15"
+    lignes = [f'8.8.8.8 - - [{jour}:10:00:00 +0000] "GET /?utm_source=tiktok HTTP/1.1" 200 1 "-" "{ua}"',
+              f'8.8.8.8 - - [{jour}:10:00:01 +0000] "GET /api/components HTTP/1.1" 200 1 "https://pcradar.tech/" "{ua}"']
+    chemin = os.path.join(tempfile.mkdtemp(), "access.log")
+    open(chemin, "w").write("\n".join(lignes) + "\n")
+    r = site_stats.compute(log_glob=chemin)
+    assert {"source": "TikTok", "visites": 1} in r["provenance"]

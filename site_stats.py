@@ -44,6 +44,23 @@ SEARCH_ENGINES = {"google": "Google", "bing": "Bing", "duckduckgo": "DuckDuckGo"
                   "yahoo": "Yahoo", "ecosia": "Ecosia", "yandex": "Yandex", "brave": "Brave Search"}
 
 
+# Liens de partage (pcradar.tech/tiktok, /insta...) : ils redirigent vers
+# /?utm_source=<source>, source qui prime sur le référent (les applis
+# TikTok et Instagram le masquent, leurs visiteurs sortaient en « Accès direct »).
+UTM_NOMS = {"tiktok": "TikTok", "instagram": "Instagram", "youtube": "YouTube", "discord": "Discord",
+            "reddit": "Reddit", "x": "X (Twitter)", "facebook": "Facebook", "snapchat": "Snapchat",
+            "whatsapp": "WhatsApp", "email": "E-mail"}
+UTM = re.compile(r"[?&]utm_source=([a-z0-9_-]{1,30})", re.IGNORECASE)
+
+
+def _utm(path):
+    m = UTM.search(path)
+    if not m:
+        return None
+    code = m.group(1).lower()
+    return UTM_NOMS.get(code, code)
+
+
 def _source(ref, host):
     if not ref or ref == "-":
         return "Accès direct"
@@ -126,13 +143,13 @@ def compute(excluded_ips=(), host="pcradar.tech", days=14, log_glob=LOG_GLOB):
         all_devices.add(device)
         day_pages[day][page] += 1
         day_types[day][device] = "Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"
-        day_src = _source(m["ref"], host)
+        day_src = _utm(m["path"]) or _source(m["ref"], host)
         if day_src:
             day_sources[day][day_src] += 1
         if day >= week_start:
             pages[page] += 1
             week_devices[device] = "Mobile" if MOBILE.search(m["ua"]) else "Ordinateur"
-            src = _source(m["ref"], host)
+            src = day_src
             if src:
                 sources[src] += 1
     days_list = [since + timedelta(days=i) for i in range(days)]
