@@ -128,6 +128,11 @@
 
   function openSite(){ window.open('/', '_blank', 'noopener'); }
 
+  // Rapport des revenus du mois dans le compte Amazon Partenaires.
+  function openAmazonReports(){
+    window.open('https://partenaires.amazon.fr/p/reporting/earnings?ac-ms-src=summaryforthismonth', '_blank', 'noopener');
+  }
+
   async function copyLink(url){
     try{ await navigator.clipboard.writeText(url); toast('Lien copié : ' + url.replace('https://', '')); }
     catch(e){ toast('Copie impossible : ' + url, true); }
