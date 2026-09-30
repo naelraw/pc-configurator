@@ -344,14 +344,11 @@
       // on l'aplatit en tableau, c'est ce que renderComponents() attend.
       allComponents = Object.values(data.components || {}).flat();
       populateBrandOptions();
+      restaurerFiltres();
       if(browseCategory){
-        document.getElementById('category-filter-select').value = browseCategory;
-        onCategoryFilterChange();
         const hint = document.getElementById('config-hint');
         hint.innerHTML = `Tous les composants "${escapeHtml(browseCategory)}". Sélectionnes-en un pour revenir au configurateur, ou <a href="/configurateur" style="color:var(--led);">annule</a> pour revenir sans choisir.`;
         hint.classList.add('show');
-      }else{
-        renderComponents(allComponents);
       }
       applyIncomingAISuggestion();
     }catch(e){
@@ -393,6 +390,58 @@
     renderComponents(allComponents);
   }
 
+  // Tous les filtres (recherche comprise) sont enregistrés pour la visite
+  // (sessionStorage) : on les retrouve sur la page « Voir plus » et en
+  // revenant au configurateur. La page « Voir plus » impose sa catégorie sans
+  // écraser celle choisie sur le configurateur.
+  const FILTRES_KEY = 'configurateurFiltres';
+  const CHAMPS_FILTRES = { recherche: 'search-input', tri: 'sort-select', marque: 'brand-select',
+    prixMin: 'price-min-input', prixMax: 'price-max-input', budget: 'budget-input' };
+  let filtresRestaures = false;   // rien n'est enregistré avant la restauration
+
+  function lireFiltres(){
+    try{ return JSON.parse(sessionStorage.getItem(FILTRES_KEY)) || {}; }catch(e){ return {}; }
+  }
+
+  function enregistrerFiltres(){
+    if(!filtresRestaures) return;
+    const f = lireFiltres();
+    for(const [cle, id] of Object.entries(CHAMPS_FILTRES)) f[cle] = document.getElementById(id).value;
+    f.epuises = document.getElementById('show-out-of-stock-checkbox').checked;
+    const categorie = document.getElementById('category-filter-select').value;
+    if(!browseCategory) f.categorie = categorie;
+    f.specs = f.specs || {};
+    if(categorie){
+      f.specs[categorie] = {};
+      (CATEGORY_FILTER_FIELDS[categorie] || []).forEach(field => {
+        const el = document.getElementById(specFilterInputId(field.key));
+        if(el && el.value !== '') f.specs[categorie][field.key] = el.value;
+      });
+    }
+    try{ sessionStorage.setItem(FILTRES_KEY, JSON.stringify(f)); }catch(e){}
+  }
+
+  function restaurerFiltres(){
+    const f = lireFiltres();
+    for(const [cle, id] of Object.entries(CHAMPS_FILTRES)){
+      if(typeof f[cle] === 'string') document.getElementById(id).value = f[cle];
+    }
+    document.getElementById('show-out-of-stock-checkbox').checked = !!f.epuises;
+    const budget = document.getElementById('budget-input').value;
+    budgetMax = budget === '' ? null : Number(budget);
+    const select = document.getElementById('category-filter-select');
+    const categorie = browseCategory || f.categorie || '';
+    if([...select.options].some(o => o.value === categorie)) select.value = categorie;
+    onCategoryFilterChange();   // reconstruit marques et filtres spécialisés
+    Object.entries((f.specs || {})[select.value] || {}).forEach(([cle, valeur]) => {
+      const el = document.getElementById(specFilterInputId(cle));
+      if(el) el.value = valeur;
+    });
+    filtresRestaures = true;
+    renderComponents(allComponents);
+    if(budgetMax !== null) updateBuildPreview();
+  }
+
   function showMore(category){
     window.location.href = `/configurateur?voir_categorie=${encodeURIComponent(category)}`;
   }
@@ -415,6 +464,7 @@
   }
 
   function renderComponents(components){
+    enregistrerFiltres();
     const container = document.getElementById('components-container');
     container.innerHTML = '';
     const byCategory = {};
