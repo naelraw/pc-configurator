@@ -285,7 +285,8 @@
 
   function afficher(defiler = true){
     const fil = $('chat-fil');
-    let html = accueil();
+    // Parcours guidé : il commence par sa propre présentation, pas par l'accueil et ses exemples.
+    let html = discussion.length && discussion[0].guide === 'intro' ? '' : accueil();
     const enCoursGuide = questionActuelle();
     discussion.forEach((m, i) => {
       if(m.cache) return;
