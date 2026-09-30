@@ -2535,6 +2535,20 @@ def admin_toggle_official_build(build_id: int, _admin=Depends(require_admin)):
         client.close()
 
 
+@app.delete("/api/admin/builds/{build_id}")
+def admin_delete_build(build_id: int, _admin=Depends(require_admin)):
+    """Supprime définitivement une configuration (et ses alertes de prix), quel que soit son propriétaire."""
+    client = get_client()
+    try:
+        if not client.execute("SELECT 1 FROM builds WHERE id = ?", [build_id]).rows:
+            raise HTTPException(status_code=404, detail="Configuration introuvable.")
+        client.execute("DELETE FROM builds WHERE id = ?", [build_id])
+        client.execute("DELETE FROM build_alerts WHERE build_id = ?", [build_id])
+        return {"status": "ok", "message": "Configuration supprimée."}
+    finally:
+        client.close()
+
+
 @app.post("/api/admin/components")
 def admin_add_components(payload: dict = Body(...), _admin=Depends(require_admin)):
     """

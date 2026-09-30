@@ -969,6 +969,7 @@
         <div class="actions">
           <a class="btn btn-ghost btn-sm" href="/build/${b.id}" target="_blank" rel="noopener">Voir</a>
           <button class="btn ${b.est_officielle ? 'btn-secondary' : 'btn-primary'} btn-sm" data-onclick="toggleOfficialBuild(${b.id})">${b.est_officielle ? 'Retirer' : 'Mettre en avant'}</button>
+          <button class="btn btn-danger btn-sm" data-onclick="deleteBuild(${b.id})">Supprimer</button>
         </div></div>`).join('') || '<p class="empty">Aucune configuration sauvegardée pour l\'instant.</p>';
     }catch(e){
       $('builds-list').innerHTML = '<p class="empty">Liste indisponible.</p>';
@@ -977,6 +978,13 @@
 
   async function toggleOfficialBuild(id){
     try{ await post(`/api/admin/builds/${id}/toggle-officielle`); await loadBuilds(); }
+    catch(e){ toast(e.message, true); }
+  }
+
+  async function deleteBuild(id){
+    if(!await uiConfirm('La configuration sera supprimée définitivement, pour son propriétaire aussi (ses alertes de prix avec).',
+      { title: 'Supprimer cette configuration ?', confirmLabel: 'Supprimer', danger: true })) return;
+    try{ await api(`/api/admin/builds/${id}`, { method: 'DELETE' }); toast('Configuration supprimée.'); await loadBuilds(); }
     catch(e){ toast(e.message, true); }
   }
 
