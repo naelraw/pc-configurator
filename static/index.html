@@ -100,10 +100,32 @@
 <section class="home-hero" id="accueil">
   <div>
     <h1>Créez le PC qui vous ressemble.</h1>
-    <p class="lede">Choisissez vos composants, on vérifie la compatibilité automatiquement. Besoin d'aide ? L'assistant IA vous propose une config.</p>
-    <div class="hero-ctas">
-      <a class="btn btn-primary" href="/configurateur">Commencer un build</a>
-      <a class="btn-link" href="/assistant">Demander à l'IA <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+    <p class="lede">Choisissez votre niveau, on s'adapte à vous. La compatibilité est toujours vérifiée automatiquement.</p>
+    <div class="niveaux" id="niveaux" role="group" aria-label="Choisir son niveau">
+      <a class="niveau niveau-conseille" href="/assistant?mode=guide">
+        <span class="niveau-icone" aria-hidden="true"><i class="ph ph-compass"></i></span>
+        <span class="niveau-texte">
+          <span class="niveau-titre">Je débute <span class="niveau-badge">Le plus simple</span></span>
+          <span class="niveau-desc">L'assistant vous pose une dizaine de questions simples et vous propose une config complète.</span>
+        </span>
+        <i class="ph ph-arrow-right niveau-fleche" aria-hidden="true"></i>
+      </a>
+      <a class="niveau" href="/assistant">
+        <span class="niveau-icone" aria-hidden="true"><i class="ph ph-chat-circle-dots"></i></span>
+        <span class="niveau-texte">
+          <span class="niveau-titre">J'ai des bases</span>
+          <span class="niveau-desc">Posez vos questions à l'IA, demandez une config et ajustez-la pièce par pièce.</span>
+        </span>
+        <i class="ph ph-arrow-right niveau-fleche" aria-hidden="true"></i>
+      </a>
+      <a class="niveau" href="/configurateur">
+        <span class="niveau-icone" aria-hidden="true"><i class="ph ph-sliders-horizontal"></i></span>
+        <span class="niveau-texte">
+          <span class="niveau-titre">Je sais ce qu'il faut</span>
+          <span class="niveau-desc">Filtres, tri par performance, budget : vous configurez directement.</span>
+        </span>
+        <i class="ph ph-arrow-right niveau-fleche" aria-hidden="true"></i>
+      </a>
     </div>
   </div>
 
@@ -136,29 +158,6 @@
       <button type="button" class="btn btn-primary" id="demo-open" disabled>Personnaliser</button>
     </div>
   </aside>
-</section>
-
-<section class="profiles" id="niveaux">
-  <div class="profiles-head">
-    <h2>Par où commencer ?</h2>
-  </div>
-  <div class="profile-list">
-    <a class="profile-row reveal" href="/assistant?mode=guide">
-      <h3>Je débute</h3>
-      <p>Je ne sais pas par où commencer. L'assistant me pose une dizaine de questions simples et me propose une config complète.</p>
-      <span class="go"><span>Assistant guidé</span> <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
-    </a>
-    <a class="profile-row reveal" style="--i:1" href="/assistant">
-      <h3>J'ai des bases</h3>
-      <p>Je pose mes questions à l'IA sur les composants et les jeux, je demande une config et je l'ajuste.</p>
-      <span class="go"><span>Assistant IA</span> <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
-    </a>
-    <a class="profile-row reveal" style="--i:2" href="/configurateur">
-      <h3>Je sais ce qu'il faut</h3>
-      <p>Filtres, tri par performance, budget. Je configure directement.</p>
-      <span class="go"><span>Configurateur</span> <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
-    </a>
-  </div>
 </section>
 
 <section id="fonctionnalites">

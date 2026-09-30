@@ -260,6 +260,36 @@ section{ max-width:1200px; margin:0 auto; padding:72px 24px; position:relative; 
 }
 .home-hero h1 em{ font-style:normal; color:var(--text-3); }
 .home-hero .lede{ font-size:1.1rem; color:var(--text-2); max-width:44ch; margin-bottom:32px; }
+.home-hero .lede + .niveaux{ margin-top:-12px; }
+.niveaux{ display:flex; flex-direction:column; gap:10px; max-width:560px; }
+.niveau{
+  display:grid; grid-template-columns:44px minmax(0,1fr) auto; align-items:center; gap:14px;
+  padding:14px 16px; border-radius:var(--r-md); border:1px solid var(--line-strong);
+  background:var(--surface); color:var(--text);
+  transition:border-color .2s var(--ease), background-color .2s var(--ease), transform .2s var(--ease);
+}
+.niveau:hover{ border-color:var(--accent-line); background:var(--surface-2); transform:translateX(3px); }
+.niveau:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+.niveau-conseille{ border-color:var(--accent-line); background:linear-gradient(90deg, var(--accent-soft), var(--surface) 70%); }
+.niveau-icone{
+  width:44px; height:44px; display:grid; place-items:center; border-radius:var(--r-sm);
+  background:var(--surface-2); border:1px solid var(--line); color:var(--text-2); font-size:1.35rem;
+}
+.niveau-conseille .niveau-icone{ background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent); }
+.niveau-texte{ display:flex; flex-direction:column; gap:3px; min-width:0; }
+.niveau-titre{ font-weight:620; font-size:1.02rem; display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.niveau-badge{
+  font-size:0.7rem; font-weight:600; padding:2px 8px; border-radius:999px;
+  background:var(--accent); color:var(--accent-ink); letter-spacing:0.01em;
+}
+.niveau-desc{ color:var(--text-2); font-size:0.88rem; line-height:1.45; }
+.niveau-fleche{ color:var(--text-3); font-size:1.1rem; transition:color .2s var(--ease), transform .2s var(--ease); }
+.niveau:hover .niveau-fleche{ color:var(--accent); transform:translateX(2px); }
+@media (prefers-reduced-motion:reduce){ .niveau, .niveau-fleche{ transition:none; } .niveau:hover{ transform:none; } }
+@media (max-width:640px){
+  .niveau{ grid-template-columns:38px minmax(0,1fr) auto; gap:12px; padding:12px 14px; }
+  .niveau-icone{ width:38px; height:38px; font-size:1.2rem; }
+}
 .hero-ctas{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
 .hero-ctas .btn{ padding:13px 22px; font-size:0.95rem; }
 
