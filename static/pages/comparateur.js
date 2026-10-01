@@ -164,6 +164,7 @@
           <span class="vs-score-max">/100</span>
         </div>
       </div>
+      ${side.notation ? `<div class="vs-score-titre">${escapeHtml(side.notation.titre)}</div>` : ''}
     ` : '';
     const amazonBtnHtml = side.asin
       ? `<a href="${escapeHtml(withAffiliateTag('https://www.amazon.fr/dp/' + side.asin, 'Amazon'))}" target="_blank" rel="noopener noreferrer sponsored" class="btn btn-secondary vs-amazon-btn" data-onclick="event.stopPropagation()">Voir sur Amazon ↗</a>`
@@ -195,46 +196,51 @@
     }
 
     if(mode === 'performance'){
-      html += `<p class="vs-perf-summary"><strong>${escapeHtml(winner.nom)}</strong> obtient le meilleur score de performance des deux.</p>`;
+      const titre = (a.notation && a.notation.titre) || 'Note';
+      const egalite = a.score === b.score;
+      html += egalite
+        ? `<p class="vs-perf-summary">Même note (${a.score}/100) : départagez-les avec le prix et les caractéristiques.</p>`
+        : `<p class="vs-perf-summary"><strong>${escapeHtml(winner.nom)}</strong> obtient la meilleure note · ${escapeHtml(titre.toLowerCase())}.</p>`;
 
-      if(a.prix_indicatif && b.prix_indicatif){
+      if(a.prix_indicatif && b.prix_indicatif && !egalite){
         const ratioA = a.score / a.prix_indicatif;
         const ratioB = b.score / b.prix_indicatif;
         const meilleurRapport = ratioA >= ratioB ? a : b;
-        html += `<p class="vs-value-note">💰 <strong>${escapeHtml(meilleurRapport.nom)}</strong> offre le meilleur rapport performance/prix.</p>`;
+        html += `<p class="vs-value-note"><strong>${escapeHtml(meilleurRapport.nom)}</strong> offre le meilleur rapport note/prix.</p>`;
       }
 
+      html += renderNotation(a, b);
       // Le score résume tout en un chiffre, mais certains veulent voir le
       // détail derrière — specs brutes en complément, jamais à la place.
       html += renderSpecsTable(a, b, 'Caractéristiques');
-    }else if(mode === 'ram'){
-      const bestCap = a.capacite_go && b.capacite_go && a.capacite_go !== b.capacite_go ? (a.capacite_go > b.capacite_go ? 'a' : 'b') : null;
-      const bestFreq = a.frequence_mhz && b.frequence_mhz && a.frequence_mhz !== b.frequence_mhz ? (a.frequence_mhz > b.frequence_mhz ? 'a' : 'b') : null;
-      html += `
-        <div class="vs-specs-block">
-          <div class="vs-spec-row vs-spec-header">
-            <span class="vs-spec-label"></span>
-            <span class="vs-spec-val">${escapeHtml(a.nom)}</span>
-            <span class="vs-spec-val">${escapeHtml(b.nom)}</span>
-          </div>
-          <div class="vs-spec-row">
-            <span class="vs-spec-label">Capacité</span>
-            <span class="vs-spec-val${bestCap === 'a' ? ' is-best' : ''}">${a.capacite_go ? a.capacite_go + ' Go' : '?'}</span>
-            <span class="vs-spec-val${bestCap === 'b' ? ' is-best' : ''}">${b.capacite_go ? b.capacite_go + ' Go' : '?'}</span>
-          </div>
-          <div class="vs-spec-row">
-            <span class="vs-spec-label">Fréquence</span>
-            <span class="vs-spec-val${bestFreq === 'a' ? ' is-best' : ''}">${a.frequence_mhz ? a.frequence_mhz + ' MHz' : '?'}</span>
-            <span class="vs-spec-val${bestFreq === 'b' ? ' is-best' : ''}">${b.frequence_mhz ? b.frequence_mhz + ' MHz' : '?'}</span>
-          </div>
-        </div>
-        <p style="color:var(--text-dim); font-size:0.82rem; text-align:center; margin-top:10px;">Plus de capacité aide le multitâche, une fréquence plus élevée améliore le débit mémoire (surtout notable sur CPU AMD Ryzen).</p>
-      `;
     }else{
       html += renderSpecsTable(a, b, null);
     }
 
     container.innerHTML = html;
+  }
+
+  // Comment est calculée la note : chaque critère, sa valeur et sa note,
+  // pour que le chiffre soit vérifiable (voir notes.py côté serveur).
+  function renderNotation(a, b){
+    if(!a.notation || !b.notation) return '';
+    const source = a.notation.base === 'caracteristiques'
+      ? 'Note calculée à partir des caractéristiques qui comptent pour ce type de composant (pas de test de performance publié pour tout le catalogue).'
+      : 'Performances mesurées en jeu dans les tests de TechPowerUp. 100 = le meilleur modèle testé.';
+    const colonne = side => {
+      const lignes = side.notation.criteres.map(c => `
+        <li><span class="vs-crit-nom">${escapeHtml(c.nom)}${c.poids ? ` <em>${Math.round(c.poids * 100)} %</em>` : ''}</span>
+          <span class="vs-crit-val">${escapeHtml(c.valeur)}</span>
+          ${c.note !== null && c.poids ? `<b class="vs-crit-note">${c.note}</b>` : ''}</li>`).join('');
+      return `<div class="vs-notation-col"><div class="vs-notation-nom">${escapeHtml(side.nom)} · <b>${side.score}/100</b></div>
+        <ul class="vs-criteres">${lignes}</ul>
+        ${side.notation.partielle ? '<p class="vs-notation-partielle">Certaines informations manquent dans la fiche : la note ne tient compte que des critères connus.</p>' : ''}</div>`;
+    };
+    return `<details class="vs-notation">
+      <summary>Comment est calculée la note</summary>
+      <p class="vs-notation-source">${source}</p>
+      <div class="vs-notation-cols">${colonne(a)}${colonne(b)}</div>
+    </details>`;
   }
 
   // Libellés lisibles et unités des caractéristiques (clés brutes en base).

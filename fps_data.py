@@ -117,6 +117,7 @@ CPU_RELATIVE = [
     (r"ultra\s*9\s*285", 116, "m"), (r"ultra\s*7\s*270k", 116, "d"), (r"ultra\s*7\s*265", 112, "m"),
     (r"ultra\s*5\s*250k", 112, "d"), (r"ultra\s*5\s*245k", 107, "d"), (r"ultra\s*5\s*225", 96, "d"),
     (r"9950x", 119, "m"), (r"9900x", 117, "d"), (r"9700x", 117, "m"), (r"9600x", 113, "m"),
+    (r"ryzen\s*5\s*9600(?!x)", 111, "d"),   # même puce que le 9600X, fréquence un peu plus basse
     (r"i7-14700k", 114, "m"), (r"i7-14700f", 110, "d"), (r"i7-14700", 111, "d"),
     (r"i7-13700k", 116, "m"), (r"i7-13700f", 112, "d"),
     (r"i5-14600k", 112, "m"), (r"i5-13600k", 107, "m"), (r"i5-14500", 100, "d"),
@@ -328,13 +329,17 @@ REL_BY_KEY = {
 }
 
 
-def match_gpu_full(nom: str):
-    """Nom commercial -> (clé canonique, indices par résolution, vram) ou (None, None, None)."""
+def match_gpu_full(nom: str, vram_go=None):
+    """Nom commercial -> (clé canonique, indices par résolution, vram) ou (None, None, None).
+    vram_go : mémoire vidéo de la fiche, prioritaire sur celle lue dans le nom."""
     n = nom.lower()
     for pattern, variants, default_vram in GPU_RELATIVE:
         if re.search(pattern, n):
             m = VRAM_PATTERN.search(n)
-            vram = int(m.group(1)) if m and int(m.group(1)) in variants else default_vram
+            if vram_go in variants:
+                vram = vram_go
+            else:
+                vram = int(m.group(1)) if m and int(m.group(1)) in variants else default_vram
             return _canon(pattern), variants[vram], vram
     return None, None, None
 

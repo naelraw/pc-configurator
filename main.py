@@ -48,6 +48,7 @@ from compatibility import (
 from schema import REQUIRED_FIELDS, validate_component
 import fps_data
 import featured_builds
+import notes
 import guides
 import component_pages
 import emails
@@ -538,19 +539,15 @@ def get_all_components_light():
             # plus bas dans le fichier) pour trier "meilleur d'abord" côté front sur
             # une base objective plutôt que sur le prix. None pour les catégories
             # sans indice de performance connu (RAM, Stockage, Boîtier...).
+            # GPU : variante de mémoire vidéo comprise (RTX 3050 6 Go ≠ 8 Go).
+            # Autres catégories : note sur 100 d'après les caractéristiques (notes.py).
             if component["categorie"] == "GPU":
-                component["perf_index"] = _match_performance_index(component["nom"], GPU_PERFORMANCE_INDEX)
+                component["perf_index"] = notes.indice_gpu(component)
             elif component["categorie"] == "CPU":
                 component["perf_index"] = _match_performance_index(component["nom"], CPU_PERFORMANCE_INDEX)
-            elif component["categorie"] == "RAM":
-                ram_specs = _parse_ram_specs(component["nom"])
-                capacite, frequence = ram_specs["capacite_go"], ram_specs["frequence_mhz"]
-                component["perf_index"] = capacite * frequence if capacite and frequence else None
-            elif component["categorie"] == "Alimentation":
-                wattage = component["specs"].get("wattage")
-                component["perf_index"] = wattage if isinstance(wattage, (int, float)) else None
             else:
-                component["perf_index"] = None
+                note = notes.noter(component)
+                component["perf_index"] = note["note"] if note else None
             components.append(component)
         return components
     except Exception:
@@ -6504,15 +6501,10 @@ GPU_PERFORMANCE_INDEX = [
     (pattern, variants[default_vram][1])
     for pattern, variants, default_vram in fps_data.GPU_RELATIVE
 ]
-# Plafond du score sur 100 affiché par le comparateur (voir compare_performance)
-# — toujours la meilleure puce du tableau ci-dessus, jamais recalculé à la
-# main pour ne jamais désynchroniser en cas de futur ajout/retrait de GPU.
-GPU_PERFORMANCE_CEILING = max(value for _, value in GPU_PERFORMANCE_INDEX)
 
 # Indice CPU en jeu (mesuré TechPowerUp, 9850X3D = 142), voir
 # fps_data.CPU_RELATIVE : même source pour le tri, le comparateur et les FPS.
 CPU_PERFORMANCE_INDEX = [(pattern, value) for pattern, value, _ in fps_data.CPU_RELATIVE]
-CPU_PERFORMANCE_CEILING = max(value for _, value in CPU_PERFORMANCE_INDEX)
 
 
 def _match_performance_index(nom, index_table, default=None):
@@ -6535,7 +6527,7 @@ def _estimate_fps_formula(chosen, jeux, qualite="ultra"):
     cpu = next((c for c in chosen if c["categorie"] == "CPU"), None)
     gpu = next((c for c in chosen if c["categorie"] == "GPU"), None)
 
-    gpu_card, gpu_rel, vram = fps_data.match_gpu_full(gpu["nom"]) if gpu else (None, None, None)
+    gpu_card, gpu_rel, vram = fps_data.match_gpu_full(gpu["nom"], (gpu.get("specs") or {}).get("vram_go")) if gpu else (None, None, None)
     card_key = f"{gpu_card}|{vram}" if gpu_card else None
     cpu_index, cpu_origin = fps_data.match_cpu(cpu["nom"]) if cpu else (None, None)
 
@@ -6663,11 +6655,10 @@ def _parse_ram_specs(nom):
 @app.get("/api/compare-performance")
 def compare_performance(id_a: int, id_b: int):
     """
-    Comparaison tête-à-tête de deux composants — CPU/GPU : pourcentage de
-    performance relative via l'indice recalibré (voir plus haut) ; RAM :
-    capacité + fréquence extraites du nom ; toute autre catégorie (ou
-    catégories différentes entre A et B) : specs brutes côte à côte, sans
-    score de performance.
+    Comparaison tête-à-tête de deux composants de même catégorie : note sur
+    100 de chacun avec le détail du calcul (notes.py), plus les
+    caractéristiques côte à côte. Catégories différentes ou composant non
+    notable : caractéristiques seules.
     """
     if id_a == id_b:
         raise HTTPException(status_code=400, detail="Choisis deux composants différents à comparer.")
@@ -6787,41 +6778,19 @@ def compare_performance(id_a: int, id_b: int):
         base["avertissement"] = "Catégories différentes : comparaison des caractéristiques uniquement, pas de score de performance."
         return base
 
-    categorie = a["categorie"]
-    if categorie in ("CPU", "GPU"):
-        index_table = GPU_PERFORMANCE_INDEX if categorie == "GPU" else CPU_PERFORMANCE_INDEX
-        index_a = _match_performance_index(a["nom"], index_table)
-        index_b = _match_performance_index(b["nom"], index_table)
-        if index_a is None or index_b is None:
-            base["mode"] = "specs"
-            base["avertissement"] = "Modèle non reconnu dans notre indice de performance — comparaison des caractéristiques uniquement."
-            return base
+    # Note sur 100 pour toutes les catégories (notes.py) : performances en jeu
+    # mesurées pour CPU/GPU, caractéristiques qui comptent pour le reste.
+    note_a, note_b = notes.noter(a), notes.noter(b)
+    if note_a and note_b:
         base["mode"] = "performance"
-        base["a"]["indice"] = index_a
-        base["b"]["indice"] = index_b
-        # Score sur 100, ABSOLU sur toute la gamme (100 = la meilleure puce
-        # du tableau, ex: RTX 5090 pour les GPU) — pas relatif à la seule
-        # paire comparée. Bug signalé en pratique avec l'ancienne version :
-        # une RTX 3060 qui bat une carte plus faible affichait "100/100",
-        # donnant l'impression fausse d'égaler une RTX 5090 elle aussi à
-        # 100/100 sur une autre comparaison. Avec un plafond absolu, une
-        # RTX 3060 reste basse (~30/100) même quand elle gagne sa comparaison.
-        ceiling = GPU_PERFORMANCE_CEILING if categorie == "GPU" else CPU_PERFORMANCE_CEILING
-        base["a"]["score"] = round(index_a / ceiling * 100)
-        base["b"]["score"] = round(index_b / ceiling * 100)
+        for cote, note in (("a", note_a), ("b", note_b)):
+            base[cote]["score"] = note["note"]
+            base[cote]["notation"] = note
         return base
-
-    if categorie == "RAM":
-        ram_a = _parse_ram_specs(a["nom"])
-        ram_b = _parse_ram_specs(b["nom"])
-        base["mode"] = "ram"
-        base["a"].update(ram_a)
-        base["b"].update(ram_b)
-        return base
-
     base["mode"] = "specs"
-    base["a"]["specs"] = a.get("specs") or {}
-    base["b"]["specs"] = b.get("specs") or {}
+    base["avertissement"] = ("Pas de note pour ce type de composant : comparaison des caractéristiques uniquement."
+                             if not (note_a or note_b) else
+                             "Un des deux composants n'a pas assez d'informations pour être noté : comparaison des caractéristiques uniquement.")
     return base
 
 
