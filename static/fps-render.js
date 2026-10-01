@@ -59,6 +59,7 @@
           <tbody>${rows}</tbody>
         </table>
       </div>
+      ${data.avertissement ? `<p class="fps-note fps-avertissement">${esc(data.avertissement)}</p>` : ''}
       <p class="fps-note">FPS moyens en réglages <strong>${esc(qualite)}</strong>, résolution native, sans DLSS/FSR ni génération d'images, d'après les tests publiés par TechPowerUp et TechSpot. Les creux ponctuels sont plus bas que la moyenne. Sous chaque chiffre : ce qui limite les FPS. « Mesuré » : ta carte a été testée dans ce jeu ; « déduit du test » : calculé à partir des cartes de puissance proche testées dans ce jeu ; « estimé » : pas de test publié pour ce jeu.</p>`;
   }
 

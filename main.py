@@ -6619,6 +6619,16 @@ def _run_fps_estimation(chosen, jeux, qualite="ultra"):
         result = _build_fps_response(estimation, chosen)
         result["resultats"] = resultats
         result["qualite"] = {"id": qualite, "label": fps_data.QUALITY_PRESETS[qualite]["label"]}
+        # Processeur absent des tests : sa limite n'entre pas dans le calcul,
+        # les FPS peuvent être trop hauts. On le dit plutôt que de l'ignorer.
+        cpu = next((c for c in chosen if c["categorie"] == "CPU"), None)
+        if cpu and fps_data.match_cpu(cpu["nom"])[0] is None:
+            result["avertissement"] = ("Processeur pas encore dans nos tests : sa limite n'est pas prise en compte, "
+                                       "les FPS peuvent être surestimés.")
+            result["estimation"] += "\n" + result["avertissement"]
+        # Noms de jeux libres : on borne la mémoire du cache.
+        if len(FPS_ESTIMATE_CACHE) > 5000:
+            FPS_ESTIMATE_CACHE.clear()
         FPS_ESTIMATE_CACHE[cache_key] = result
         return result
     except Exception as error:

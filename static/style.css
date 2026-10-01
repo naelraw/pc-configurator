@@ -1594,6 +1594,7 @@ main > section:first-child::before{
 a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .fps-row.is-missing td{ text-align:left; color:var(--text-2); font-size:0.86rem; }
 .fps-note{ margin-top:10px; font-size:0.8rem; color:var(--text-2); max-width:70ch; }
+.fps-avertissement{ color:var(--danger); }
 
 /* Suivi du prix d'une configuration entière */
 .build-alert{

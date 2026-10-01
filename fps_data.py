@@ -186,7 +186,7 @@ GAMES = {
     "f1 24": _g((133.3, 97.3, 44.6), 350, "mesure", aliases=("f1 2024",)),
     "ghost of tsushima": _g((80.8, 57.8, 32.3), 250, "mesure"),
     "god of war ragnarok": _g((85.2, 66.3, 38.8), 230, "mesure"),
-    "hogwarts legacy": _g((73.7, 51.1, 29.6), 430, "mesure"),
+    "hogwarts legacy": _g((73.7, 51.1, 29.6), 430, "mesure", aliases=("hogwarts",)),
     "horizon forbidden west": _g((83.5, 62.5, 37.1), 220, "mesure"),
     "kingdom come deliverance 2": _g((94.9, 63.2, 31.8), 272.2, "mesure", aliases=("kingdom come 2", "kcd2", "kingdom come deliverance ii")),
     "monster hunter wilds": _g((42.9, 30.0, 15.9), 130, "mesure", vram8={"4k": 0.81}),
@@ -203,12 +203,12 @@ GAMES = {
 
     # --- Estimés (recoupement de benchmarks publiés, Ultra natif) ---
     "fortnite": _g((105, 72, 41), 300),
-    "valorant": _g((500, 380, 220), 950),
+    "valorant": _g((500, 380, 220), 950, aliases=("valo",)),
     "league of legends": _g((700, 600, 400), 650, aliases=("lol",)),
     "apex legends": _g((160, 115, 64), 300, cap=300, aliases=("apex",)),
     "call of duty warzone": _g((120, 88, 50), 250, aliases=("warzone", "cod warzone")),
     "call of duty modern warfare iii": _g((120, 88, 50), 270, aliases=("modern warfare 3", "modern warfare iii", "mw3")),
-    "call of duty black ops 6": _g((118, 86, 48), 270, aliases=("black ops 6", "bo6")),
+    "call of duty black ops 6": _g((118, 86, 48), 270, aliases=("black ops 6", "bo6", "cod", "call of duty")),
     "overwatch 2": _g((190, 140, 80), 600, cap=600, aliases=("overwatch",)),
     "rainbow six siege": _g((280, 200, 115), 600, aliases=("r6", "rainbow six", "r6 siege")),
     "pubg battlegrounds": _g((150, 110, 62), 250, aliases=("pubg",)),
@@ -264,6 +264,13 @@ GAMES = {
     "rust": _g((70, 55, 33), 120),
     "ark survival ascended": _g((40, 30, 17), 90, aliases=("ark", "ark: survival ascended")),
     "delta force": _g((120, 90, 50), 250),
+    # Ajoutés en octobre 2026 (jeux très demandés, pas de test publié comparable).
+    # Roblox : 240 FPS maximum dans ses réglages (60 par défaut).
+    "roblox": _g((330, 260, 150), 420, cap=240),
+    "ea sports fc 26": _g((210, 160, 95), 320, aliases=(
+        "ea fc 26", "fc 26", "ea sports fc 25", "ea fc 25", "fc 25", "ea fc", "fifa")),
+    "the finals": _g((115, 80, 42), 260),
+    "arc raiders": _g((100, 72, 38), 220),
     "forza horizon 6": _g((80, 60, 34), 250),
     "the elder scrolls iv oblivion remastered": _g((45, 33, 18), 90, aliases=("oblivion remastered", "oblivion")),
 }
@@ -463,18 +470,31 @@ def _gpu_fps_measured(game_key, card_key, i, vram):
 RESOLUTIONS = (("1080p", 0), ("1440p", 1), ("4k", 2))
 
 
+# Réglage du test publié à considérer comme l'Ultra du jeu : « High » est le
+# réglage maximum de Valorant et de Warframe (le convertir en Ultra les
+# sous-estimait d'environ 20 %).
+QUALITE_TEST_REELLE = {"valorant": "ultra", "warframe": "ultra"}
+# Jeux dont l'écart entre réglages est bien plus fort que la moyenne :
+# facteur de qualité élevé à cette puissance. Fortnite : le réglage Épique
+# (Lumen, Nanite) divise les FPS par ~2,75 par rapport au Moyen (contre 1,55
+# en moyenne) — calé sur le test TechSpot en Moyen et l'estimation en Épique.
+SENSIBILITE_QUALITE = {"fortnite": 2.31}
+
+
 def estimate_game(game_key, game_data, gpu_card_key, gpu_rel, vram, cpu_index, quality="ultra"):
     """FPS par résolution, facteur limitant et origine de la valeur GPU."""
     preset = QUALITY_PRESETS.get(quality, QUALITY_PRESETS["ultra"])
+    sensibilite = SENSIBILITE_QUALITE.get(game_key, 1.0)
     results = {}
+    gpu_par_res = {}
     for res, i in RESOLUTIONS:
         measured = _gpu_fps_measured(game_key, gpu_card_key, i, vram)
         if measured:
             origin, gpu_fps = measured
             # Mesure faite à un autre réglage que l'Ultra (ex. Medium pour
             # Marvel Rivals chez TechSpot) : ramenée à l'Ultra avant le préréglage.
-            measured_quality = MEASURED[game_key].get("qualite", "ultra")
-            gpu_fps /= QUALITY_PRESETS.get(measured_quality, QUALITY_PRESETS["ultra"])["gpu"]
+            measured_quality = QUALITE_TEST_REELLE.get(game_key) or MEASURED[game_key].get("qualite", "ultra")
+            gpu_fps /= QUALITY_PRESETS.get(measured_quality, QUALITY_PRESETS["ultra"])["gpu"] ** sensibilite
         else:
             origin = "estimé"
             rel = gpu_rel[i] / 100
@@ -484,11 +504,22 @@ def estimate_game(game_key, game_data, gpu_card_key, gpu_rel, vram, cpu_index, q
             if vram <= 8 and res in game_data["vram8"]:
                 factor = game_data["vram8"][res]
                 gpu_fps *= factor ** 1.5 if vram <= 6 else factor
-        gpu_fps *= preset["gpu"]
+        gpu_fps *= preset["gpu"] ** sensibilite
         # Baisser les réglages soulage la mémoire vidéo : la saturation mesurée
         # en Ultra ne s'applique pleinement qu'en Ultra/Élevé.
         if vram <= 8 and res in game_data["vram8"] and quality in ("moyen", "bas"):
             gpu_fps /= game_data["vram8"][res] ** (0.5 if quality == "moyen" else 1)
+        gpu_par_res[res] = (origin, gpu_fps)
+
+    # Une résolution plus basse ne donne jamais moins d'images que la suivante
+    # (certains tests mesurent un peu moins en 1080p qu'en 1440p quand le jeu
+    # est déjà limité par le processeur de la machine de test, ex. Far Cry 6).
+    for (bas, _), (haut, _) in reversed(list(zip(RESOLUTIONS, RESOLUTIONS[1:]))):
+        if gpu_par_res[bas][1] < gpu_par_res[haut][1]:
+            gpu_par_res[bas] = (gpu_par_res[bas][0], gpu_par_res[haut][1])
+
+    for res, i in RESOLUTIONS:
+        origin, gpu_fps = gpu_par_res[res]
 
         # Plafond processeur mesuré (duels TechSpot où même les cartes les plus
         # rapides plafonnent) : prime sur l'estimation.
