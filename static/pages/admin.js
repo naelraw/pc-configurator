@@ -230,6 +230,15 @@
             <div class="meter"><span style="width:${Math.min(100, Math.round(bd.utilise / bd.quota * 100))}%"></span></div>
             <span class="hint">${nombre(bd.ajouts_restants)} ajouts encore possibles</span></div>`
          : kpi('Bright Data ce mois-ci', '—', ''),
+      (() => {
+        // Bilan du dernier passage automatique des prix (chaque nuit).
+        const p = quotas && quotas.dernier_passage;
+        if(!p) return kpi('Mise à jour des prix', '—', 'pas encore de bilan');
+        const quand = new Date(p.date + 'Z').toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        return kpi('Mise à jour des prix', nombre(p.mis_a_jour),
+          `prix revérifiés le ${quand} · ${nombre(p.erreurs)} non lus${p.passes_epuises ? ` · ${nombre(p.passes_epuises)} épuisés` : ''}`,
+          p.mis_a_jour ? 'is-ok' : 'is-alert');
+      })(),
     ].join('');
 
     // « À traiter » : les signalements qui demandent une décision, avec leurs actions.

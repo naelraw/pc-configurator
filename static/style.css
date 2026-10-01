@@ -980,7 +980,6 @@ a.bento-cell:hover .more{ color:var(--accent); }
   .cite-ligne{ grid-template-columns:52px 1fr; padding:10px 12px; }
   .cite-ligne .cfg-prix{ grid-column:2; }
   .cite-ligne .cfg-actions{ grid-column:1 / -1; justify-content:flex-start; }
-  .cfg-changer span{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
   .cfg-boutons, .cfg-boutons .btn{ width:100%; }
 }
 
@@ -1321,6 +1320,25 @@ footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:8px 24px 
 }
 .oauth-divider::before, .oauth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
 
+/* Carte « Installer l'application » : téléphones seulement, pas dans l'appli installée */
+.app-promo{ display:none; }
+@media (max-width:900px) and (pointer:coarse){
+  .app-promo{
+    display:grid; grid-template-columns:44px minmax(0,1fr); gap:6px 14px; align-items:center;
+    margin-top:16px; padding:16px; border-radius:var(--r-md); color:var(--text);
+    border:1px solid var(--accent-line); background:linear-gradient(120deg, var(--accent-soft), var(--surface) 75%);
+  }
+}
+@media (display-mode:standalone){ .app-promo{ display:none !important; } }
+.app-promo-icone{
+  width:44px; height:44px; display:grid; place-items:center; border-radius:var(--r-sm);
+  background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-size:1.4rem;
+}
+.app-promo-texte{ display:flex; flex-direction:column; gap:3px; }
+.app-promo-texte strong{ font-weight:620; font-size:1rem; }
+.app-promo-texte span{ color:var(--text-2); font-size:0.86rem; line-height:1.45; }
+.app-promo-action{ grid-column:1 / -1; justify-self:start; display:inline-flex; align-items:center; gap:6px;
+  margin-top:6px; padding:9px 14px; border-radius:var(--r-sm); background:var(--accent); color:var(--accent-ink); font-weight:600; font-size:0.88rem; }
 .account-section{ margin-top:40px; }
 .account-loading{ max-width:720px; }
 .account-loading[hidden]{ display:none; }

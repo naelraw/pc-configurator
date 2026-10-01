@@ -133,15 +133,15 @@
       const dedans = maConfig[cat] === item.id;
       if(!dedans) toutDedans = false;
       const bouton = dedans
-        ? `<span class="cfg-ok"><i class="ph ph-check" aria-hidden="true"></i> Dans ta config</span>`
-        : `<button type="button" class="cfg-btn cfg-ajouter" data-action="ajouter" data-msg="${index}" data-champ="${champ}">${maConfig[cat] ? 'Remplacer' : 'Ajouter'}</button>`;
+        ? `<span class="cfg-ok"><i class="ph ph-check" aria-hidden="true"></i> Dans ma config</span>`
+        : `<button type="button" class="cfg-btn cfg-ajouter" data-action="ajouter" data-msg="${index}" data-champ="${champ}"${titreRemplace(cat, maConfig)}>${maConfig[cat] ? 'Remplacer dans ma config' : 'Mettre dans ma config'}</button>`;
       return `<li class="cfg-ligne">
         <span class="cfg-cat">${escapeHtml(cat)}</span>
         <button type="button" class="cfg-nom" data-action="detail" data-id="${item.id}">${escapeHtml(item.nom)}</button>
         <span class="cfg-prix">${prix(item.prix_indicatif)}</span>
         <span class="cfg-actions">
           ${bouton}
-          <button type="button" class="cfg-btn cfg-changer" data-action="changer" data-msg="${index}" data-champ="${champ}" title="Demander un autre ${escapeHtml(cat)}"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Changer</span></button>
+          <button type="button" class="cfg-btn cfg-changer" data-action="changer" data-msg="${index}" data-champ="${champ}" title="Demander une autre option à l’assistant"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Autre choix</span></button>
         </span>
       </li>`;
     }).join('');
@@ -153,7 +153,7 @@
         <div class="cfg-boutons">
           ${toutDedans
             ? '<a class="btn btn-primary" href="/configurateur">Voir ma config</a>'
-            : `<button type="button" class="btn btn-primary" data-action="tout" data-msg="${index}"><i class="ph ph-plus" aria-hidden="true"></i> Tout ajouter à ma config</button>
+            : `<button type="button" class="btn btn-primary" data-action="tout" data-msg="${index}"><i class="ph ph-plus" aria-hidden="true"></i> Tout mettre dans ma config</button>
                <a class="btn btn-secondary" href="/configurateur">Voir ma config</a>`}
         </div>
       </div>
@@ -167,9 +167,15 @@
   // Bouton d'ajout d'un composant à la config (même logique partout).
   function boutonAjout(item, maConfig){
     if(maConfig[item.categorie] === item.id){
-      return `<span class="cfg-ok"><i class="ph ph-check" aria-hidden="true"></i> Dans ta config</span>`;
+      return `<span class="cfg-ok"><i class="ph ph-check" aria-hidden="true"></i> Dans ma config</span>`;
     }
-    return `<button type="button" class="cfg-btn cfg-ajouter" data-action="ajouter-id" data-id="${item.id}">${maConfig[item.categorie] ? 'Remplacer' : 'Ajouter'}</button>`;
+    return `<button type="button" class="cfg-btn cfg-ajouter" data-action="ajouter-id" data-id="${item.id}"${titreRemplace(item.categorie, maConfig)}>${maConfig[item.categorie] ? 'Remplacer dans ma config' : 'Mettre dans ma config'}</button>`;
+  }
+
+  // Au survol de « Remplacer dans ma config » : la pièce qui sera remplacée.
+  function titreRemplace(categorie, maConfig){
+    const actuel = composantsParId.get(maConfig[categorie]);
+    return actuel ? ` title="Remplace : ${escapeHtml(actuel.nom)}"` : '';
   }
 
   // Les 3 caractéristiques qui comptent le plus, par catégorie.

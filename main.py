@@ -3594,7 +3594,9 @@ ZENROWS_DAILY_BUDGET = 15      # ~450/mois à 10 crédits/requête, sous le quot
 APIFY_DAILY_BUDGET = 600
 # La version gratuite de l'actor ne renvoie que 50 lignes par exécution
 # (page de l'actor sur Apify) : au-delà, les ASIN en trop reviennent vides.
-APIFY_MAX_ROWS_PER_RUN = 50
+# Une page produit prend 5 à 8 s : 20 par run tient dans l'attente de 5 min
+# (au-delà, la requête expirait, était relancée et le crédit compté deux fois).
+APIFY_MAX_ROWS_PER_RUN = 20
 
 # --- Quotas mensuels gratuits et réserve pour les ajouts --------------------
 # Chaque appel payant est compté (table api_usage, par mois). La mise à jour
@@ -3783,6 +3785,7 @@ def admin_quotas(_admin=Depends(require_admin)):
         },
         "zenrows": {"credits_utilises": api_usage_this_month("zenrows"), "quota_credits": ZENROWS_MONTHLY_CREDITS},
         "apify": {"utilise": api_usage_this_month("apify"), "quota": APIFY_MONTHLY_ITEMS},
+        "dernier_passage": _state_get("dernier_rafraichissement_prix", None),
     }
 
 
@@ -3917,8 +3920,8 @@ def _run_daily_price_refresh_rotation():
                     row[0], row[1], row[2], row[3], row[4], bool(row[5]),
                 )
                 info = results_by_asin.get(asin)
-                if info is None:
-                    errors.append(f"{nom} ({asin}) : non trouvé par Apify, stock inchangé.")
+                if info is None or info.get("prix") is None:
+                    errors.append(f"{nom} ({asin}) : prix non lu par Apify, stock inchangé.")
                     continue
                 outcome = _apply_amazon_price_info(
                     client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
@@ -3987,11 +3990,21 @@ async def price_refresh_loop():
             continue
         if not PRICE_REFRESH_LOCK.acquire(blocking=False):
             print("Rafraîchissement automatique des prix ignoré (déjà en cours via un autre déclenchement).")
+            await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
             continue
         try:
+            debut = datetime.utcnow()
             stats = await asyncio.to_thread(_run_daily_price_refresh_rotation)
             if not stats.get("skipped"):
                 await asyncio.to_thread(_mark_task_done, "derniere_mise_a_jour_prix")
+                # Bilan consultable dans l'admin (les journaux ne le gardent pas).
+                await asyncio.to_thread(_state_set, "dernier_rafraichissement_prix", {
+                    "date": debut.isoformat(timespec="minutes"),
+                    "duree_min": round((datetime.utcnow() - debut).total_seconds() / 60),
+                    "mis_a_jour": stats["updated"], "remis_en_stock": stats["remis_en_stock"],
+                    "passes_epuises": stats["passes_epuises"], "erreurs": len(stats["errors"]),
+                    "exemples_erreurs": stats["errors"][:8],
+                })
                 invalidate_catalog()
                 await asyncio.to_thread(check_build_alerts)
             if stats.get("skipped"):
@@ -4997,7 +5010,7 @@ def fetch_amazon_product_zenrows(asin, timeout=30):
 APIFY_SCRAPE_MAX_ATTEMPTS = 2
 
 
-def fetch_amazon_products_apify(asins, timeout=120):
+def fetch_amazon_products_apify(asins, timeout=300):
     """
     Récupère prix/disponibilité/image pour PLUSIEURS ASIN en un seul appel
     (contrairement à ZenRows, cet actor accepte un lot de requêtes dans un
@@ -5021,10 +5034,15 @@ def fetch_amazon_products_apify(asins, timeout=120):
     if not asins:
         return {}
 
+    # Pages produit /dp/ directes, une ligne par page. Avant (1er octobre
+    # 2026) on passait les ASIN en recherche avec maxItems = taille du lot :
+    # l'actor remplissait le lot avec les résultats de la PREMIÈRE recherche
+    # (autres produits), et ne trouvait qu'environ 1 ASIN sur 5. Mesuré avec
+    # les pages directes : 9 sur 10.
     payload = {
-        "queries": list(asins),
-        "marketplaces": [AMAZON_DOMAIN_TLD],
+        "startUrls": [{"url": f"https://www.amazon.{AMAZON_DOMAIN_TLD}/dp/{asin}"} for asin in asins],
         "maxItems": len(asins),
+        "maxItemsPerQuery": 1,
     }
 
     last_error = None
