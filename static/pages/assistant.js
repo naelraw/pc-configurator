@@ -786,7 +786,7 @@
     }catch(e){
       console.error('Erreur chargement composants', e);
     }
-    afficher(discussion.length > 0);
+    afficher(false);            // en arrivant sur la page : on reste en haut (pas de saut vers le dernier message)
 
     // Arrivée depuis « Je débute » sur l'accueil : lance le parcours guidé
     // (ou le reprend s'il est en cours), puis retire le paramètre de l'adresse

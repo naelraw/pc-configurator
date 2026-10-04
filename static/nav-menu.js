@@ -16,6 +16,32 @@
     }
   });
 
+  // Une page ouverte depuis le menu (ou le logo) commence toujours tout en
+  // haut, même si son script fait défiler la page pendant le chargement.
+  var HAUT_KEY = 'pcr-ouvrir-en-haut';
+  var ouvrirEnHaut = false;
+  try{ ouvrirEnHaut = sessionStorage.getItem(HAUT_KEY) === '1'; sessionStorage.removeItem(HAUT_KEY); }catch(e){}
+  if(ouvrirEnHaut){
+    if('scrollRestoration' in history) history.scrollRestoration = 'manual';
+    var remonter = function(){ window.scrollTo(0, 0); };
+    document.addEventListener('DOMContentLoaded', remonter);
+    window.addEventListener('load', function(){ remonter(); setTimeout(remonter, 400); });
+  }
+
+  document.addEventListener('click', function(e){
+    var lien = e.target.closest && e.target.closest('header a[href^="/"]');
+    if(!lien || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || lien.target === '_blank') return;
+    var cible = lien.getAttribute('href').split('#')[0].replace(/\/$/, '') || '/';
+    var ici = window.location.pathname.replace(/\/$/, '') || '/';
+    if(cible === ici && !window.location.search){
+      // Lien vers la page déjà ouverte : on remonte en haut sans recharger.
+      e.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    try{ sessionStorage.setItem(HAUT_KEY, '1'); }catch(err){}
+  });
+
   document.addEventListener('DOMContentLoaded', function(){
     var wrap = document.querySelector('header .nav-wrap');
     if(wrap && !wrap.querySelector('.nav-search')){
