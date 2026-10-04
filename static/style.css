@@ -1615,7 +1615,8 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .comp-image{ width:200px; height:200px; border-radius:var(--r-lg); background:var(--photo-bg); display:flex; align-items:center; justify-content:center; padding:14px; }
 .comp-image img{ max-width:100%; max-height:100%; object-fit:contain; mix-blend-mode:multiply; }
 .comp-head h1{ margin-bottom:6px !important; }
-.comp-price{ font-family:var(--font-mono); font-size:1.6rem !important; color:var(--text) !important; font-weight:500; margin:4px 0 2px !important; font-variant-numeric:tabular-nums; }
+.comp-price{ font-family:var(--font-mono); font-size:1.6rem !important; color:var(--text) !important; font-weight:500; margin:4px 0 2px !important; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.comp-price-label{ display:block; font-family:var(--font-body); font-size:0.82rem; color:var(--text-2); font-weight:400; }
 .comp-head .legal-updated{ margin-bottom:14px; }
 .comp-head .guide-cta{ width:auto; margin-top:0; }
 .comp-badge{ display:inline-block; padding:1px 8px; border-radius:999px; font-size:0.72rem; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-line); }

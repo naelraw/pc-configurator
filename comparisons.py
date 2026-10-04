@@ -222,7 +222,7 @@ def render_pair(pair, all_pairs, fps_for, ref_partner):
         return f"""
     <section class="guide-card">
       <h2>{escape(m['label'])}</h2>
-      <p class="comp-price">à partir de {_euros(_price(m['best']))}</p>
+      <p class="comp-price"><span class="comp-price-label">à partir de</span>{_euros(_price(m['best']))}</p>
       <p class="guide-note">{len(m['listings'])} modèle{'s' if len(m['listings']) > 1 else ''} en stock{f" · consommation {tdp} W" if tdp else ""}{f" · {m['vram']} Go de mémoire vidéo" if kind == "GPU" else ""}</p>
       <a class="btn btn-secondary" href="{escape(page_url(m['best']))}">Voir le moins cher <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
     </section>"""

@@ -227,7 +227,7 @@
     if(!item) return;
     const specs = item.specs || {};
     const specsHtml = Object.entries(specs).map(([k, v]) => `
-      <div class="detail-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}</span></div>
+      <div class="detail-row"><span class="k">${escapeHtml(PCSpecs.libelle(k))}</span><span class="v">${escapeHtml(PCSpecs.valeur(k, v))}</span></div>
     `).join('') || '<p style="color:var(--text-dim); font-size:0.85rem;">Aucune spec enregistrée.</p>';
     const prixMarche = (item.prix_marche || []).slice().sort((a, b) => a.prix - b.prix);
     const pricesHtml = prixMarche.length

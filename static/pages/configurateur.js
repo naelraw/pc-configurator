@@ -536,7 +536,8 @@
 
       itemsToShow.forEach(item => {
         const specs = item.specs || {};
-        const specsText = Object.entries(specs).map(([k,v]) => `${escapeHtml(k)}: ${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}`).join(' · ');
+        // Les 4 caractéristiques essentielles, en clair (le détail complet est dans la fenêtre « Détail »).
+        const specsText = escapeHtml(PCSpecs.resume(item));
 
         const isOverBudget = remainingForCategory !== null && item.prix_indicatif > remainingForCategory;
         const isSelected = selectedComponents[category]?.id === item.id;
@@ -664,7 +665,7 @@
 
     const specs = item.specs || {};
     const specsHtml = Object.entries(specs).map(([k, v]) => `
-      <div class="detail-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(Array.isArray(v) ? v.join(', ') : v)}</span></div>
+      <div class="detail-row"><span class="k">${escapeHtml(PCSpecs.libelle(k))}</span><span class="v">${escapeHtml(PCSpecs.valeur(k, v))}</span></div>
     `).join('') || '<p style="color:var(--text-dim); font-size:0.85rem;">Aucune spec enregistrée.</p>';
 
     const prixMarche = (item.prix_marche || []).slice().sort((a, b) => a.prix - b.prix);
