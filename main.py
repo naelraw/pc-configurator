@@ -3478,6 +3478,10 @@ def _run_price_refresh():
                 continue
 
             info = _normalize_brightdata_item(result_item, asin)
+            if isinstance(result_item, dict) and result_item.get("is_available") is False:
+                _marquer_vitrine(component_id, True)
+            elif info.get("prix") is not None:
+                _marquer_vitrine(component_id, False)
             outcome = _apply_amazon_price_info(
                 client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
                 source_label="Bright Data",
@@ -3493,6 +3497,25 @@ def _run_price_refresh():
         client.close()
 
     return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises}
+
+
+# Fiches « vitrine » : Amazon ne vend plus le produit lui-même (plus de bouton
+# « Ajouter au panier », seulement « Voir toutes les offres » d'autres
+# vendeurs). Le panier Amazon et le lien direct n'y fonctionnent pas. Bright
+# Data le voit (is_available False), Apify non : il lit le prix d'un autre
+# vendeur comme si c'était celui d'Amazon (vu sur un Ryzen 5 5600GT). Une
+# fiche vue vitrine par Bright Data reste donc épuisée jusqu'à ce que Bright
+# Data (ou ZenRows) y revoie une vraie offre Amazon.
+def _marquer_vitrine(component_id, vitrine):
+    vitrines = _state_get("fiches_vitrine", {})
+    cle = str(component_id)
+    if vitrine and cle not in vitrines:
+        vitrines[cle] = datetime.utcnow().date().isoformat()
+    elif not vitrine and cle in vitrines:
+        vitrines.pop(cle)
+    else:
+        return
+    _state_set("fiches_vitrine", vitrines)
 
 
 # Garde-fous communs à tous les fournisseurs (mêmes seuils que les « prix
@@ -3516,8 +3539,7 @@ def _prix_confirme_ailleurs(asin, prix, source_label):
     confirmé si le premier prix lu est le même à 5 % près, refusé s'il diffère.
     """
     def bright_data():
-        info_bd = fetch_amazon_product(asin, timeout=60) or {}
-        return info_bd.get("prix") if info_bd.get("prix") is not None else info_bd.get("prix_tiers")
+        return (fetch_amazon_product(asin, timeout=60) or {}).get("prix")
 
     services = {
         "Bright Data": bright_data,
@@ -3561,9 +3583,6 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
     rows_ref = client.execute("SELECT prix_indicatif FROM components WHERE id = ?", [component_id]).rows
     reference = float(rows_ref[0][0] or 0) if rows_ref else 0.0
     info = dict(info)
-    # Vendu seulement par un autre vendeur, à un prix normal : reste disponible.
-    if info.get("prix") is None and info.get("prix_tiers") is not None and reference and _prix_plausible(info["prix_tiers"], reference):
-        info["prix"] = info["prix_tiers"]
     if info.get("prix") is not None and reference and not _prix_plausible(info["prix"], reference):
         prix = float(info["prix"])
         if _prix_confirme_ailleurs(asin, prix, source_label):
@@ -3941,6 +3960,10 @@ def _run_daily_price_refresh_rotation():
                     errors.append(f"{nom} ({asin}) : aucun résultat Bright Data.")
                     continue
                 info = _normalize_brightdata_item(result_item, asin)
+                if isinstance(result_item, dict) and result_item.get("is_available") is False:
+                    _marquer_vitrine(component_id, True)
+                elif info.get("prix") is not None:
+                    _marquer_vitrine(component_id, False)
                 outcome = _apply_amazon_price_info(
                     client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
                     source_label="Bright Data",
@@ -3962,6 +3985,8 @@ def _run_daily_price_refresh_rotation():
             except Exception as error:
                 errors.append(f"{nom} ({asin}) : ZenRows a échoué ({error}).")
                 continue
+            if info.get("prix") is not None:
+                _marquer_vitrine(component_id, False)
             outcome = _apply_amazon_price_info(
                 client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
                 source_label="ZenRows",
@@ -3981,6 +4006,11 @@ def _run_daily_price_refresh_rotation():
         # recherche par ASIN d'Apify peut simplement le manquer ; Bright Data
         # et ZenRows, qui lisent la fiche /dp/ elle-même, tranchent le stock
         # lors de leurs propres passages.
+        vitrines = _state_get("fiches_vitrine", {})
+        ignorees = [row for row in apify_rows if str(row[0]) in vitrines]
+        for row in ignorees:
+            errors.append(f"{row[1]} ({row[2]}) : fiche vitrine (pas d'offre Amazon), laissée à Bright Data.")
+        apify_rows = [row for row in apify_rows if str(row[0]) not in vitrines]
         for start in range(0, len(apify_rows), APIFY_MAX_ROWS_PER_RUN):
             batch = apify_rows[start:start + APIFY_MAX_ROWS_PER_RUN]
             try:
@@ -4931,22 +4961,8 @@ def _normalize_brightdata_item(item, asin):
     # d'images du contenu enrichi Amazon, pas du texte).
     description = _find_field_recursive(item_sans_variations, ["description"])
 
-    # Plus d'offre Amazon mais d'autres vendeurs sur la même fiche : leur prix
-    # le plus bas (hors occasion), utilisé seulement s'il reste proche du
-    # dernier prix connu (voir _apply_amazon_price_info). Apify, qui ne sait
-    # pas qui vend, lit ce même prix : sans cette règle commune, le produit
-    # passait « épuisé » une nuit (Bright Data) et « en stock » la suivante (Apify).
-    prix_tiers = None
-    if is_available is False and not est_occasion and isinstance(item, dict) and isinstance(item.get("other_sellers_prices"), list):
-        offres = [o.get("price") for o in item["other_sellers_prices"] if isinstance(o, dict)
-                  and isinstance(o.get("price"), (int, float)) and o.get("price") > 0
-                  and not re.search(r"seconde main|warehouse|reconditionn|renewed|occasion",
-                                    f"{o.get('seller_name') or ''} {o.get('seller_url') or ''}", re.IGNORECASE)]
-        prix_tiers = min(offres) if offres else None
-
     return {
         "asin": asin,
-        "prix_tiers": prix_tiers,
         "nom": nom if isinstance(nom, str) else None,
         "marque": marque if isinstance(marque, str) else None,
         "prix": own_variation_price if own_variation_price is not None else parse_amazon_price(prix_raw),
