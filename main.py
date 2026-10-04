@@ -3488,11 +3488,36 @@ def _run_price_refresh():
                 remis_en_stock += 1
             if outcome["passe_epuise"]:
                 passes_epuises += 1
-            updated += 1
+            updated += 0 if outcome.get("ignore") else 1
     finally:
         client.close()
 
     return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises}
+
+
+# Garde-fous communs à tous les fournisseurs (mêmes seuils que les « prix
+# suspects » de l'admin) : un prix hors de [0,5 ; 1,6] × le dernier prix connu
+# n'est appliqué que s'il se confirme au passage suivant. Bloque les prix de
+# spéculation de vendeurs tiers (vu : 2 840 € pour une carte à 450 €) sans
+# bloquer une vraie grosse baisse.
+PRIX_ECART_BAS, PRIX_ECART_HAUT = 0.5, 1.6
+
+
+def _prix_plausible(prix, reference):
+    return not reference or PRIX_ECART_BAS <= float(prix) / reference <= PRIX_ECART_HAUT
+
+
+def _confirmer_prix_inhabituel(component_id, prix):
+    """True si ce même prix inhabituel (à 5 % près) avait déjà été vu au passage précédent."""
+    attente = _state_get("prix_a_confirmer", {})
+    precedent = attente.get(str(component_id))
+    if precedent and abs(precedent - prix) / precedent <= 0.05:
+        attente.pop(str(component_id), None)
+        _state_set("prix_a_confirmer", attente)
+        return True
+    attente[str(component_id)] = prix
+    _state_set("prix_a_confirmer", attente)
+    return False
 
 
 def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info, source_label):
@@ -3503,6 +3528,18 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
     manuel (bouton admin) et par la rotation quotidienne, pour éviter que les
     deux chemins divergent silencieusement.
     """
+    rows_ref = client.execute("SELECT prix_indicatif FROM components WHERE id = ?", [component_id]).rows
+    reference = float(rows_ref[0][0] or 0) if rows_ref else 0.0
+    info = dict(info)
+    # Vendu seulement par un autre vendeur, à un prix normal : reste disponible.
+    if info.get("prix") is None and info.get("prix_tiers") is not None and reference and _prix_plausible(info["prix_tiers"], reference):
+        info["prix"] = info["prix_tiers"]
+    if info.get("prix") is not None and reference and not _prix_plausible(info["prix"], reference):
+        if not _confirmer_prix_inhabituel(component_id, float(info["prix"])):
+            return {"error": f"{nom} ({asin}) : prix inhabituel via {source_label} ({info['prix']} € au lieu de {reference:g} €), "
+                             "appliqué seulement s'il se confirme au prochain passage.",
+                    "remis_en_stock": False, "passe_epuise": False, "ignore": True}
+
     try:
         prix_marche = json.loads(prix_marche_json) if prix_marche_json else []
     except (TypeError, json.JSONDecodeError):
@@ -3833,6 +3870,7 @@ def _run_daily_price_refresh_rotation():
     zenrows_rows = reste[:refresh_allowance("zenrows")] if ZENROWS_API_KEY else []
     reste = reste[len(zenrows_rows):]
     apify_rows = reste[:refresh_allowance("apify")] if APIFY_API_TOKEN else []
+    tentes = len(brightdata_rows) + len(zenrows_rows) + len(apify_rows)
 
     updated = 0
     remis_en_stock = 0
@@ -3878,7 +3916,7 @@ def _run_daily_price_refresh_rotation():
                     remis_en_stock += 1
                 if outcome["passe_epuise"]:
                     passes_epuises += 1
-                updated += 1
+                updated += 0 if outcome.get("ignore") else 1
 
         for row in zenrows_rows:
             component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
@@ -3899,7 +3937,7 @@ def _run_daily_price_refresh_rotation():
                 remis_en_stock += 1
             if outcome["passe_epuise"]:
                 passes_epuises += 1
-            updated += 1
+            updated += 0 if outcome.get("ignore") else 1
 
         # Par lots de APIFY_MAX_ROWS_PER_RUN. Un lot en échec (panne, crédit
         # épuisé) ne touche à RIEN : ses composants seront repris à un prochain
@@ -3934,11 +3972,11 @@ def _run_daily_price_refresh_rotation():
                     remis_en_stock += 1
                 if outcome["passe_epuise"]:
                     passes_epuises += 1
-                updated += 1
+                updated += 0 if outcome.get("ignore") else 1
     finally:
         client.close()
 
-    return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises}
+    return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises, "tentes": tentes}
 
 
 PRICE_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60
@@ -4002,7 +4040,7 @@ async def price_refresh_loop():
                 await asyncio.to_thread(_state_set, "dernier_rafraichissement_prix", {
                     "date": debut.isoformat(timespec="minutes"),
                     "duree_min": round((datetime.utcnow() - debut).total_seconds() / 60),
-                    "mis_a_jour": stats["updated"], "remis_en_stock": stats["remis_en_stock"],
+                    "mis_a_jour": stats["updated"], "tentes": stats.get("tentes"), "remis_en_stock": stats["remis_en_stock"],
                     "passes_epuises": stats["passes_epuises"], "erreurs": len(stats["errors"]),
                     "exemples_erreurs": stats["errors"][:8],
                 })
@@ -4858,8 +4896,22 @@ def _normalize_brightdata_item(item, asin):
     # d'images du contenu enrichi Amazon, pas du texte).
     description = _find_field_recursive(item_sans_variations, ["description"])
 
+    # Plus d'offre Amazon mais d'autres vendeurs sur la même fiche : leur prix
+    # le plus bas (hors occasion), utilisé seulement s'il reste proche du
+    # dernier prix connu (voir _apply_amazon_price_info). Apify, qui ne sait
+    # pas qui vend, lit ce même prix : sans cette règle commune, le produit
+    # passait « épuisé » une nuit (Bright Data) et « en stock » la suivante (Apify).
+    prix_tiers = None
+    if is_available is False and not est_occasion and isinstance(item, dict) and isinstance(item.get("other_sellers_prices"), list):
+        offres = [o.get("price") for o in item["other_sellers_prices"] if isinstance(o, dict)
+                  and isinstance(o.get("price"), (int, float)) and o.get("price") > 0
+                  and not re.search(r"seconde main|warehouse|reconditionn|renewed|occasion",
+                                    f"{o.get('seller_name') or ''} {o.get('seller_url') or ''}", re.IGNORECASE)]
+        prix_tiers = min(offres) if offres else None
+
     return {
         "asin": asin,
+        "prix_tiers": prix_tiers,
         "nom": nom if isinstance(nom, str) else None,
         "marque": marque if isinstance(marque, str) else None,
         "prix": own_variation_price if own_variation_price is not None else parse_amazon_price(prix_raw),

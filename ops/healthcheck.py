@@ -31,6 +31,8 @@ RESTART_AFTER_FAILURES = 3
 ALERT_AFTER_FAILURES = 2  # évite une alerte pour un simple redémarrage
 DISK_ALERT_PERCENT = 90
 BACKUP_MAX_AGE_HOURS = 30
+PRIX_MAX_AGE_HOURS = 36         # la mise à jour des prix tourne toutes les 24 h
+PRIX_PART_MINIMALE = 0.35       # en dessous : quelque chose ne va pas (normal : 40-60 %)
 
 
 def load_env():
@@ -123,9 +125,51 @@ def main():
                    f"{BACKUP_MAX_AGE_HOURS} h. Voir /home/ubuntu/backups/db/backup.log.")
         state["backup_alert_day"] = today
 
+    verifier_prix(env, state, today)
+
     os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f)
+
+
+def verifier_prix(env, state, today):
+    """
+    Mise à jour automatique des prix (chaque nuit) : alerte si elle n'a pas
+    tourné depuis PRIX_MAX_AGE_HOURS, ou si le dernier passage n'a mis à jour
+    qu'une petite partie des produits prévus (fournisseur en panne, format de
+    réponse changé, quota épuisé...). Une alerte par jour au plus.
+    """
+    import sqlite3
+    from datetime import datetime
+    try:
+        db = sqlite3.connect(f"file:{os.path.join(APP_DIR, 'data', 'pcradar.db')}?mode=ro", uri=True, timeout=10)
+        lignes = dict(db.execute("SELECT cle, valeur FROM app_state WHERE cle IN "
+                                 "('derniere_mise_a_jour_prix', 'dernier_rafraichissement_prix')").fetchall())
+        db.close()
+    except Exception as err:
+        log(f"vérification des prix impossible : {err}")
+        return
+    if state.get("prix_alert_day") == today:
+        return
+    probleme = None
+    derniere = lignes.get("derniere_mise_a_jour_prix")
+    if derniere:
+        age = (datetime.utcnow() - datetime.fromisoformat(derniere)).total_seconds() / 3600
+        if age > PRIX_MAX_AGE_HOURS:
+            probleme = (f"La mise à jour automatique des prix n'a pas tourné depuis {round(age)} h "
+                        f"(dernière : {derniere[:16]} UTC).")
+    bilan = json.loads(lignes.get("dernier_rafraichissement_prix") or "null")
+    if not probleme and bilan and bilan.get("tentes") and bilan.get("date") != state.get("prix_bilan_signale"):
+        part = bilan["mis_a_jour"] / bilan["tentes"]
+        if part < PRIX_PART_MINIMALE:
+            probleme = (f"Le dernier passage ({bilan['date']} UTC) n'a mis à jour que {bilan['mis_a_jour']} prix "
+                        f"sur {bilan['tentes']} prévus ({round(part * 100)} %).\n\nExemples d'erreurs :\n- "
+                        + "\n- ".join(bilan.get("exemples_erreurs") or []))
+            state["prix_bilan_signale"] = bilan["date"]
+    if probleme:
+        send_alert(env, "mise à jour des prix en difficulté",
+                   probleme + "\n\nBilan détaillé : tableau de bord de l'admin, case « Mise à jour des prix ».")
+        state["prix_alert_day"] = today
 
 
 if __name__ == "__main__":
