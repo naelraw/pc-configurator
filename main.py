@@ -3497,14 +3497,44 @@ def _run_price_refresh():
 
 # Garde-fous communs à tous les fournisseurs (mêmes seuils que les « prix
 # suspects » de l'admin) : un prix hors de [0,5 ; 1,6] × le dernier prix connu
-# n'est appliqué que s'il se confirme au passage suivant. Bloque les prix de
-# spéculation de vendeurs tiers (vu : 2 840 € pour une carte à 450 €) sans
-# bloquer une vraie grosse baisse.
+# est revérifié TOUT DE SUITE par un deuxième service. S'ils sont d'accord
+# (vraie grosse promo), il est appliqué immédiatement et les alertes partent ;
+# sinon (erreur probable, ou 2e service indisponible), il n'est appliqué que
+# s'il se confirme au passage suivant. Bloque les prix de spéculation de
+# vendeurs tiers (vu : 2 840 € pour une carte à 450 €).
 PRIX_ECART_BAS, PRIX_ECART_HAUT = 0.5, 1.6
 
 
 def _prix_plausible(prix, reference):
     return not reference or PRIX_ECART_BAS <= float(prix) / reference <= PRIX_ECART_HAUT
+
+
+def _prix_confirme_ailleurs(asin, prix, source_label):
+    """
+    Prix inhabituel revérifié immédiatement par les AUTRES services, l'un
+    après l'autre tant qu'aucun ne lit de prix (Apify en rate parfois) :
+    confirmé si le premier prix lu est le même à 5 % près, refusé s'il diffère.
+    """
+    def bright_data():
+        info_bd = fetch_amazon_product(asin, timeout=60) or {}
+        return info_bd.get("prix") if info_bd.get("prix") is not None else info_bd.get("prix_tiers")
+
+    services = {
+        "Bright Data": bright_data,
+        "Apify": lambda: (fetch_amazon_products_apify([asin]).get(asin) or {}).get("prix"),
+        "ZenRows": lambda: (fetch_amazon_product_zenrows(asin) or {}).get("prix"),
+    }
+    for nom_service, lire in services.items():
+        if nom_service == source_label:
+            continue
+        try:
+            autre = lire()
+        except Exception as err:
+            print(f"Double vérification du prix de {asin} par {nom_service} impossible : {err}")
+            continue
+        if autre is not None:
+            return abs(float(autre) - prix) / prix <= 0.05
+    return False
 
 
 def _confirmer_prix_inhabituel(component_id, prix):
@@ -3535,9 +3565,14 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
     if info.get("prix") is None and info.get("prix_tiers") is not None and reference and _prix_plausible(info["prix_tiers"], reference):
         info["prix"] = info["prix_tiers"]
     if info.get("prix") is not None and reference and not _prix_plausible(info["prix"], reference):
-        if not _confirmer_prix_inhabituel(component_id, float(info["prix"])):
+        prix = float(info["prix"])
+        if _prix_confirme_ailleurs(asin, prix, source_label):
+            attente = _state_get("prix_a_confirmer", {})
+            if attente.pop(str(component_id), None) is not None:
+                _state_set("prix_a_confirmer", attente)
+        elif not _confirmer_prix_inhabituel(component_id, prix):
             return {"error": f"{nom} ({asin}) : prix inhabituel via {source_label} ({info['prix']} € au lieu de {reference:g} €), "
-                             "appliqué seulement s'il se confirme au prochain passage.",
+                             "pas confirmé par un 2e service : appliqué seulement s'il se confirme au prochain passage.",
                     "remis_en_stock": False, "passe_epuise": False, "ignore": True}
 
     try:
