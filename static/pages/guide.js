@@ -9,7 +9,7 @@
   });
   if(window.PCPriceHistory){
     document.querySelectorAll('[data-price-history]').forEach(function(el){
-      PCPriceHistory.mount(el, el.getAttribute('data-price-history'));
+      PCPriceHistory.mount(el, el.getAttribute('data-price-history'), { complet: el.getAttribute('data-price-history-mode') === 'complet' });
     });
   }
 })();

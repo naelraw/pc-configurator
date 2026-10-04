@@ -244,7 +244,7 @@ def render_component(c, catalog, fps_block, price_stats, affiliate):
     if price_stats and price_stats.get("n"):
         history = (f"<p class=\"guide-note\">Plus bas prix relevé : <strong>{_euros(price_stats['min'])}</strong>"
                    f" · {price_stats['n']} relevé{'s' if price_stats['n'] > 1 else ''} depuis le {escape(price_stats['depuis'])}.</p>")
-    history += f"<div data-price-history=\"{c['id']}\"></div>"
+    history += f"<div data-price-history=\"{c['id']}\" data-price-history-mode=\"complet\"></div>"
 
     fps_html = ""
     if fps_block:

@@ -855,6 +855,38 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .ph-area{ fill:var(--accent-soft); }
 .ph-line{ fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
 .ph-dot{ fill:var(--accent); stroke:var(--surface-2); stroke-width:2; }
+/* Courbe complète (fiche produit) : périodes, axes, relevés, plus bas historique */
+.price-history.is-complet{ padding:18px; }
+.ph-periodes{ display:flex; gap:4px; flex-wrap:wrap; }
+.ph-periodes button{
+  font:inherit; font-size:0.78rem; padding:5px 10px; border-radius:999px; cursor:pointer;
+  background:var(--surface-2); border:1px solid var(--line); color:var(--text-2);
+}
+.ph-periodes button:hover{ color:var(--text); border-color:var(--line-strong); }
+.ph-periodes button.is-actif{ background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent); }
+.ph-cadre{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:8px; }
+.ph-axe-y{ position:relative; width:52px; height:220px; }
+.ph-axe-y span{ position:absolute; right:0; transform:translateY(-50%); font-family:var(--font-mono); font-size:0.7rem; color:var(--text-3); white-space:nowrap; }
+.is-complet .ph-chart{ height:220px; }
+.ph-grille{ stroke:var(--line); stroke-width:1; }
+.ph-plus-bas{ stroke:var(--accent); stroke-width:1.2; stroke-dasharray:4 4; opacity:0.75; }
+.ph-releve{ position:absolute; width:6px; height:6px; margin:-3px 0 0 -3px; border-radius:50%; background:var(--accent); opacity:0.75; pointer-events:none; }
+.ph-axe-x{ display:flex; justify-content:space-between; margin-top:6px; font-family:var(--font-mono); font-size:0.72rem; color:var(--text-3); }
+.ph-option{ display:inline-flex; align-items:center; gap:8px; margin-top:12px; font-size:0.8rem; color:var(--text-2); cursor:pointer; }
+.ph-option input{ accent-color:var(--accent); }
+.ph-legende-bas{ width:18px; border-top:2px dashed var(--accent); }
+.ph-stats-complet{ display:grid; grid-template-columns:repeat(auto-fit, minmax(130px, 1fr)); gap:8px; margin-top:14px; }
+.ph-stats-complet div{ display:flex; flex-direction:column; gap:2px; padding:9px 10px; border-radius:var(--r-sm); background:var(--surface-2); }
+.ph-stats-complet span{ font-size:0.74rem; color:var(--text-3); }
+.ph-stats-complet b{ font-family:var(--font-mono); font-size:0.85rem; font-weight:560; font-variant-numeric:tabular-nums; }
+.ph-stats-complet b.is-baisse{ color:var(--accent); }
+.ph-stats-complet b.is-hausse{ color:var(--danger); }
+.ph-note{ margin-top:10px; font-size:0.74rem; color:var(--text-3); }
+@media (max-width:640px){
+  .ph-axe-y, .is-complet .ph-chart{ height:170px; }
+  .ph-axe-y{ width:42px; }
+}
+
 /* Lecture jour par jour (survol, doigt ou flèches du clavier) */
 .ph-lecture{ display:flex; flex-wrap:wrap; align-items:baseline; gap:0 8px; min-height:22px; margin-bottom:6px; font-size:0.84rem; }
 .ph-lecture > *{ white-space:nowrap; }
