@@ -3450,14 +3450,7 @@ def _run_price_refresh():
     # Bright Data ne garantit pas de renvoyer les résultats dans le même
     # ordre que les items envoyés. Le champ "asin" n'étant pas garanti dans
     # la réponse, on retombe sur l'ASIN extrait de l'URL renvoyée.
-    results_by_asin = {}
-    for result_item in (results or []):
-        item_asin = _find_field_recursive(result_item, ["asin"])
-        if not isinstance(item_asin, str):
-            item_url = _find_field_recursive(result_item, ["url", "link"])
-            item_asin = extract_asin_from_input(item_url) if isinstance(item_url, str) else None
-        if isinstance(item_asin, str):
-            results_by_asin[item_asin.upper()] = result_item
+    results_by_asin, redirections = _indexer_resultats_brightdata(results)
 
     updated = 0
     remis_en_stock = 0
@@ -3471,6 +3464,15 @@ def _run_price_refresh():
             )
 
             result_item = results_by_asin.get(asin.upper())
+            if result_item is None and asin.upper() in redirections:
+                outcome = _apply_amazon_price_info(
+                    client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, {"prix": None},
+                    source_label="Bright Data",
+                )
+                errors.append(f"{nom} ({asin}) : la fiche Amazon mène maintenant à un autre produit "
+                              f"({redirections[asin.upper()]}), annonce marquée épuisée.")
+                passes_epuises += 1 if outcome["passe_epuise"] else 0
+                continue
             if result_item is None:
                 errors.append(f"{nom} ({asin}) : aucun résultat renvoyé par Bright Data.")
                 continue
@@ -3846,20 +3848,22 @@ def _run_daily_price_refresh_rotation():
                 results = []
                 errors.append(f"Bright Data (tranche de {len(brightdata_rows)}) : {error}")
 
-            results_by_asin = {}
-            for result_item in (results or []):
-                item_asin = _find_field_recursive(result_item, ["asin"])
-                if not isinstance(item_asin, str):
-                    item_url = _find_field_recursive(result_item, ["url", "link"])
-                    item_asin = extract_asin_from_input(item_url) if isinstance(item_url, str) else None
-                if isinstance(item_asin, str):
-                    results_by_asin[item_asin.upper()] = result_item
+            results_by_asin, redirections = _indexer_resultats_brightdata(results)
 
             for row in brightdata_rows:
                 component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
                     row[0], row[1], row[2], row[3], row[4], bool(row[5]),
                 )
                 result_item = results_by_asin.get(asin.upper())
+                if result_item is None and asin.upper() in redirections:
+                    outcome = _apply_amazon_price_info(
+                        client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, {"prix": None},
+                        source_label="Bright Data",
+                    )
+                    errors.append(f"{nom} ({asin}) : la fiche Amazon mène maintenant à un autre produit "
+                                  f"({redirections[asin.upper()]}), annonce marquée épuisée.")
+                    passes_epuises += 1 if outcome["passe_epuise"] else 0
+                    continue
                 if result_item is None:
                     errors.append(f"{nom} ({asin}) : aucun résultat Bright Data.")
                     continue
@@ -4719,6 +4723,30 @@ def _find_own_variation_price(item, asin):
         if isinstance(variation_asin, str) and variation_asin.upper() == asin.upper():
             return parse_amazon_price(variation.get("price"))
     return None
+
+
+def _indexer_resultats_brightdata(results):
+    """
+    Résultats Bright Data indexés par ASIN (l'ordre de la réponse n'est pas
+    garanti ; ASIN pris dans le résultat, sinon dans l'URL renvoyée), plus
+    les fiches REDIRIGÉES : ASIN demandé -> ASIN renvoyé quand Amazon a
+    réutilisé la fiche pour un autre produit (vu sur un Acer GM7000 dont la
+    fiche mène à un GM9000). Sans ça, le composant n'était jamais mis à jour
+    et gardait un vieux prix.
+    """
+    results_by_asin, redirections = {}, {}
+    for result_item in (results or []):
+        item_asin = _find_field_recursive(result_item, ["asin"])
+        if not isinstance(item_asin, str):
+            item_url = _find_field_recursive(result_item, ["url", "link"])
+            item_asin = extract_asin_from_input(item_url) if isinstance(item_url, str) else None
+        if not isinstance(item_asin, str):
+            continue
+        results_by_asin[item_asin.upper()] = result_item
+        demande = re.search(r"/dp/([A-Z0-9]{10})", str(result_item.get("input") or "") if isinstance(result_item, dict) else "")
+        if demande and demande.group(1).upper() != item_asin.upper():
+            redirections[demande.group(1).upper()] = item_asin.upper()
+    return results_by_asin, redirections
 
 
 def _normalize_brightdata_item(item, asin):
