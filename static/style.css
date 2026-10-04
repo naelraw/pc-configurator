@@ -783,6 +783,22 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .ph-area{ fill:var(--accent-soft); }
 .ph-line{ fill:none; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }
 .ph-dot{ fill:var(--accent); stroke:var(--surface-2); stroke-width:2; }
+/* Lecture jour par jour (survol, doigt ou flèches du clavier) */
+.ph-lecture{ display:flex; flex-wrap:wrap; align-items:baseline; gap:0 8px; min-height:22px; margin-bottom:6px; font-size:0.84rem; }
+.ph-lecture > *{ white-space:nowrap; }
+@media (max-width:480px){ .ph-lecture{ min-height:42px; align-content:flex-start; } }
+.ph-jour{ color:var(--text-2); }
+.ph-lecture b{ font-family:var(--font-mono); font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+.ph-ecart{ font-family:var(--font-mono); font-size:0.76rem; }
+.ph-ecart.is-baisse{ color:var(--accent); }
+.ph-ecart.is-hausse{ color:var(--danger); }
+.ph-plot{ position:relative; cursor:crosshair; touch-action:pan-y; border-radius:6px; outline:none; }
+.ph-plot:focus-visible{ box-shadow:0 0 0 2px var(--accent-line); }
+.ph-guide{ position:absolute; top:0; bottom:0; width:1px; margin-left:-0.5px; background:var(--line-strong); opacity:0; pointer-events:none; transition:opacity .15s; }
+.ph-plot.is-survol .ph-guide{ opacity:1; }
+.ph-point{ position:absolute; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:var(--accent);
+  box-shadow:0 0 0 2px var(--surface-2); pointer-events:none; }
+.ph-plot.is-survol .ph-point{ width:12px; height:12px; margin:-6px 0 0 -6px; }
 .ph-stats{ display:flex; justify-content:space-between; gap:12px; margin-top:8px; font-size:0.78rem; color:var(--text-2); }
 .ph-stats b{ font-family:var(--font-mono); font-weight:500; color:var(--text); font-variant-numeric:tabular-nums; margin-left:4px; }
 .ph-empty{ font-size:0.82rem; color:var(--text-2); margin:0; line-height:1.5; }
