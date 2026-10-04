@@ -92,12 +92,18 @@ def test_analyse_d_une_page_amazon(client, catalog):
     assert res["B0INCONNU1"] == {"catalogue": None, "proche": None}
 
 
-def test_securite_et_extension(client):
+def test_securite_et_extension(client, new_client):
     # Pas de documentation d'API publique.
     for path in ("/docs", "/redoc", "/openapi.json"):
         assert client.get(path).status_code == 404
-    # Message trop long refusé avant tout appel IA.
-    assert client.post("/suggest-config", json={"user_input": "x" * 2001}).status_code == 422
+    # L'assistant IA est réservé aux comptes : refusé sans connexion.
+    assert client.post("/suggest-config", json={"user_input": "test"}).status_code == 401
+    assert client.post("/api/assistant/chat", json={"messages": [{"role": "user", "content": "test"}]}).status_code == 401
+    # Connecté : message trop long refusé avant tout appel IA.
+    membre = new_client("203.0.113.77")
+    assert membre.post("/api/auth/register", json={"email": "ia@test.fr", "password": "motdepasse123"}).status_code == 200
+    assert membre.post("/suggest-config", json={"user_input": "x" * 2001}).status_code == 422
+    assert membre.post("/api/assistant/chat", json={"messages": [{"role": "user", "content": "x" * 4001}]}).status_code == 422
     # L'extension n'est téléchargeable qu'avec le mot de passe admin.
     assert client.get("/api/admin/extension.zip").status_code == 401
     r = client.get("/api/admin/extension.zip", headers=ADMIN)
