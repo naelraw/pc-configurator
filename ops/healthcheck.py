@@ -140,7 +140,7 @@ def verifier_prix(env, state, today):
     réponse changé, quota épuisé...). Une alerte par jour au plus.
     """
     import sqlite3
-    from datetime import datetime
+    from datetime import datetime, timezone
     try:
         db = sqlite3.connect(f"file:{os.path.join(APP_DIR, 'data', 'pcradar.db')}?mode=ro", uri=True, timeout=10)
         lignes = dict(db.execute("SELECT cle, valeur FROM app_state WHERE cle IN "
@@ -154,7 +154,7 @@ def verifier_prix(env, state, today):
     probleme = None
     derniere = lignes.get("derniere_mise_a_jour_prix")
     if derniere:
-        age = (datetime.utcnow() - datetime.fromisoformat(derniere)).total_seconds() / 3600
+        age = (datetime.now(timezone.utc).replace(tzinfo=None) - datetime.fromisoformat(derniere)).total_seconds() / 3600
         if age > PRIX_MAX_AGE_HOURS:
             probleme = (f"La mise à jour automatique des prix n'a pas tourné depuis {round(age)} h "
                         f"(dernière : {derniere[:16]} UTC).")
