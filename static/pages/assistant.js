@@ -560,6 +560,12 @@
         body: JSON.stringify({ messages, derniere_config: derniere ? derniere.suggestion : null, ma_config: options.sansMaConfig ? null : lireMaConfig() }),
       });
       const data = await res.json().catch(() => ({}));
+      if(res.status === 401){
+        afficherAccesReserve();
+        enCours = false;
+        clearInterval(minuterie);
+        return;
+      }
       if(res.ok && data.status === 'ok'){
         reponse = { role: 'assistant', content: data.message || '', suggestion: data.suggestion || null,
           composants: Array.isArray(data.composants) ? data.composants : [], fps: data.fps_estimation || null };
@@ -737,7 +743,37 @@
   // ------------------------------------------------------------------
   // Démarrage
   // ------------------------------------------------------------------
+  // L'assistant est réservé aux comptes (gratuits) : sans connexion, une
+  // invitation à s'inscrire remplace la discussion. Après connexion, la page
+  // /compte renvoie ici (?next=), parcours « Je débute » compris.
+  function afficherAccesReserve(){
+    const retour = location.pathname + location.search;
+    const lien = '/compte?next=' + encodeURIComponent(retour);
+    $('chat-nouvelle').hidden = true;
+    $('chat').innerHTML = `
+      <div class="assistant-acces">
+        <span class="assistant-acces-icone" aria-hidden="true"><i class="ph ph-lock-key"></i></span>
+        <h2>L'assistant IA est réservé aux membres</h2>
+        <p>Crée ton compte gratuit en quelques secondes pour discuter avec l'assistant, te faire guider pas à pas
+          et recevoir une config adaptée à ton budget et à tes jeux.</p>
+        <ul class="assistant-acces-liste">
+          <li><i class="ph ph-check" aria-hidden="true"></i> Gratuit, sans carte bancaire</li>
+          <li><i class="ph ph-check" aria-hidden="true"></i> Connexion en un clic avec Google, ou par e-mail</li>
+          <li><i class="ph ph-check" aria-hidden="true"></i> Tes configs sauvegardées et des alertes quand les prix baissent</li>
+        </ul>
+        <div class="assistant-acces-boutons">
+          <a class="btn btn-primary" href="${lien}">Créer mon compte gratuit</a>
+          <a class="btn btn-secondary" href="${lien}">J'ai déjà un compte</a>
+        </div>
+        <p class="assistant-acces-note">Tu peux aussi composer ton PC toi-même avec le <a href="/configurateur">configurateur</a>, sans compte.</p>
+      </div>`;
+  }
+
   async function demarrer(){
+    try{
+      const session = await fetch(API_BASE + '/api/auth/me', { credentials: 'same-origin' }).then(r => r.json());
+      if(!session.logged_in){ afficherAccesReserve(); return; }
+    }catch(e){ /* réseau indisponible : le serveur refusera de toute façon sans compte */ }
     loadAffiliateConfig();      // identifiant Amazon Partenaires (panier, liens « Voir l'offre »)
     try{ discussion = JSON.parse(sessionStorage.getItem(DISCUSSION_KEY)) || []; }catch(e){ discussion = []; }
     try{ guide = JSON.parse(sessionStorage.getItem(GUIDE_KEY)) || guide; }catch(e){}

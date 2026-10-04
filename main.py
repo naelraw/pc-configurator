@@ -5914,7 +5914,7 @@ Corrige ta réponse en tenant compte de ces erreurs. Réponds UNIQUEMENT avec le
 
 
 @app.post("/suggest-config")
-def suggest_config(request: SuggestConfigRequest, _rate_limit=Depends(enforce_ai_rate_limit)):
+def suggest_config(request: SuggestConfigRequest, _user=Depends(require_login), _rate_limit=Depends(enforce_ai_rate_limit)):
     """Route IA : suggère une config basée sur la description utilisateur"""
     try:
         # Récupère tous les composants
@@ -6037,7 +6037,7 @@ class RefineConfigRequest(BaseModel):
 
 
 @app.post("/api/refine-config")
-def refine_config(request: RefineConfigRequest, _rate_limit=Depends(enforce_ai_rate_limit)):
+def refine_config(request: RefineConfigRequest, _user=Depends(require_login), _rate_limit=Depends(enforce_ai_rate_limit)):
     """
     Route IA : fait évoluer une configuration DÉJÀ suggérée à partir d'une
     demande en langage naturel — soit une modification ("remplace le GPU
@@ -6272,7 +6272,9 @@ def _texte_config(ids, components_by_id):
 
 
 @app.post("/api/assistant/chat")
-def assistant_chat(request: AssistantChatRequest, _rate_limit=Depends(enforce_chat_rate_limit)):
+def assistant_chat(request: AssistantChatRequest, _user=Depends(require_login), _rate_limit=Depends(enforce_chat_rate_limit)):
+    """Assistant IA : réservé aux comptes (inscription gratuite), pour limiter
+    les abus et l'usage des quotas IA gratuits."""
     try:
         components = get_catalog()
         if not components:

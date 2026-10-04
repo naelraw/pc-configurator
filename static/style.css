@@ -1036,6 +1036,17 @@ a.bento-cell:hover .more{ color:var(--accent); }
 }
 .chat-envoyer:hover{ background:var(--accent-hover); }
 .chat-note{ margin-top:10px; font-size:0.78rem; color:var(--text-3); text-align:center; }
+/* Assistant réservé aux comptes */
+.assistant-acces{ text-align:center; padding:28px 12px 18px; max-width:520px; margin:0 auto; }
+.assistant-acces-icone{ width:52px; height:52px; display:inline-grid; place-items:center; border-radius:50%;
+  background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-size:1.5rem; margin-bottom:14px; }
+.assistant-acces h2{ font-size:1.3rem; letter-spacing:-0.02em; margin-bottom:10px; }
+.assistant-acces > p{ color:var(--text-2); line-height:1.6; font-size:0.95rem; }
+.assistant-acces-liste{ list-style:none; display:inline-flex; flex-direction:column; gap:6px; margin:16px 0 20px; text-align:left; font-size:0.9rem; }
+.assistant-acces-liste i{ color:var(--accent); margin-right:6px; }
+.assistant-acces-boutons{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+.assistant-acces-note{ margin-top:16px; font-size:0.82rem; color:var(--text-3); }
+.assistant-acces-note a{ color:var(--text-2); text-decoration:underline; text-underline-offset:2px; }
 
 .cfg-carte{ margin-top:12px; border:1px solid var(--line-strong); border-radius:var(--r-md); background:var(--bg); overflow:hidden; }
 .cfg-liste{ list-style:none; }
