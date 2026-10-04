@@ -321,11 +321,17 @@
       }
     });
     if(enCours || ecritGuide) html += bulleAssistant(`<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span><span class="chat-attente">${enCours ? escapeHtml(texteAttente()) : ''}</span>`);
+    // La discussion défile dans sa propre zone (pas la page) : on garde la
+    // position quand on réaffiche sans nouveau message (bouton « Mettre dans
+    // ma config »...), et on amène le début du dernier message en vue sinon.
+    const position = fil.scrollTop;
     fil.innerHTML = html;
     $('chat-nouvelle').hidden = discussion.length === 0;
-    if(defiler){
-      const dernier = fil.lastElementChild;
-      if(dernier) dernier.scrollIntoView({ behavior: 'smooth', block: discussion.length ? 'start' : 'nearest' });
+    const dernier = fil.lastElementChild;
+    if(defiler && dernier){
+      fil.scrollTo({ top: Math.max(0, dernier.offsetTop - 8), behavior: 'smooth' });
+    }else{
+      fil.scrollTop = position;
     }
   }
 
@@ -786,7 +792,8 @@
     }catch(e){
       console.error('Erreur chargement composants', e);
     }
-    afficher(false);            // en arrivant sur la page : on reste en haut (pas de saut vers le dernier message)
+    afficher(false);            // la page reste en haut...
+    $('chat-fil').scrollTop = $('chat-fil').scrollHeight;   // ...et la discussion montre ses derniers messages
 
     // Arrivée depuis « Je débute » sur l'accueil : lance le parcours guidé
     // (ou le reprend s'il est en cours), puis retire le paramètre de l'adresse
