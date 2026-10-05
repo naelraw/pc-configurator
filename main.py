@@ -3929,7 +3929,7 @@ PRIX_INTERVALLE_NORMAL = 4
 PRIX_INTERVALLE_EPUISE = 6
 PRIX_BUDGETS_BALAYES = range(500, 3201, 100)
 PRIX_USAGES_BALAYES = ("jeu", "travail", "creation")
-LOGS_NGINX = "/var/log/nginx/access.log*"
+LOGS_NGINX = os.getenv("PCRADAR_ACCESS_LOG_GLOB", "/var/log/nginx/access.log*")
 
 
 def _vues_composants():
@@ -6430,6 +6430,265 @@ class AssistantChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=40)
     derniere_config: dict | None = None     # dernière config proposée dans la discussion
     ma_config: dict | None = None           # config en cours de la personne ({catégorie: id})
+
+
+# ---------------------------------------------------------------------------
+# Aide du site (bulle en bas à droite de toutes les pages) et tickets
+# ---------------------------------------------------------------------------
+# Ouverte à tous, sans compte : c'est aussi le moyen de signaler un problème.
+# L'IA répond aux questions sur le fonctionnement de PC Radar ; quand on lui
+# décrit un problème, elle propose un ticket que la personne valide elle-même
+# (jamais créé tout seul), visible dans l'admin (« Tickets ») et envoyé par
+# e-mail à l'admin.
+AIDE_MIN_INTERVAL = 2
+AIDE_MAX_PER_HOUR = 30
+TICKETS_MAX_PER_HOUR = 5
+TICKET_CATEGORIES = {"bug": "Bug", "prix": "Prix ou stock", "compte": "Compte", "suggestion": "Suggestion", "question": "Question", "autre": "Autre"}
+TICKET_STATUTS = ("ouvert", "en_cours", "resolu")
+_aide_par_ip = {}
+_tickets_par_ip = {}
+
+CONNAISSANCES_PC_RADAR = """PC Radar (pcradar.tech) est un site français gratuit pour choisir et monter son PC. Projet personnel et
+indépendant. Les prix viennent d'Amazon (liens partenaires : le site touche une petite commission, sans
+surcoût pour l'acheteur).
+Pages :
+- Accueil : 3 niveaux pour bien commencer. Débutant = l'assistant IA pose une dizaine de questions et
+  construit la config ; Intermédiaire = discussion libre avec l'assistant IA ; Configurateur = on choisit
+  chaque pièce soi-même.
+- Configurateur (/configurateur) : choix pièce par pièce (processeur, carte mère, RAM, carte graphique,
+  alimentation, stockage, boîtier, ventirad). La compatibilité est vérifiée automatiquement (socket,
+  type de RAM, format de carte mère et de boîtier, puissance de l'alimentation, longueur de la carte
+  graphique, hauteur du ventirad). Filtres, recherche, « Afficher plus » par catégorie. Un ventirad est
+  ajouté quand le processeur est vendu sans.
+- Assistant IA (/assistant) : réservé aux comptes (inscription gratuite). Pose des questions, demande une
+  config pour un budget ou des jeux, puis ajoute les composants à ta config ou envoie tout au panier Amazon.
+- Comparateur (/comparateur) : compare deux composants de la même catégorie, avec une note sur 100 et
+  l'écart de performance.
+- Estimer FPS (/estimer-fps) : estimation des FPS d'une config dans de nombreux jeux, selon la
+  résolution et la qualité graphique. Ce sont des estimations, pas des mesures exactes.
+- Loupe en haut de chaque page (ou Ctrl+K) : recherche d'un composant et sa fiche (prix, historique).
+- Fiches composants (/composant/...) : caractéristiques, prix du jour, courbe d'historique des prix.
+- Guides par budget (/guides) : configs gamer de 700 à 2500 €, mises à jour avec les prix du jour.
+- Mon compte (/compte) : connexion par e-mail ou Google. Sauvegarder ses configurations, suivre des
+  composants, fixer un prix cible pour recevoir un e-mail quand le prix passe dessous, alertes de prix sur
+  une config entière, partager une config par lien, télécharger ses données ou supprimer son compte.
+- Application (/application) : le site s'installe sur téléphone comme une appli (Android via Chrome,
+  iPhone via Safari > Partager > Sur l'écran d'accueil). Gratuit, sans store.
+Prix : relevés automatiquement chaque nuit sur Amazon (les produits les plus demandés chaque jour, les
+autres tous les quelques jours). Un prix peut donc avoir changé depuis : le prix final est toujours celui
+affiché sur Amazon. « Épuisé » = plus d'offre vendue par Amazon. Les achats et livraisons se font chez
+Amazon, pas sur PC Radar (pas de commande, pas de paiement, pas de SAV sur le site).
+Contact : contact.pcradar@gmail.com. Données hébergées en France."""
+
+
+class AideRequest(BaseModel):
+    messages: list[ChatMessage] = Field(min_length=1, max_length=30)
+    page: str | None = Field(default=None, max_length=300)
+
+
+class TicketRequest(BaseModel):
+    categorie: str = Field(max_length=20)
+    titre: str = Field(min_length=3, max_length=140)
+    description: str = Field(min_length=5, max_length=3000)
+    page: str | None = Field(default=None, max_length=300)
+    email: str | None = Field(default=None, max_length=200)
+    discussion: list[ChatMessage] | None = Field(default=None, max_length=30)
+
+
+def _limiter_ip(registre, request, intervalle, par_heure, message_trop_vite, message_trop):
+    ip = _client_ip(request)
+    now = time.time()
+    recents = [t for t in registre.get(ip, []) if now - t < 3600]
+    if intervalle and recents and now - recents[-1] < intervalle:
+        raise HTTPException(status_code=429, detail=message_trop_vite)
+    if len(recents) >= par_heure:
+        raise HTTPException(status_code=429, detail=message_trop)
+    registre[ip] = recents + [now]
+    if len(registre) > 5000:
+        for vieille in [k for k, v in registre.items() if now - v[-1] > 3600]:
+            registre.pop(vieille, None)
+
+
+def _preparer_tickets():
+    client = get_client()
+    try:
+        client.execute("""
+            CREATE TABLE IF NOT EXISTS tickets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                statut TEXT NOT NULL DEFAULT 'ouvert',
+                categorie TEXT NOT NULL,
+                titre TEXT NOT NULL,
+                description TEXT NOT NULL,
+                page TEXT,
+                email TEXT,
+                user_id INTEGER,
+                discussion_json TEXT,
+                note_admin TEXT
+            )
+        """)
+    finally:
+        client.close()
+
+
+@app.post("/api/aide/chat")
+def aide_chat(body: AideRequest, request: Request):
+    _limiter_ip(_aide_par_ip, request, AIDE_MIN_INTERVAL, AIDE_MAX_PER_HOUR,
+                "Doucement, attends quelques secondes avant d'envoyer un autre message.",
+                "Tu as envoyé beaucoup de messages : réessaie dans un moment, ou écris à contact.pcradar@gmail.com.")
+    messages = [m for m in body.messages if m.content.strip()][-CHAT_MAX_MESSAGES:]
+    if not messages or messages[-1].role != "user":
+        raise HTTPException(status_code=400, detail="Le dernier message doit venir de l'utilisateur.")
+    question = messages[-1].content.strip()[:MAX_USER_INPUT]
+    historique = "\n".join(
+        f"{'Utilisateur' if m.role == 'user' else 'Assistant'} : {m.content.strip()[:CHAT_MAX_CHARS]}"
+        for m in messages[:-1]
+    ) or "(début de la discussion)"
+    connecte = bool(get_current_user(request))
+    page = (body.page or "").strip()[:300] or "inconnue"
+
+    prompt = f"""Tu es l'aide de PC Radar : une petite bulle d'aide en bas à droite du site. Tu aides les visiteurs à
+utiliser le site et tu recueilles les problèmes qu'ils rencontrent. Ton : sympa, simple, en français, en
+tutoyant. Réponses courtes (1 à 3 phrases), pas d'emojis, pas de formules toutes faites.
+
+Ce que tu sais du site (ne dis rien qui n'y est pas ; si tu ne sais pas, dis-le et propose d'envoyer la
+question à l'équipe) :
+{CONNAISSANCES_PC_RADAR}
+
+Page où se trouve le visiteur : {page}
+Visiteur connecté à un compte : {"oui" if connecte else "non"}
+
+Règles :
+- Questions sur le site (comment faire, où trouver, comment ça marche) : réponds et indique la page
+  utile (son adresse entre parenthèses, ex : « (/configurateur) »).
+- Questions de conseil PC (quelle carte graphique, une config pour 1000 €...) : réponds en une phrase
+  si c'est simple, et oriente vers l'assistant IA (/assistant) ou le configurateur pour une vraie config.
+- Problème sur le site (bug, page qui ne marche pas, prix faux, lien cassé, souci de compte, idée
+  d'amélioration) : si la description est trop vague pour être utile, pose UNE question courte (quelle
+  page, quel composant, ce qui se passe exactement). Dès que c'est assez clair, propose un ticket en
+  remplissant "ticket" et dis en une phrase que tu peux le transmettre à l'équipe avec le bouton
+  ci-dessous. Ne dis jamais qu'un ticket est déjà envoyé : c'est le visiteur qui confirme.
+- Hors sujet complet : réponds brièvement et poliment, sans inventer, puis rappelle que tu es là pour
+  aider sur PC Radar.
+- Tu ne peux rien modifier toi-même (compte, prix, commandes) et PC Radar ne vend rien : les achats,
+  livraisons et retours se font chez Amazon.
+
+Discussion jusqu'ici :
+{historique}
+
+Nouveau message : {question}
+
+Réponds UNIQUEMENT avec un objet JSON valide, sans markdown autour :
+{{"message": "<ta réponse>", "ticket": null}}
+ou, pour proposer un ticket :
+{{"message": "<ta réponse>", "ticket": {{"categorie": <"bug", "prix", "compte", "suggestion", "question" ou "autre">, "titre": "<résumé en moins de 80 caractères>", "description": "<le problème décrit clairement pour l'équipe : page, composant, ce qui se passe, ce qui était attendu>"}}}}"""
+
+    try:
+        brut = call_ai_model(prompt, max_tokens=700, temperature=0.4)
+        data = parse_ai_json(brut)
+    except Exception as err:
+        print(f"Aide du site : réponse IA impossible ({err})")
+        return {"status": "ok", "message": "Je n'arrive pas à répondre pour le moment. Tu peux réessayer dans un instant, "
+                                           "ou décrire ton problème et l'envoyer à l'équipe avec le bouton ci-dessous.",
+                "ticket": {"categorie": "autre", "titre": question[:80], "description": question}}
+    if not isinstance(data, dict):
+        # Réponse en texte simple au lieu du JSON demandé : on la garde telle quelle.
+        data = {"message": brut.strip()} if brut and "{" not in brut else {}
+    message = str(data.get("message") or "").strip() or "Je n'ai pas compris, tu peux reformuler ?"
+    ticket = data.get("ticket") if isinstance(data.get("ticket"), dict) else None
+    if ticket:
+        ticket = {
+            "categorie": ticket.get("categorie") if ticket.get("categorie") in TICKET_CATEGORIES else "autre",
+            "titre": str(ticket.get("titre") or question)[:120].strip(),
+            "description": str(ticket.get("description") or question)[:3000].strip(),
+        }
+    return {"status": "ok", "message": message[:2000], "ticket": ticket}
+
+
+@app.post("/api/aide/ticket")
+def aide_ticket(body: TicketRequest, request: Request):
+    _limiter_ip(_tickets_par_ip, request, 0, TICKETS_MAX_PER_HOUR, "",
+                "Tu as déjà envoyé plusieurs signalements : merci ! Réessaie plus tard ou écris à contact.pcradar@gmail.com.")
+    user = get_current_user(request) or {}
+    email = (body.email or "").strip() or user.get("email") or None
+    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        raise HTTPException(status_code=422, detail="Adresse e-mail invalide.")
+    categorie = body.categorie if body.categorie in TICKET_CATEGORIES else "autre"
+    discussion = [{"role": m.role, "content": m.content[:CHAT_MAX_CHARS]} for m in (body.discussion or [])][-20:]
+    _preparer_tickets()
+    client = get_client()
+    try:
+        client.execute(
+            "INSERT INTO tickets (date, statut, categorie, titre, description, page, email, user_id, discussion_json) "
+            "VALUES (?, 'ouvert', ?, ?, ?, ?, ?, ?, ?)",
+            [datetime.utcnow().isoformat(timespec="seconds"), categorie, body.titre.strip(), body.description.strip(),
+             (body.page or "")[:300] or None, email, user.get("id"), json.dumps(discussion, ensure_ascii=False)],
+        )
+        numero = client.execute("SELECT MAX(id) FROM tickets").rows[0][0]
+    finally:
+        client.close()
+    if ADMIN_EMAIL:
+        send_site_email_later(ADMIN_EMAIL, emails.ticket_admin, {
+            "id": numero, "categorie": TICKET_CATEGORIES[categorie], "titre": body.titre.strip(),
+            "description": body.description.strip(), "page": body.page, "email": email,
+        }, f"{SITE_URL}/admin#tickets")
+    return {"status": "ok", "id": numero}
+
+
+@app.get("/api/admin/tickets")
+def admin_tickets(_admin=Depends(require_admin)):
+    _preparer_tickets()
+    client = get_client()
+    try:
+        rows = client.execute(
+            "SELECT id, date, statut, categorie, titre, description, page, email, discussion_json, note_admin "
+            "FROM tickets ORDER BY CASE statut WHEN 'ouvert' THEN 0 WHEN 'en_cours' THEN 1 ELSE 2 END, id DESC LIMIT 300"
+        ).rows
+    finally:
+        client.close()
+    tickets = []
+    for r in rows:
+        try:
+            discussion = json.loads(r[8] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            discussion = []
+        tickets.append({"id": r[0], "date": r[1], "statut": r[2], "categorie": r[3],
+                        "categorie_label": TICKET_CATEGORIES.get(r[3], r[3]), "titre": r[4], "description": r[5],
+                        "page": r[6], "email": r[7], "discussion": discussion, "note_admin": r[9]})
+    return {"status": "ok", "tickets": tickets}
+
+
+@app.post("/api/admin/tickets/{ticket_id}")
+def admin_ticket_modifier(ticket_id: int, body: dict = Body(...), _admin=Depends(require_admin)):
+    champs, valeurs = [], []
+    if "statut" in body:
+        if body["statut"] not in TICKET_STATUTS:
+            raise HTTPException(status_code=400, detail="Statut inconnu.")
+        champs.append("statut = ?")
+        valeurs.append(body["statut"])
+    if "note_admin" in body:
+        champs.append("note_admin = ?")
+        valeurs.append(str(body["note_admin"] or "")[:2000] or None)
+    if not champs:
+        raise HTTPException(status_code=400, detail="Rien à modifier.")
+    _preparer_tickets()
+    client = get_client()
+    try:
+        client.execute(f"UPDATE tickets SET {', '.join(champs)} WHERE id = ?", valeurs + [ticket_id])
+    finally:
+        client.close()
+    return {"status": "ok"}
+
+
+@app.delete("/api/admin/tickets/{ticket_id}")
+def admin_ticket_supprimer(ticket_id: int, _admin=Depends(require_admin)):
+    _preparer_tickets()
+    client = get_client()
+    try:
+        client.execute("DELETE FROM tickets WHERE id = ?", [ticket_id])
+    finally:
+        client.close()
+    return {"status": "ok"}
 
 
 def _mots_modele(texte):

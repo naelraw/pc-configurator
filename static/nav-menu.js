@@ -43,6 +43,14 @@
   });
 
   document.addEventListener('DOMContentLoaded', function(){
+    // Bulle d'aide en bas à droite (static/aide.js), sur toutes les pages du site.
+    if(!document.querySelector('script[src="/static/aide.js"]')){
+      var aide = document.createElement('script');
+      aide.src = '/static/aide.js';
+      aide.async = true;
+      document.body.appendChild(aide);
+    }
+
     var wrap = document.querySelector('header .nav-wrap');
     if(wrap && !wrap.querySelector('.nav-search')){
       var loupe = document.createElement('button');

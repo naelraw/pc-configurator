@@ -184,7 +184,7 @@
 
   // Tout ce qui alimente le tableau de bord, chargé en parallèle.
   async function refreshAll(){
-    await Promise.allSettled([loadComponents(), loadWatch(), loadLinks(), loadStats(), loadQuotas(), loadBuilds()]);
+    await Promise.allSettled([loadComponents(), loadWatch(), loadLinks(), loadStats(), loadQuotas(), loadBuilds(), loadTickets()]);
     renderDashboard();
   }
 
@@ -256,6 +256,7 @@
 
     // « À traiter » : les signalements qui demandent une décision, avec leurs actions.
     const todo = [];
+    ticketsOuverts().slice(0, 4).forEach(t => todo.push(ticketTodoItem(t)));
     if(watchData){
       watchData.prix_suspects.slice(0, 5).forEach(s => todo.push(priceItem(s)));
       watchData.annonces_isolees.slice(0, 3).forEach(p => todo.push(isolatedItem(p)));
@@ -267,6 +268,7 @@
     const setCount = (id, n, alert) => { const el = $(id); el.textContent = n ? String(n) : ''; el.classList.toggle('alert', !!alert && n > 0); };
     setCount('nav-watch', suspects + aRattacher, true);
     setCount('nav-links', brokenLinks.length + corrections.length, true);
+    setCount('nav-tickets', ticketsOuverts().length, true);
     setCount('nav-catalog', components.length, false);
   }
 
@@ -317,7 +319,7 @@
   }
 
   function renderWatch(){
-    document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.id === 'watch-tab-' + watchTab));
+    document.querySelectorAll('[data-section="watch"] .tabs button').forEach(b => b.classList.toggle('active', b.id === 'watch-tab-' + watchTab));
     if(!watchData) return;
     let html;
     if(watchTab === 'prix'){
@@ -995,6 +997,105 @@
       ${liensPanel}
       ${totaux}`;
   }
+
+  // ---------------------------------------------------------------------
+  // Tickets (bulle d'aide du site)
+  // ---------------------------------------------------------------------
+  let tickets = [];
+  let ticketsTab = 'ouverts';
+  const STATUTS_TICKET = { ouvert: 'Nouveau', en_cours: 'En cours', resolu: 'Résolu' };
+  const ticketsOuverts = () => tickets.filter(t => t.statut !== 'resolu');
+  const dateTicket = d => new Date(d + 'Z').toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  async function loadTickets(){
+    try{
+      tickets = (await api('/api/admin/tickets')).tickets || [];
+    }catch(e){
+      $('tickets-list').innerHTML = '<p class="empty">Tickets indisponibles.</p>';
+      return;
+    }
+    renderTickets();
+    if(components.length) renderDashboard();
+  }
+
+  function showTicketsTab(tab){
+    ticketsTab = tab;
+    renderTickets();
+  }
+
+  function ticketTodoItem(t){
+    return `<div class="item">
+      <div><div class="t">${escapeHtml(t.titre)} <span class="tag">${escapeHtml(t.categorie_label)}</span></div>
+        <div class="why">Ticket n° ${t.id} · ${dateTicket(t.date)}${t.page ? ' · ' + escapeHtml(t.page) : ''}</div></div>
+      <div class="actions"><button class="btn btn-secondary btn-sm" data-onclick="showView('tickets')">Voir</button></div>
+    </div>`;
+  }
+
+  function renderTickets(){
+    document.querySelectorAll('[data-section="tickets"] .tabs button').forEach(b => b.classList.toggle('active', b.id === 'tickets-tab-' + ticketsTab));
+    const liste = ticketsTab === 'resolu' ? tickets.filter(t => t.statut === 'resolu') : ticketsOuverts();
+    $('tickets-tab-ouverts').textContent = `À traiter (${ticketsOuverts().length})`;
+    $('tickets-tab-resolu').textContent = `Résolus (${tickets.length - ticketsOuverts().length})`;
+    $('tickets-list').innerHTML = liste.map(t => {
+      const discussion = (t.discussion || []).map(m =>
+        `<div class="ticket-msg ${m.role === 'user' ? 'moi' : ''}"><b>${m.role === 'user' ? 'Visiteur' : 'Aide IA'}</b> ${escapeHtml(m.content)}</div>`).join('');
+      const actions = [
+        t.statut === 'ouvert' ? `<button class="btn btn-secondary btn-sm" data-onclick="setTicketStatut(${t.id}, 'en_cours')">Je m’en occupe</button>` : '',
+        t.statut !== 'resolu' ? `<button class="btn btn-primary btn-sm" data-onclick="setTicketStatut(${t.id}, 'resolu')">Résolu</button>`
+                              : `<button class="btn btn-secondary btn-sm" data-onclick="setTicketStatut(${t.id}, 'ouvert')">Rouvrir</button>`,
+        t.email ? `<a class="btn btn-ghost btn-sm" href="mailto:${escapeHtml(t.email)}?subject=${encodeURIComponent('PC Radar : ' + t.titre)}">Répondre</a>` : '',
+        `<button class="btn btn-danger btn-sm" data-onclick="deleteTicket(${t.id})">Supprimer</button>`,
+      ].join('');
+      return `<div class="item ticket">
+        <div class="ticket-corps">
+          <div class="t">${escapeHtml(t.titre)} <span class="tag">${escapeHtml(t.categorie_label)}</span>
+            <span class="tag ${t.statut === 'resolu' ? 'ok' : t.statut === 'ouvert' ? 'danger' : ''}">${STATUTS_TICKET[t.statut] || t.statut}</span></div>
+          <div class="why">n° ${t.id} · ${dateTicket(t.date)}${t.page ? ` · page <a href="${escapeHtml(t.page)}" target="_blank" rel="noopener">${escapeHtml(t.page)}</a>` : ''} · ${t.email ? escapeHtml(t.email) : 'pas d’e-mail laissé'}</div>
+          <p class="ticket-desc">${escapeHtml(t.description)}</p>
+          ${discussion ? `<details class="ticket-discussion"><summary>Discussion avec l’aide (${t.discussion.length} messages)</summary>${discussion}</details>` : ''}
+          <label class="ticket-note"><span>Note pour toi</span>
+            <textarea rows="2" maxlength="2000" data-ticket-note="${t.id}" placeholder="Ce que tu as fait, à vérifier…">${escapeHtml(t.note_admin || '')}</textarea></label>
+        </div>
+        <div class="actions">${actions}</div>
+      </div>`;
+    }).join('') || `<p class="empty">${ticketsTab === 'resolu' ? 'Aucun ticket résolu pour l’instant.' : 'Aucun ticket à traiter.'}</p>`;
+  }
+
+  async function setTicketStatut(id, statut){
+    try{
+      await post(`/api/admin/tickets/${id}`, { statut });
+      const t = tickets.find(x => x.id === id);
+      if(t) t.statut = statut;
+      renderTickets();
+      renderDashboard();
+      toast(statut === 'resolu' ? 'Ticket résolu.' : 'Ticket mis à jour.');
+    }catch(e){ toast(e.message, true); }
+  }
+
+  async function deleteTicket(id){
+    if(!await uiConfirm('Le ticket et sa discussion seront supprimés définitivement.',
+      { title: 'Supprimer ce ticket ?', confirmLabel: 'Supprimer', danger: true })) return;
+    try{
+      await api(`/api/admin/tickets/${id}`, { method: 'DELETE' });
+      tickets = tickets.filter(t => t.id !== id);
+      renderTickets();
+      renderDashboard();
+      toast('Ticket supprimé.');
+    }catch(e){ toast(e.message, true); }
+  }
+
+  // Note de l'admin : enregistrée quand on quitte le champ.
+  document.addEventListener('change', async e => {
+    const champ = e.target.closest && e.target.closest('[data-ticket-note]');
+    if(!champ) return;
+    const id = Number(champ.dataset.ticketNote);
+    try{
+      await post(`/api/admin/tickets/${id}`, { note_admin: champ.value });
+      const t = tickets.find(x => x.id === id);
+      if(t) t.note_admin = champ.value;
+      toast('Note enregistrée.');
+    }catch(err){ toast(err.message, true); }
+  });
 
   // ---------------------------------------------------------------------
   // Configurations recommandées

@@ -39,6 +39,7 @@
     <div class="brand"><img src="/static/favicon.svg" alt=""> PC Radar <small>admin</small></div>
     <nav class="nav" aria-label="Sections">
       <button data-view="dashboard" data-onclick="showView('dashboard')"><i class="ph ph-squares-four"></i><span class="lbl">Tableau de bord</span></button>
+      <button data-view="tickets" data-onclick="showView('tickets')"><i class="ph ph-lifebuoy"></i><span class="lbl">Tickets</span><span class="count" id="nav-tickets"></span></button>
       <button data-view="watch" data-onclick="showView('watch')"><i class="ph ph-warning-circle"></i><span class="lbl">À surveiller</span><span class="count" id="nav-watch"></span></button>
       <button data-view="catalog" data-onclick="showView('catalog')"><i class="ph ph-cpu"></i><span class="lbl">Catalogue</span><span class="count" id="nav-catalog"></span></button>
       <button data-view="add" data-onclick="showView('add')"><i class="ph ph-plus-circle"></i><span class="lbl">Ajouter</span></button>
@@ -66,6 +67,21 @@
       <div class="panel">
         <div class="panel-head"><h3>À traiter</h3><button class="btn btn-ghost btn-sm" data-onclick="showView('watch')">Tout voir</button></div>
         <div id="dash-todo"><p class="empty">Chargement…</p></div>
+      </div>
+    </section>
+
+    <!-- Tickets (bulle d'aide du site) -->
+    <section data-section="tickets" hidden>
+      <div class="view-head">
+        <div><h2>Tickets</h2><p>Problèmes et suggestions envoyés par les visiteurs depuis la bulle d'aide, en bas à droite du site. Chaque nouveau ticket t'est aussi envoyé par e-mail.</p></div>
+        <button class="btn btn-secondary" data-onclick="loadTickets()"><i class="ph ph-arrows-clockwise"></i>Actualiser</button>
+      </div>
+      <div class="panel">
+        <div class="tabs" role="tablist">
+          <button id="tickets-tab-ouverts" data-onclick="showTicketsTab('ouverts')">À traiter</button>
+          <button id="tickets-tab-resolu" data-onclick="showTicketsTab('resolu')">Résolus</button>
+        </div>
+        <div id="tickets-list"><p class="empty">Chargement…</p></div>
       </div>
     </section>
 

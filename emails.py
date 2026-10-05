@@ -341,3 +341,20 @@ def controle_admin(nouveaux, admin_url):
     html_body = gabarit(titre, escape(intro), encadre(lignes), ("Ouvrir « À surveiller »", admin_url),
                         pied_html="E-mail automatique réservé à l'administration de PC Radar.")
     return f"[PC Radar] {titre}", texte, html_body, banniere("Contrôle du catalogue", titre)
+
+
+def ticket_admin(t, admin_url):
+    """E-mail à l'admin : nouveau ticket envoyé depuis la bulle d'aide du site."""
+    titre = f"Ticket n° {t['id']} : {t['titre'][:70]}"
+    intro = "Un visiteur a envoyé un signalement depuis l'aide du site."
+    lignes = "".join([
+        ligne("Catégorie", t["categorie"]),
+        ligne("Page", (t.get("page") or "non précisée")[:60]),
+        ligne("Contact", t.get("email") or "non laissé"),
+    ])
+    texte = (f"{titre}\n\nCatégorie : {t['categorie']}\nPage : {t.get('page') or 'non précisée'}\n"
+             f"Contact : {t.get('email') or 'non laissé'}\n\n{t['description']}\n\nVoir les tickets : {admin_url}")
+    html_body = gabarit(titre, escape(intro), encadre(lignes) + f'<p style="white-space:pre-wrap">{escape(t["description"])}</p>',
+                        ("Ouvrir les tickets", admin_url),
+                        pied_html="E-mail automatique réservé à l'administration de PC Radar.")
+    return f"[PC Radar] {titre}", texte, html_body, banniere("Nouveau ticket", t["titre"][:60])
