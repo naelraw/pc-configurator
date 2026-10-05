@@ -244,6 +244,7 @@
         // les plus anciennes : elles passent en premier la nuit suivante.
         const s = p.en_stock || {};
         const details = [`relus le ${quand}`];
+        if(s.prioritaires) details.push(`${nombre(s.prioritaires_aujourd_hui)} / ${nombre(s.prioritaires)} produits prioritaires (les plus achetables) à jour du jour`);
         if(s.total) details.push(`${nombre(s.moins_de_3_jours)} / ${nombre(s.total)} fiches en stock vérifiées depuis moins de 3 jours`);
         if(p.bloques) details.push(`${nombre(p.bloques)} bloqués par Amazon`);
         if(p.reportes) details.push(`${nombre(p.reportes)} reportés`);

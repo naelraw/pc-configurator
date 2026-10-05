@@ -3920,22 +3920,127 @@ def admin_quotas(_admin=Depends(require_admin)):
     }
 
 
-def _compter_en_stock_a_jour():
-    """Fiches en stock et leur fraîcheur : {total, aujourd_hui, moins_de_3_jours}."""
+# Les quotas gratuits ne permettent plus de relire tout le catalogue chaque
+# nuit (voir APIFY_CREDIT_USD). Les fiches que les visiteurs ont le plus de
+# chances d'acheter sont donc relues chaque jour, les autres tous les quelques
+# jours : la rotation trie par « retard » = âge du dernier relevé / intervalle.
+PRIX_INTERVALLE_PRIORITAIRE = 1
+PRIX_INTERVALLE_NORMAL = 4
+PRIX_INTERVALLE_EPUISE = 6
+PRIX_BUDGETS_BALAYES = range(500, 3201, 100)
+PRIX_USAGES_BALAYES = ("jeu", "travail", "creation")
+LOGS_NGINX = "/var/log/nginx/access.log*"
+
+
+def _vues_composants():
+    """Visiteurs distincts par fiche (page ou fenêtre de détail) sur ~14 jours de journaux nginx, robots exclus."""
+    import glob
+    motif = re.compile(r'^(\S+) .*?"GET /(?:api/components/(\d+)/prix-historique|composant/(\d+)-)[^"]*" \d{3} .*"([^"]*)"$')
+    robots = re.compile(r"bot|spider|crawl|slurp|preview|python|curl|headless|wget|monitor", re.I)
+    vues = {}
+    for chemin in glob.glob(LOGS_NGINX):
+        try:
+            ouvrir = gzip.open if chemin.endswith(".gz") else open
+            with ouvrir(chemin, "rt", errors="ignore") as f:
+                for ligne in f:
+                    m = motif.match(ligne.rstrip())
+                    if m and not robots.search(m.group(4)):
+                        vues.setdefault(int(m.group(2) or m.group(3)), set()).add(m.group(1))
+        except OSError:
+            continue
+    return {cid: len(ips) for cid, ips in vues.items()}
+
+
+def _composants_prioritaires():
+    """
+    Fiches à relire chaque nuit : celles que le site recommande vraiment
+    (configurateur automatique sur toute la plage de budgets et d'usages,
+    configs de l'accueil, guides par budget, configs officielles), les autres
+    annonces du même produit, les favoris et alertes des comptes, et les fiches
+    nettement plus consultées que les autres.
+    """
+    catalogue = get_catalog()
+    par_id = {c["id"]: c for c in catalogue}
+    ids = set()
+
+    def ajouter_config(config):
+        for valeur in (config or {}).values():
+            if isinstance(valeur, int) and valeur in par_id:
+                ids.add(valeur)
+
+    for usage in PRIX_USAGES_BALAYES:
+        for budget in PRIX_BUDGETS_BALAYES:
+            try:
+                config = _optimiser_config(budget, par_id, {"usage": usage})
+                ajouter_config(_ajouter_ventirad(config, par_id) if config else None)
+            except Exception as err:
+                print(f"Priorité des prix : config {usage} {budget} € impossible ({err})")
+    try:
+        vedettes = featured_configs()
+        for cfg in (vedettes.get("configs") or []) + (vedettes.get("budgets") or []):
+            ajouter_config(cfg.get("composants_json"))
+    except Exception as err:
+        print(f"Priorité des prix : configs vedette illisibles ({err})")
+
     client = get_client()
     try:
-        rows = client.execute("SELECT prix_marche_json FROM components WHERE en_stock = 1 AND asin IS NOT NULL AND asin != ''").rows
+        for (composants_json,) in client.execute(
+            "SELECT composants_json FROM builds WHERE est_officielle = 1 OR id IN (SELECT build_id FROM build_alerts)"
+        ).rows:
+            try:
+                ajouter_config(json.loads(composants_json or "{}"))
+            except (TypeError, json.JSONDecodeError):
+                pass
+        ids.update(row[0] for row in client.execute("SELECT DISTINCT component_id FROM favorites").rows)
+    except Exception as err:
+        print(f"Priorité des prix : favoris/alertes illisibles ({err})")
+    finally:
+        client.close()
+
+    # Fiches qui se détachent nettement en consultations (au moins le double de la médiane).
+    vues = _vues_composants()
+    if vues:
+        valeurs = sorted(vues.values())
+        seuil = max(5, 2 * valeurs[len(valeurs) // 2])
+        ids.update(cid for cid, n in vues.items() if n >= seuil and cid in par_id)
+
+    # Les autres annonces du même produit : même article, souvent moins cher ailleurs.
+    groupes = {par_id[i].get("groupe_id", i) for i in ids if i in par_id}
+    ids.update(c["id"] for c in catalogue if c.get("groupe_id", c["id"]) in groupes)
+    return ids
+
+
+def _retard_verification(date_releve, prioritaire, epuise):
+    """Âge du dernier relevé rapporté à l'intervalle voulu (> 1 : en retard)."""
+    try:
+        age = (datetime.utcnow().date() - datetime.fromisoformat(date_releve).date()).days
+    except (TypeError, ValueError):
+        return 1000.0  # jamais vérifiée : en premier
+    if prioritaire:
+        intervalle = PRIX_INTERVALLE_PRIORITAIRE
+    else:
+        intervalle = PRIX_INTERVALLE_EPUISE if epuise else PRIX_INTERVALLE_NORMAL
+    return age / intervalle
+
+
+def _compter_en_stock_a_jour(prioritaires=frozenset()):
+    """Fiches en stock et leur fraîcheur, dont les prioritaires (relues chaque nuit)."""
+    client = get_client()
+    try:
+        rows = client.execute("SELECT id, prix_marche_json FROM components WHERE en_stock = 1 AND asin IS NOT NULL AND asin != ''").rows
     finally:
         client.close()
     aujourd_hui = datetime.utcnow().date()
-    dates = [_last_amazon_check_date(row[0]) for row in rows]
+    dates = [_last_amazon_check_date(row[1]) for row in rows]
+    dates_prio = [_last_amazon_check_date(row[1]) for row in rows if row[0] in prioritaires]
     def age(d):
         try:
             return (aujourd_hui - datetime.fromisoformat(d).date()).days
         except ValueError:
             return 99
     return {"total": len(rows), "aujourd_hui": sum(age(d) == 0 for d in dates),
-            "moins_de_3_jours": sum(age(d) <= 2 for d in dates)}
+            "moins_de_3_jours": sum(age(d) <= 2 for d in dates),
+            "prioritaires": len(dates_prio), "prioritaires_aujourd_hui": sum(age(d) == 0 for d in dates_prio)}
 
 
 def _last_amazon_check_date(prix_marche_json):
@@ -3977,7 +4082,18 @@ def _run_daily_price_refresh_rotation():
         return {"updated": 0, "errors": [], "remis_en_stock": 0, "passes_epuises": 0}
 
     epuises_verifies = _state_get("epuises_verifies", {})
-    rows_sorted = sorted(rows, key=lambda row: _last_amazon_check_date(row[3]) or epuises_verifies.get(str(row[0]), ""))
+    try:
+        prioritaires = _composants_prioritaires()
+    except Exception as err:
+        print(f"Priorité des prix indisponible, rotation par ancienneté seule : {err}")
+        prioritaires = set()
+
+    def urgence(row):
+        releve = _last_amazon_check_date(row[3])
+        retard = _retard_verification(releve or epuises_verifies.get(str(row[0])), row[0] in prioritaires, not releve)
+        return (-retard, row[0] not in prioritaires, releve)
+
+    rows_sorted = sorted(rows, key=urgence)
 
     brightdata_rows = rows_sorted[:refresh_allowance("brightdata")] if BRIGHTDATA_API_TOKEN else []
     reste = rows_sorted[len(brightdata_rows):]
@@ -4125,7 +4241,8 @@ def _run_daily_price_refresh_rotation():
         client.close()
 
     return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises,
-            "tentes": tentes, "prix_lus": prix_lus, "bloques": bloques_apify, "reportes": reportes}
+            "tentes": tentes, "prix_lus": prix_lus, "bloques": bloques_apify, "reportes": reportes,
+            "ids_prioritaires": sorted(prioritaires)}
 
 
 PRICE_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60
@@ -4192,7 +4309,7 @@ async def price_refresh_loop():
                     "mis_a_jour": stats["updated"], "tentes": stats.get("tentes"), "remis_en_stock": stats["remis_en_stock"],
                     "passes_epuises": stats["passes_epuises"], "erreurs": len(stats["errors"]),
                     "prix_lus": stats.get("prix_lus"), "bloques": stats.get("bloques"), "reportes": stats.get("reportes"),
-                    "en_stock": _compter_en_stock_a_jour(),
+                    "en_stock": _compter_en_stock_a_jour(set(stats.get("ids_prioritaires") or [])),
                     "exemples_erreurs": stats["errors"][:8],
                 })
                 invalidate_catalog()
