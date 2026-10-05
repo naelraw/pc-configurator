@@ -67,6 +67,23 @@
     return `<div class="build-card chip-card"><div class="build-detail show" style="border-top:none;">${rows}</div></div>`;
   }
 
+  // Lien vers une config qui n'existe pas (ou plus) : même présentation que
+  // les autres pages d'erreur du site (erreurs.py), avec de quoi repartir.
+  function introuvable(texte){
+    document.title = 'Configuration introuvable — PC Radar';
+    document.getElementById('build-view').innerHTML = `
+      <div class="erreur-page"><div class="erreur-carte">
+        <span class="erreur-code">404</span>
+        <h1>Configuration introuvable</h1>
+        <p>${texte}</p>
+        <div class="erreur-boutons">
+          <a class="btn btn-primary" href="/configurateur">Créer une config</a>
+          <a class="btn btn-secondary" href="/guides">Voir les configs du moment</a>
+        </div>
+      </div></div>`;
+    document.getElementById('build-view').style.paddingTop = '0';
+  }
+
   // Lien de partage sans compte (/partage?c=12-34-56, bouton de l'assistant) :
   // les composants sont dans l'adresse, rien n'est stocké.
   async function loadPartage(){
@@ -78,8 +95,7 @@
       if(item) composants[item.categorie] = item.id;
     });
     if(!Object.keys(composants).length){
-      document.getElementById('build-name').textContent = 'Configuration introuvable';
-      document.getElementById('build-date').textContent = 'Ce lien ne correspond à aucune configuration.';
+      introuvable('Ce lien de partage est incomplet, ou les composants qu’il contenait ne sont plus au catalogue.');
       return;
     }
     document.getElementById('build-name').textContent = 'Config PC proposée par l’assistant PC Radar';
@@ -94,7 +110,7 @@
     if(location.pathname === '/partage') return loadPartage();
     const buildId = getBuildIdFromPath();
     if(!buildId){
-      document.getElementById('build-name').textContent = 'Lien invalide';
+      introuvable('Ce lien est incomplet : il manque le numéro de la configuration.');
       return;
     }
 
@@ -103,8 +119,7 @@
     try{
       const res = await fetch(API_BASE + '/api/builds/' + buildId);
       if(res.status === 404){
-        document.getElementById('build-name').textContent = 'Configuration introuvable';
-        document.getElementById('build-date').textContent = "Ce lien ne correspond à aucune configuration (peut-être supprimée).";
+        introuvable('Cette configuration a été supprimée par son auteur, ou le lien est incomplet.');
         return;
       }
       const data = await res.json();

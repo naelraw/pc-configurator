@@ -2048,3 +2048,27 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   .aide-panneau{ left:8px; right:8px; bottom:74px; width:auto; height:calc(100svh - 90px); }
 }
 @media print{ .aide-bouton, .aide-panneau{ display:none !important; } }
+
+/* ===================================================================
+   Pages d'erreur (erreurs.py : 404, 500, site qui redémarre...)
+   =================================================================== */
+.erreur-page{
+  min-height:calc(100svh - 61px - 140px); display:flex; align-items:center; justify-content:center;
+  padding:56px 16px;
+}
+.erreur-carte{ max-width:560px; text-align:center; display:flex; flex-direction:column; align-items:center; }
+.erreur-code{
+  font-family:var(--font-mono); font-size:clamp(3.6rem, 12vw, 5.5rem); font-weight:500; line-height:1;
+  letter-spacing:-0.04em; color:var(--accent); margin-bottom:18px;
+}
+.erreur-carte h1{
+  font-size:clamp(1.6rem, 4vw, 2.1rem); font-weight:620; letter-spacing:-0.035em; line-height:1.15;
+  color:var(--text); margin-bottom:12px;
+}
+.erreur-carte > p{ color:var(--text-2); font-size:1rem; line-height:1.6; max-width:48ch; }
+.erreur-boutons{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:28px; }
+.erreur-auto{ margin-top:18px; font-size:0.82rem; color:var(--text-3); }
+@media (max-width:640px){
+  .erreur-boutons{ flex-direction:column; align-self:stretch; }
+  .erreur-boutons .btn{ justify-content:center; }
+}

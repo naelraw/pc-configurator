@@ -2,7 +2,7 @@
 // page « Pas de connexion » hors ligne. Il ne met AUCUNE page ni donnée en
 // cache (les prix doivent toujours être ceux du jour).
 const OFFLINE = '/static/offline.html';
-const CACHE = 'pcradar-hors-ligne-v1';
+const CACHE = 'pcradar-hors-ligne-v2';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll([OFFLINE, '/static/style.css', '/static/favicon.svg'])));

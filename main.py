@@ -50,6 +50,9 @@ import fps_data
 import featured_builds
 import notes
 import guides
+import erreurs
+from fastapi.exception_handlers import http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
 import component_pages
 import emails
 import comparisons
@@ -191,6 +194,31 @@ class SuggestConfigRequest(BaseModel):
 # Pas de documentation d'API publique (/docs, /redoc, /openapi.json) : elle
 # listait toutes les routes, admin comprises, à n'importe quel visiteur.
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+
+# Erreurs au thème du site (erreurs.py) quand c'est un navigateur qui ouvre une
+# page ; les appels d'API (fetch, admin, extension) gardent leur réponse JSON.
+def _veut_une_page(request: Request) -> bool:
+    chemin = request.url.path
+    return (request.method in ("GET", "HEAD") and not chemin.startswith(("/api/", "/static/"))
+            and "text/html" in request.headers.get("accept", ""))
+
+
+@app.exception_handler(StarletteHTTPException)
+async def _erreur_http(request: Request, exc: StarletteHTTPException):
+    if _veut_une_page(request) and exc.status_code >= 400:
+        detail = exc.detail if isinstance(exc.detail, str) else None
+        return HTMLResponse(erreurs.page(exc.status_code, detail), status_code=exc.status_code,
+                            headers=getattr(exc, "headers", None))
+    return await http_exception_handler(request, exc)
+
+
+@app.exception_handler(Exception)
+async def _erreur_interne(request: Request, exc: Exception):
+    print(f"Erreur interne sur {request.method} {request.url.path} : {exc!r}")
+    if _veut_une_page(request):
+        return HTMLResponse(erreurs.page(500), status_code=500)
+    return JSONResponse({"detail": "Erreur interne du serveur."}, status_code=500)
 
 # Cookie de session marqué Secure (jamais envoyé en HTTP clair). En local sans
 # HTTPS, mettre SESSION_HTTPS_ONLY=0 dans .env.
