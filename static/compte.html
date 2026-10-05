@@ -98,6 +98,18 @@
       <button type="submit" class="btn btn-primary">Créer mon compte</button>
       <div class="auth-error" id="register-error"></div>
     </form>
+
+    <!-- Étape 2 de l'inscription : code reçu par e-mail -->
+    <form class="auth-form" id="verify-form" data-onsubmit="return handleVerify(event)">
+      <p class="auth-code-info">On vient d'envoyer un code à 6 chiffres à <strong id="verify-email"></strong>. Saisis-le pour créer ton compte.</p>
+      <label for="verify-code">Code reçu par e-mail</label>
+      <input type="text" id="verify-code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]{6,7}" maxlength="7" placeholder="123456">
+      <button type="submit" class="btn btn-primary">Valider le code</button>
+      <div class="auth-error" id="verify-error"></div>
+      <p class="auth-code-aide">Rien reçu ? Regarde dans les spams, ou
+        <button type="button" class="auth-lien" id="verify-renvoyer" data-onclick="renvoyerCode()">renvoie un code</button>.
+        <button type="button" class="auth-lien" data-onclick="changerAdresse()">Changer d'adresse</button></p>
+    </form>
   </div>
 
   <!-- Vue "connecté" -->

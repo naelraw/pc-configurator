@@ -1,11 +1,11 @@
 import sqlite3
 
-from conftest import DB, component
+from conftest import DB, component, inscrire
 
 
 def _inscrit(new_client, email, ip):
     c = new_client(ip)
-    assert c.post("/api/auth/register", json={"email": email, "password": "motdepasse123"}).status_code == 200
+    assert inscrire(c, email).status_code == 200
     return c
 
 
@@ -48,3 +48,35 @@ def test_export_et_suppression_du_compte(new_client, catalog):
     assert q("select count(*) from link_corrections where user_id=?") == 0
     assert sqlite3.connect(DB).execute("select count(*) from link_corrections where user_email='compte supprimé'").fetchone()[0] == 1
     assert len(b.get("/api/auth/export").json()["configurations"]) == 1
+
+
+def test_inscription_confirmee_par_code(new_client):
+    from conftest import CODES_ENVOYES
+    c = new_client("203.0.113.30")
+    r = c.post("/api/auth/register", json={"email": "code@test.fr", "password": "motdepasse123"})
+    assert r.json()["status"] == "code_envoye"
+    # Pas encore de compte ni de connexion tant que le code n'est pas saisi.
+    assert c.get("/api/auth/me").json()["logged_in"] is False
+    assert c.post("/api/auth/login", json={"email": "code@test.fr", "password": "motdepasse123"}).status_code == 401
+    # Mauvais code : refusé, avec le nombre d'essais restants.
+    faux = "000000" if CODES_ENVOYES["code@test.fr"] != "000000" else "111111"
+    r = c.post("/api/auth/register/verifier", json={"email": "code@test.fr", "code": faux})
+    assert r.status_code == 400 and "4 essais" in r.json()["detail"]
+    # Renvoi trop rapide refusé.
+    assert c.post("/api/auth/register/renvoyer", json={"email": "code@test.fr"}).status_code == 429
+    # Bon code : compte créé et connecté.
+    r = c.post("/api/auth/register/verifier", json={"email": "code@test.fr", "code": CODES_ENVOYES["code@test.fr"]})
+    assert r.status_code == 200 and c.get("/api/auth/me").json()["logged_in"] is True
+    # Le code ne resert pas.
+    assert c.post("/api/auth/register/verifier", json={"email": "code@test.fr", "code": CODES_ENVOYES["code@test.fr"]}).status_code == 400
+
+
+def test_trop_d_essais_bloque_le_code(new_client):
+    from conftest import CODES_ENVOYES
+    c = new_client("203.0.113.31")
+    c.post("/api/auth/register", json={"email": "essais@test.fr", "password": "motdepasse123"})
+    bon = CODES_ENVOYES["essais@test.fr"]
+    faux = "000000" if bon != "000000" else "111111"
+    for _ in range(5):
+        c.post("/api/auth/register/verifier", json={"email": "essais@test.fr", "code": faux})
+    assert c.post("/api/auth/register/verifier", json={"email": "essais@test.fr", "code": bon}).status_code == 429

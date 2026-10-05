@@ -1376,6 +1376,63 @@ def require_login(request: Request):
     return user
 
 
+# Inscription en deux temps : un code à 6 chiffres est envoyé à l'adresse, et le
+# compte n'est créé qu'une fois ce code saisi (l'e-mail appartient bien à la
+# personne). En attendant, l'inscription reste dans inscriptions_en_attente.
+# La connexion Google n'est pas concernée : Google a déjà vérifié l'adresse.
+CODE_INSCRIPTION_MINUTES = 15
+CODE_INSCRIPTION_ESSAIS = 5
+CODE_INSCRIPTION_RENVOI_SECONDES = 60
+
+
+def _preparer_inscriptions():
+    client = get_client()
+    try:
+        client.execute("""
+            CREATE TABLE IF NOT EXISTS inscriptions_en_attente (
+                email TEXT PRIMARY KEY,
+                password_hash TEXT NOT NULL,
+                code_hash TEXT NOT NULL,
+                expire REAL NOT NULL,
+                essais INTEGER NOT NULL DEFAULT 0,
+                envoye_le REAL NOT NULL
+            )
+        """)
+        client.execute("DELETE FROM inscriptions_en_attente WHERE expire < ?", [time.time() - 86400])
+    finally:
+        client.close()
+
+
+def _generer_code():
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _hash_code(email, code):
+    return hashlib.sha256(f"{SESSION_SECRET}|{email}|{code}".encode()).hexdigest()
+
+
+def _envoyer_code_inscription(email, code):
+    """Envoi immédiat (pas en arrière-plan) : sans le code, l'inscription est bloquée,
+    donc on doit savoir tout de suite si l'e-mail est parti."""
+    return send_site_email(email, emails.code_inscription(code, CODE_INSCRIPTION_MINUTES))
+
+
+def _nouveau_code(client, email, password_hash=None):
+    code = _generer_code()
+    maintenant = time.time()
+    if password_hash is None:
+        client.execute("UPDATE inscriptions_en_attente SET code_hash = ?, expire = ?, essais = 0, envoye_le = ? WHERE email = ?",
+                       [_hash_code(email, code), maintenant + CODE_INSCRIPTION_MINUTES * 60, maintenant, email])
+    else:
+        client.execute(
+            "INSERT INTO inscriptions_en_attente (email, password_hash, code_hash, expire, essais, envoye_le) VALUES (?, ?, ?, ?, 0, ?) "
+            "ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash, code_hash = excluded.code_hash, "
+            "expire = excluded.expire, essais = 0, envoye_le = excluded.envoye_le",
+            [email, password_hash, _hash_code(email, code), maintenant + CODE_INSCRIPTION_MINUTES * 60, maintenant])
+    if not _envoyer_code_inscription(email, code):
+        raise HTTPException(status_code=503, detail="Impossible d'envoyer le code pour le moment, réessaie dans quelques minutes.")
+
+
 @app.post("/api/auth/register")
 def register(request: Request, payload: dict = Body(...)):
     _check_rate_limit("register", request, limit=5, window_seconds=3600)
@@ -1383,25 +1440,20 @@ def register(request: Request, payload: dict = Body(...)):
     email = (payload.get("email") or "").strip().lower()
     password = payload.get("password") or ""
 
-    if not email or "@" not in email:
+    if not email or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
         raise HTTPException(status_code=400, detail="Adresse e-mail invalide.")
     if len(password) < 8:
         raise HTTPException(status_code=400, detail="Le mot de passe doit faire au moins 8 caractères.")
 
+    _preparer_inscriptions()
     client = get_client()
     try:
-        existing = client.execute("SELECT id FROM users WHERE email = ?", [email])
-        if existing.rows:
+        if client.execute("SELECT id FROM users WHERE email = ?", [email]).rows:
             raise HTTPException(status_code=409, detail="Un compte existe déjà avec cet e-mail.")
-
-        password_hash = hash_password(password)
-        created_at = datetime.utcnow().isoformat()
-        client.execute(
-            "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
-            [email, password_hash, created_at],
-        )
-        new_user = client.execute("SELECT id FROM users WHERE email = ?", [email])
-        user_id = new_user.rows[0][0]
+        attente = client.execute("SELECT envoye_le FROM inscriptions_en_attente WHERE email = ?", [email]).rows
+        if attente and time.time() - float(attente[0][0]) < CODE_INSCRIPTION_RENVOI_SECONDES:
+            raise HTTPException(status_code=429, detail="Un code vient d'être envoyé à cette adresse : regarde ta boîte mail (et les spams).")
+        _nouveau_code(client, email, hash_password(password))
     except HTTPException:
         raise
     except Exception as error:
@@ -1409,10 +1461,67 @@ def register(request: Request, payload: dict = Body(...)):
         raise HTTPException(status_code=500, detail="Erreur serveur, réessaie plus tard.")
     finally:
         client.close()
+    return {"status": "code_envoye", "email": email, "minutes": CODE_INSCRIPTION_MINUTES}
+
+
+@app.post("/api/auth/register/verifier")
+def register_verifier(request: Request, payload: dict = Body(...)):
+    _check_rate_limit("register-code", request, limit=20, window_seconds=3600)
+    _record_attempt("register-code", request)
+    email = (payload.get("email") or "").strip().lower()
+    code = re.sub(r"\D", "", str(payload.get("code") or ""))
+    _preparer_inscriptions()
+    client = get_client()
+    try:
+        lignes = client.execute("SELECT password_hash, code_hash, expire, essais FROM inscriptions_en_attente WHERE email = ?", [email]).rows
+        if not lignes or float(lignes[0][2]) < time.time():
+            raise HTTPException(status_code=400, detail="Ce code a expiré : demande un nouveau code.")
+        password_hash, code_hash, _, essais = lignes[0]
+        if int(essais) >= CODE_INSCRIPTION_ESSAIS:
+            raise HTTPException(status_code=429, detail="Trop d'essais : demande un nouveau code.")
+        if not secrets.compare_digest(_hash_code(email, code), code_hash):
+            client.execute("UPDATE inscriptions_en_attente SET essais = essais + 1 WHERE email = ?", [email])
+            restants = CODE_INSCRIPTION_ESSAIS - int(essais) - 1
+            raise HTTPException(status_code=400, detail=f"Code incorrect. Encore {restants} essai{'s' if restants > 1 else ''}."
+                                if restants > 0 else "Code incorrect. Demande un nouveau code.")
+        if client.execute("SELECT id FROM users WHERE email = ?", [email]).rows:
+            client.execute("DELETE FROM inscriptions_en_attente WHERE email = ?", [email])
+            raise HTTPException(status_code=409, detail="Un compte existe déjà avec cet e-mail.")
+        client.execute("INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
+                       [email, password_hash, datetime.utcnow().isoformat()])
+        user_id = client.execute("SELECT id FROM users WHERE email = ?", [email]).rows[0][0]
+        client.execute("DELETE FROM inscriptions_en_attente WHERE email = ?", [email])
+    except HTTPException:
+        raise
+    except Exception as error:
+        print(f"Validation d'inscription impossible : {error}")
+        raise HTTPException(status_code=500, detail="Erreur serveur, réessaie plus tard.")
+    finally:
+        client.close()
 
     request.session["user"] = {"id": user_id, "email": email}
     send_site_email_later(email, emails.bienvenue, email)
     return {"status": "ok", "email": email}
+
+
+@app.post("/api/auth/register/renvoyer")
+def register_renvoyer(request: Request, payload: dict = Body(...)):
+    _check_rate_limit("register-renvoi", request, limit=6, window_seconds=3600)
+    _record_attempt("register-renvoi", request)
+    email = (payload.get("email") or "").strip().lower()
+    _preparer_inscriptions()
+    client = get_client()
+    try:
+        lignes = client.execute("SELECT envoye_le FROM inscriptions_en_attente WHERE email = ?", [email]).rows
+        if not lignes:
+            raise HTTPException(status_code=400, detail="Aucune inscription en cours pour cette adresse : recommence l'inscription.")
+        attente = CODE_INSCRIPTION_RENVOI_SECONDES - (time.time() - float(lignes[0][0]))
+        if attente > 0:
+            raise HTTPException(status_code=429, detail=f"Attends encore {int(attente) + 1} secondes avant de redemander un code.")
+        _nouveau_code(client, email)
+    finally:
+        client.close()
+    return {"status": "code_envoye", "email": email, "minutes": CODE_INSCRIPTION_MINUTES}
 
 
 @app.post("/api/auth/login")

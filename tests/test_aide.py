@@ -56,7 +56,7 @@ def test_tickets_limites_par_heure(client):
 
 
 def test_avec_un_compte_la_bulle_propose_des_composants(new_client, catalog, monkeypatch):
-    from conftest import component
+    from conftest import component, inscrire
     gpu = component(catalog, "RTX 4060")
     vus = []
 
@@ -67,7 +67,7 @@ def test_avec_un_compte_la_bulle_propose_des_composants(new_client, catalog, mon
     monkeypatch.setattr(main, "call_ai_model", ia)
     main._chat_requests_by_ip.clear()
     membre = new_client("203.0.113.88")
-    assert membre.post("/api/auth/register", json={"email": "bulle@test.fr", "password": "motdepasse123"}).status_code == 200
+    assert inscrire(membre, "bulle@test.fr").status_code == 200
     r = membre.post("/api/assistant/chat", json={"messages": [{"role": "user", "content": "quelle carte pour le 1080p ?"}],
                                                  "aide": True, "page": "/configurateur"})
     data = r.json()

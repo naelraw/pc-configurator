@@ -30,6 +30,66 @@
     document.getElementById('tab-register').classList.toggle('active', tab === 'register');
     document.getElementById('login-form').classList.toggle('show', tab === 'login');
     document.getElementById('register-form').classList.toggle('show', tab === 'register');
+    document.getElementById('verify-form').classList.remove('show');
+  }
+
+  // Étape 2 de l'inscription : le compte n'est créé qu'avec le code reçu par e-mail.
+  let emailEnAttente = '';
+  function afficherSaisieCode(email){
+    emailEnAttente = email;
+    document.getElementById('verify-email').textContent = email;
+    document.getElementById('register-form').classList.remove('show');
+    document.getElementById('verify-form').classList.add('show');
+    hideError('verify-error');
+    const champ = document.getElementById('verify-code');
+    champ.value = '';
+    champ.focus();
+  }
+
+  function changerAdresse(){
+    document.getElementById('verify-form').classList.remove('show');
+    document.getElementById('register-form').classList.add('show');
+    document.getElementById('register-email').focus();
+  }
+
+  async function handleVerify(event){
+    event.preventDefault();
+    hideError('verify-error');
+    document.getElementById('verify-error').classList.remove('ok');
+    const code = document.getElementById('verify-code').value.replace(/\D/g, '');
+    try{
+      const res = await fetch(API_BASE + '/api/auth/register/verifier', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+        body: JSON.stringify({ email: emailEnAttente, code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok){
+        showError('verify-error', data.detail || 'Code incorrect.');
+        return false;
+      }
+      await refreshView();
+    }catch(e){
+      showError('verify-error', 'Erreur réseau.');
+    }
+    return false;
+  }
+
+  async function renvoyerCode(){
+    hideError('verify-error');
+    const bouton = document.getElementById('verify-renvoyer');
+    bouton.disabled = true;
+    try{
+      const res = await fetch(API_BASE + '/api/auth/register/renvoyer', {
+        method: 'POST', headers: {'Content-Type': 'application/json'}, credentials: 'include',
+        body: JSON.stringify({ email: emailEnAttente }),
+      });
+      const data = await res.json().catch(() => ({}));
+      showError('verify-error', res.ok ? 'Nouveau code envoyé.' : (data.detail || "Impossible de renvoyer le code."));
+      document.getElementById('verify-error').classList.toggle('ok', res.ok);
+    }catch(e){
+      showError('verify-error', 'Erreur réseau.');
+    }
+    setTimeout(() => { bouton.disabled = false; }, 30000);
   }
 
   function showError(id, message){
@@ -86,9 +146,13 @@
         showError('register-error', 'Un compte existe déjà avec cet e-mail.');
         return false;
       }
+      const data = await res.json().catch(() => ({}));
       if(!res.ok){
-        const data = await res.json().catch(() => ({}));
         showError('register-error', data.detail || "Erreur lors de l'inscription.");
+        return false;
+      }
+      if(data.status === 'code_envoye'){
+        afficherSaisieCode(data.email || email);
         return false;
       }
       await refreshView();

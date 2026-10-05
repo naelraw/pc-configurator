@@ -2,7 +2,7 @@
 import controle_catalogue
 import variantes
 from compatibility import check_cable_alimentation
-from conftest import component
+from conftest import component, inscrire
 
 ADMIN = {"X-Admin-Secret": "admin-de-test"}
 
@@ -101,7 +101,7 @@ def test_securite_et_extension(client, new_client):
     assert client.post("/api/assistant/chat", json={"messages": [{"role": "user", "content": "test"}]}).status_code == 401
     # Connecté : message trop long refusé avant tout appel IA.
     membre = new_client("203.0.113.77")
-    assert membre.post("/api/auth/register", json={"email": "ia@test.fr", "password": "motdepasse123"}).status_code == 200
+    assert inscrire(membre, "ia@test.fr").status_code == 200
     assert membre.post("/suggest-config", json={"user_input": "x" * 2001}).status_code == 422
     assert membre.post("/api/assistant/chat", json={"messages": [{"role": "user", "content": "x" * 4001}]}).status_code == 422
     # L'extension n'est téléchargeable qu'avec le mot de passe admin.

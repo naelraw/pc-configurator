@@ -233,6 +233,20 @@ def gabarit(titre, intro_html, contenu_html="", cta=None, note_html="", pied_htm
 SITE = "https://pcradar.tech"
 
 
+def code_inscription(code, minutes):
+    """Code à 6 chiffres pour confirmer l'adresse à l'inscription."""
+    titre = "Ton code pour créer ton compte"
+    intro = "Pour confirmer que cette adresse est bien la tienne, saisis ce code sur PC Radar :"
+    bloc = (f'<p style="margin:18px 0 6px;font-family:{FONT_STACK};font-size:34px;font-weight:700;'
+            f'letter-spacing:8px;color:{TEXT};">{escape(code)}</p>'
+            f'<p style="margin:0;font-family:{FONT_STACK};font-size:14px;color:{TEXT_3};">Il est valable {minutes} minutes.</p>')
+    texte = (f"{titre}\n\nCode : {code}\n\nIl est valable {minutes} minutes. Si tu n'as pas demandé à créer un compte "
+             "sur PC Radar, ignore simplement cet e-mail : aucun compte ne sera créé.")
+    html_body = gabarit(titre, escape(intro), bloc,
+                        pied_html="Si tu n'as pas demandé à créer un compte sur PC Radar, ignore cet e-mail : aucun compte ne sera créé.")
+    return f"{code} est ton code PC Radar", texte, html_body, banniere("Inscription", "Confirme ton adresse")
+
+
 def bienvenue(email):
     titre = "Bienvenue sur PC Radar"
     intro = ("Ton compte est prêt. Voici ce que tu peux faire maintenant :")

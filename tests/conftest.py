@@ -116,3 +116,23 @@ def catalog(client):
 
 def component(catalog, nom_part):
     return next(c for c in catalog if nom_part in c["nom"])
+
+
+# Inscription : le code de confirmation n'est pas envoyé par e-mail pendant les
+# tests, il est gardé ici pour que les tests puissent le saisir.
+CODES_ENVOYES = {}
+
+
+@pytest.fixture(autouse=True)
+def _codes_inscription(monkeypatch):
+    def faux_envoi(email, code):
+        CODES_ENVOYES[email] = code
+        return True
+    monkeypatch.setattr(main, "_envoyer_code_inscription", faux_envoi)
+
+
+def inscrire(client, email, password="motdepasse123"):
+    """Inscription complète (e-mail puis code) ; renvoie la réponse de la validation."""
+    r = client.post("/api/auth/register", json={"email": email, "password": password})
+    assert r.status_code == 200 and r.json()["status"] == "code_envoye", r.text
+    return client.post("/api/auth/register/verifier", json={"email": email, "code": CODES_ENVOYES[email]})
