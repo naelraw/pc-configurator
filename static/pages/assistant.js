@@ -723,7 +723,10 @@
   function ajusterHauteur(){
     const t = $('ai-input');
     t.style.height = 'auto';
-    t.style.height = Math.min(t.scrollHeight, 180) + 'px';
+    // + bordures : sinon le champ est 2 px trop petit et une barre de défilement apparaît.
+    const hauteur = t.scrollHeight + t.offsetHeight - t.clientHeight;
+    t.style.height = Math.min(hauteur, 180) + 'px';
+    t.classList.toggle('est-plein', hauteur > 180);
   }
 
   function soumettre(){

@@ -149,7 +149,10 @@
 
   function ajusterChamp(){
     champ.style.height = 'auto';
-    champ.style.height = Math.min(champ.scrollHeight, 120) + 'px';
+    // + bordures : sinon le champ est 2 px trop petit et une barre de défilement apparaît.
+    var hauteur = champ.scrollHeight + champ.offsetHeight - champ.clientHeight;
+    champ.style.height = Math.min(hauteur, 120) + 'px';
+    champ.classList.toggle('est-plein', hauteur > 120);
   }
 
   function verifierCompte(){

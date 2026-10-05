@@ -2101,3 +2101,8 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 
 /* Liens donnés par l'assistant (panier Amazon, partage...) */
 .chat-liens{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+
+/* Zones « Écris ta question » : pas de barre de défilement (le champ grandit avec le texte). */
+.aide-saisie textarea, #ai-input{ overflow-y:hidden; scrollbar-width:none; }
+.aide-saisie textarea::-webkit-scrollbar, #ai-input::-webkit-scrollbar{ display:none; }
+.aide-saisie textarea.est-plein, #ai-input.est-plein{ overflow-y:auto; }
