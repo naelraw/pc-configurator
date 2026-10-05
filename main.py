@@ -6043,7 +6043,7 @@ Réponds UNIQUEMENT avec le JSON demandé."""
 
         if allow_advice and isinstance(parsed, dict) and parsed.get("type") == "advice":
             return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or [],
-                    "composants": parsed.get("composants") or []}
+                    "composants": parsed.get("composants") or [], "ticket": parsed.get("ticket")}
 
         # Processeur vendu sans ventirad : le site en ajoute un (compté dans le budget).
         if isinstance(parsed, dict) and parsed.get("cpu_id"):
@@ -6430,6 +6430,8 @@ class AssistantChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=40)
     derniere_config: dict | None = None     # dernière config proposée dans la discussion
     ma_config: dict | None = None           # config en cours de la personne ({catégorie: id})
+    aide: bool = False                      # bulle d'aide : aussi les questions sur le site et les tickets
+    page: str | None = Field(default=None, max_length=300)
 
 
 # ---------------------------------------------------------------------------
@@ -6531,6 +6533,28 @@ def _preparer_tickets():
         client.close()
 
 
+def _ticket_propose(ticket, question):
+    """Ticket proposé par l'IA, nettoyé (ou None)."""
+    if not isinstance(ticket, dict):
+        return None
+    return {
+        "categorie": ticket.get("categorie") if ticket.get("categorie") in TICKET_CATEGORIES else "autre",
+        "titre": str(ticket.get("titre") or question)[:120].strip(),
+        "description": str(ticket.get("description") or question)[:3000].strip(),
+    }
+
+
+def _fiches_courtes(ids, components_by_id):
+    """Ce que la bulle d'aide affiche d'un composant (sans charger tout le catalogue)."""
+    fiches = {}
+    for cid in ids:
+        c = components_by_id.get(cid)
+        if c:
+            fiches[str(cid)] = {k: c.get(k) for k in ("id", "nom", "categorie", "prix_indicatif", "image_url",
+                                                      "image_processed", "en_stock", "page", "asin")}
+    return fiches
+
+
 @app.post("/api/aide/chat")
 def aide_chat(body: AideRequest, request: Request):
     _limiter_ip(_aide_par_ip, request, AIDE_MIN_INTERVAL, AIDE_MAX_PER_HOUR,
@@ -6561,8 +6585,11 @@ Visiteur connecté à un compte : {"oui" if connecte else "non"}
 Règles :
 - Questions sur le site (comment faire, où trouver, comment ça marche) : réponds et indique la page
   utile (son adresse entre parenthèses, ex : « (/configurateur) »).
-- Questions de conseil PC (quelle carte graphique, une config pour 1000 €...) : réponds en une phrase
-  si c'est simple, et oriente vers l'assistant IA (/assistant) ou le configurateur pour une vraie config.
+- Questions de conseil PC (quelle carte graphique, une config pour 1000 €, des composants précis) :
+  le visiteur n'a pas de compte, tu ne peux donc pas lui proposer de composants ni de config ici. Dis-lui
+  en une phrase qu'avec un compte gratuit (/compte), tu pourras lui proposer des composants et une config
+  complète directement dans cette bulle, à mettre dans sa config en un clic ; ou qu'il peut choisir ses
+  pièces lui-même dans le configurateur (/configurateur).
 - Problème sur le site (bug, page qui ne marche pas, prix faux, lien cassé, souci de compte, idée
   d'amélioration) : si la description est trop vague pour être utile, pose UNE question courte (quelle
   page, quel composant, ce qui se passe exactement). Dès que c'est assez clair, propose un ticket en
@@ -6595,14 +6622,7 @@ ou, pour proposer un ticket :
         # Réponse en texte simple au lieu du JSON demandé : on la garde telle quelle.
         data = {"message": brut.strip()} if brut and "{" not in brut else {}
     message = str(data.get("message") or "").strip() or "Je n'ai pas compris, tu peux reformuler ?"
-    ticket = data.get("ticket") if isinstance(data.get("ticket"), dict) else None
-    if ticket:
-        ticket = {
-            "categorie": ticket.get("categorie") if ticket.get("categorie") in TICKET_CATEGORIES else "autre",
-            "titre": str(ticket.get("titre") or question)[:120].strip(),
-            "description": str(ticket.get("description") or question)[:3000].strip(),
-        }
-    return {"status": "ok", "message": message[:2000], "ticket": ticket}
+    return {"status": "ok", "message": message[:2000], "ticket": _ticket_propose(data.get("ticket"), question)}
 
 
 @app.post("/api/aide/ticket")
@@ -6766,6 +6786,22 @@ def assistant_chat(request: AssistantChatRequest, _user=Depends(require_login), 
 
         cites = _composants_cites(" ".join(m.content for m in messages if m.role == "user")[-1500:], components)
         catalogue = _sample_catalog_for_prompt(components)
+        bloc_aide, champ_ticket = "", ""
+        if request.aide:
+            bloc_aide = f"""
+Tu réponds ici dans la bulle d'aide du site (petite fenêtre en bas à droite), sur la page
+{(request.page or "inconnue")[:200]}. Sois encore plus bref. En plus des PC, tu aides à utiliser PC Radar :
+{CONNAISSANCES_PC_RADAR}
+- Question sur le site (comment faire, où trouver) : réponds avec ces infos et indique la page utile
+  (son adresse entre parenthèses, ex : « (/compte) »). N'invente rien qui n'y est pas.
+- Problème sur le site (bug, page qui ne marche pas, prix faux, lien cassé, souci de compte, idée
+  d'amélioration) : si c'est trop vague, pose UNE question courte (quelle page, quel composant, ce qui se
+  passe). Dès que c'est clair, réponds avec la forme (1) en remplissant "ticket", et dis en une phrase que
+  tu peux le transmettre à l'équipe avec le bouton ci-dessous (le visiteur confirme lui-même).
+"""
+            champ_ticket = (', "ticket": <null, ou pour un problème sur le site : {"categorie": "bug", "prix", '
+                            '"compte", "suggestion", "question" ou "autre", "titre": "<moins de 80 caractères>", '
+                            '"description": "<le problème clairement décrit pour l\'équipe>"}>')
         if cites:
             catalogue += "\n" + "\n".join(_ligne_composant(c) for c in cites)
 
@@ -6806,7 +6842,7 @@ Questions hors du PC (une personne, un youtubeur, un sujet général) :
   plus sur lui. Par contre, si tu veux savoir de quel matériel on a besoin pour streamer ou monter des
   vidéos comme lui, je peux t'aider. »
 - Chaque phrase doit découler de la précédente : jamais deux idées sans rapport l'une à la suite de l'autre.
-
+{bloc_aide}
 Discussion jusqu'ici :
 {historique}
 
@@ -6826,7 +6862,7 @@ Nouveau message de l'utilisateur : {question}
 Choisis UNE des deux formes de réponse :
 
 (1) Une réponse de discussion (question, conseil, explication, comparaison, avis sur sa config...) :
-{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>]}}
+{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>]{champ_ticket}}}
 - Réponse directe, en respectant les règles de « Ta façon d'aider ». Une courte liste avec des tirets
   seulement si ça aide vraiment. Tu peux mettre un mot important en **gras**. Pas de titres, pas de tableaux.
 - N'écris jamais les "id" dans "message" : ils ne servent qu'au champ "composants".
@@ -6887,9 +6923,13 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             # Les numéros internes (« id 2500 ») n'ont rien à faire dans le texte.
             texte = re.sub(r"\(\s*id\s*\d+\s*[,;]\s*", "(", result["message"] or "")
             texte = re.sub(r"\s*[\(\[]\s*id\s*\d+\s*[\)\]]|,?\s*\bid\s*\d+\b", "", texte)
-            return {"status": "ok", "message": texte.strip() or "Je n'ai pas compris, tu peux reformuler ?",
-                    "composants": ids_cites[:6],
-                    "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]])}
+            reponse = {"status": "ok", "message": texte.strip() or "Je n'ai pas compris, tu peux reformuler ?",
+                       "composants": ids_cites[:6],
+                       "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]])}
+            if request.aide:
+                reponse["ticket"] = _ticket_propose(result.get("ticket"), question)
+                reponse["fiches"] = _fiches_courtes(ids_cites[:6], components_by_id)
+            return reponse
         if result["status"] == "error":
             # Demande trop vague, budget introuvable... : c'est une réponse de la discussion.
             return {"status": "ok", "message": result["message"]}
@@ -6921,8 +6961,11 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
                        + "Dis-moi si tu veux changer une pièce.")
         jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
         _compter_assistant("config")
-        return {"status": "ok", "message": message, "suggestion": suggestion,
-                "fps_estimation": estimation(suggestion, jeux)}
+        reponse = {"status": "ok", "message": message, "suggestion": suggestion,
+                   "fps_estimation": estimation(suggestion, jeux)}
+        if request.aide:
+            reponse["fiches"] = _fiches_courtes([suggestion.get(f) for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD)], components_by_id)
+        return reponse
 
     except HTTPException:
         raise

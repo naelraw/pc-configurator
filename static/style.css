@@ -1883,21 +1883,23 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
    =================================================================== */
 .aide-bouton{
   position:fixed; right:20px; bottom:20px; z-index:150;
-  width:54px; height:54px; border-radius:50%; border:none; cursor:pointer;
+  width:54px; height:54px; padding:0; border-radius:14px; border:none; cursor:pointer; overflow:hidden;
   display:flex; align-items:center; justify-content:center;
-  background:var(--accent); color:var(--accent-ink);
-  box-shadow:0 10px 28px -8px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.06) inset;
-  transition:transform .2s var(--ease), background .2s;
+  background:var(--surface); color:var(--text);
+  box-shadow:0 0 0 1.5px var(--accent-line), 0 10px 28px -8px rgba(0,0,0,0.75), 0 0 22px -6px rgba(62,207,142,0.45);
+  transition:transform .2s var(--ease), box-shadow .2s;
 }
-.aide-bouton:hover{ background:var(--accent-hover); transform:translateY(-2px); }
+.aide-bouton img{ display:block; width:100%; height:100%; }
+.aide-bouton:hover{ transform:translateY(-2px); box-shadow:0 0 0 1.5px var(--accent), 0 12px 30px -8px rgba(0,0,0,0.75), 0 0 26px -4px rgba(62,207,142,0.6); }
 .aide-bouton:focus-visible{ outline:2px solid var(--text); outline-offset:3px; }
+.aide-bouton.est-ouvert{ border:1px solid var(--line-strong); }
 .aide-bouton .aide-ico-fermer{ display:none; }
 .aide-bouton.est-ouvert .aide-ico-ouvrir{ display:none; }
 .aide-bouton.est-ouvert .aide-ico-fermer{ display:block; }
 
 .aide-panneau{
   position:fixed; right:20px; bottom:86px; z-index:150;
-  width:min(380px, calc(100vw - 32px)); height:min(560px, calc(100svh - 120px));
+  width:min(410px, calc(100vw - 32px)); height:min(600px, calc(100svh - 120px));
   display:flex; flex-direction:column;
   background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-lg);
   box-shadow:var(--shadow-lg); overflow:hidden;
@@ -1983,6 +1985,63 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   background:var(--accent); color:var(--accent-ink); display:flex; align-items:center; justify-content:center;
 }
 .aide-saisie button:disabled, .aide-saisie textarea:disabled{ opacity:.55; cursor:default; }
+
+.aide-texte ul{ margin:6px 0 0 18px; }
+.aide-texte li + li{ margin-top:3px; }
+
+/* Composants et configs proposés dans la bulle (avec un compte) */
+.aide-pieces, .aide-cfg ul{ list-style:none; margin:0; padding:0; }
+.aide-pieces{ display:flex; flex-direction:column; gap:8px; }
+.aide-piece{
+  display:grid; grid-template-columns:44px 1fr; gap:4px 10px; align-items:center;
+  padding:8px; border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface-2);
+}
+.aide-piece-image{
+  grid-row:span 2; width:44px; height:44px; padding:3px; border:none; border-radius:var(--r-sm); cursor:pointer;
+  background:var(--photo-bg); display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.aide-piece-image.is-transparent{ background:var(--surface-3); }
+.aide-piece-image img{ max-width:100%; max-height:100%; object-fit:contain; }
+.aide-piece-infos{ min-width:0; display:flex; flex-direction:column; }
+.aide-piece-cat{ font-size:0.7rem; color:var(--text-3); text-transform:uppercase; letter-spacing:0.04em; }
+.aide-piece-nom{
+  font:inherit; font-size:0.84rem; font-weight:500; color:var(--text); text-align:left; line-height:1.35;
+  background:none; border:none; padding:0; cursor:pointer;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.aide-piece-nom:hover{ color:var(--accent); }
+.aide-piece-prix{ font-family:var(--font-mono); font-size:0.8rem; color:var(--text-2); }
+.aide-piece-actions{ display:flex; align-items:center; gap:6px; justify-content:flex-end; }
+.aide-piece > .aide-piece-actions{ grid-column:2; justify-content:flex-start; }
+.aide-mini{
+  font:inherit; font-size:0.76rem; font-weight:500; cursor:pointer; white-space:nowrap;
+  padding:4px 10px; border-radius:999px; border:1px solid var(--accent-line); background:var(--accent-soft); color:var(--accent);
+}
+.aide-mini:hover{ background:var(--accent); color:var(--accent-ink); }
+.aide-mini-ico{ padding:4px 8px; border-color:var(--line-strong); background:none; color:var(--text-2); }
+.aide-mini-ico:hover{ background:var(--surface-3); color:var(--text); }
+.aide-dedans{ font-size:0.76rem; color:var(--accent); white-space:nowrap; }
+
+.aide-cfg{ border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface-2); overflow:hidden; }
+.aide-cfg-ligne{ display:flex; flex-direction:column; gap:2px; padding:9px 12px; border-bottom:1px solid var(--line); }
+.aide-cfg-bas{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.aide-cfg-vide{ font-size:0.82rem; color:var(--text-3); }
+.aide-cfg-total{ display:flex; align-items:baseline; gap:8px; padding:10px 12px 4px; font-size:0.84rem; color:var(--text-2); }
+.aide-cfg-total strong{ font-family:var(--font-mono); font-size:1.02rem; color:var(--text); }
+.aide-cfg-total em{ font-style:normal; font-size:0.76rem; color:var(--text-3); margin-left:auto; }
+.aide-cfg-boutons{ display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px 12px; }
+.aide-btn{
+  font:inherit; font-size:0.8rem; font-weight:500; cursor:pointer; text-decoration:none; text-align:center;
+  padding:7px 11px; border-radius:var(--r-sm); border:1px solid var(--line-strong); background:none; color:var(--text-2);
+}
+.aide-btn:hover{ color:var(--text); border-color:var(--text-3); }
+.aide-btn-plein{ flex-basis:100%; background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
+.aide-btn-plein:hover{ background:var(--accent-hover); color:var(--accent-ink); }
+.aide-fps{
+  font-size:0.8rem; line-height:1.5; color:var(--text-2); padding:10px 12px;
+  border-left:2px solid var(--accent); background:var(--surface-2); border-radius:0 var(--r-sm) var(--r-sm) 0;
+}
+.aide-fps b{ display:block; font-size:0.72rem; color:var(--text-3); font-weight:500; margin-bottom:2px; }
 
 @media (max-width:640px){
   .aide-bouton{ right:14px; bottom:14px; width:50px; height:50px; }

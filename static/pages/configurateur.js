@@ -659,6 +659,21 @@
     checkCompatibilityLive();
   }
 
+  // Pièce ajoutée depuis la bulle d'aide (static/aide.js) pendant qu'on est
+  // sur le configurateur : le brouillon a changé, on recharge la sélection.
+  window.addEventListener('pcr-config-modifiee', () => {
+    let draft;
+    try{ draft = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY)) || {}; }catch(e){ return; }
+    selectedComponents = {};
+    Object.entries(draft).forEach(([categorie, id]) => {
+      const item = allComponents.find(c => c.id === id);
+      if(item) selectedComponents[categorie] = item;
+    });
+    renderComponents(allComponents);
+    updateBuildPreview();
+    checkCompatibilityLive();
+  });
+
   function showComponentDetail(id){
     const item = allComponents.find(c => c.id === id);
     if(!item) return;

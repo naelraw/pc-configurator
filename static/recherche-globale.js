@@ -213,6 +213,7 @@
     try { config = JSON.parse(localStorage.getItem(DRAFT_KEY)) || {}; } catch (e) {}
     config[c.categorie] = c.id;
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(config)); } catch (e) {}
+    window.dispatchEvent(new Event('pcr-config-modifiee'));
     bouton.outerHTML = '<a class="btn btn-secondary" href="/configurateur"><i class="ph ph-check" aria-hidden="true"></i> Ajouté · voir ma config</a>';
   }
 
@@ -223,5 +224,16 @@
     }
   });
 
-  window.PCRechercheGlobale = { ouvrir: ouvrir, fermer: fermer };
+  // Fiche d'un composant précis, directement (bulle d'aide : bouton « Détails »).
+  function ouvrirId(id) {
+    if (!overlay) construire();
+    overlay.hidden = false;
+    document.documentElement.classList.add('gs-ouvert');
+    Promise.all([dependances(), chargerCatalogue()]).then(function () {
+      var c = catalogue.find(function (x) { return x.id === id; });
+      if (c) ouvrirFiche(c); else retourListe();
+    }).catch(function () { retourListe(); });
+  }
+
+  window.PCRechercheGlobale = { ouvrir: ouvrir, ouvrirId: ouvrirId, fermer: fermer };
 })();

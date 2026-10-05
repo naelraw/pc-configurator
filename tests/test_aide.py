@@ -53,3 +53,25 @@ def test_tickets_limites_par_heure(client):
     assert codes[:-1] == [200] * main.TICKETS_MAX_PER_HOUR and codes[-1] == 429
     for t in client.get("/api/admin/tickets", headers=ADMIN).json()["tickets"]:
         client.delete(f"/api/admin/tickets/{t['id']}", headers=ADMIN)
+
+
+def test_avec_un_compte_la_bulle_propose_des_composants(new_client, catalog, monkeypatch):
+    from conftest import component
+    gpu = component(catalog, "RTX 4060")
+    vus = []
+
+    def ia(prompt, **k):
+        vus.append(prompt)
+        return ('{"type": "advice", "message": "La RTX 4060 est un bon choix pour le 1080p.", "jeux": [], '
+                f'"composants": [{gpu["id"]}], "ticket": null}}')
+    monkeypatch.setattr(main, "call_ai_model", ia)
+    main._chat_requests_by_ip.clear()
+    membre = new_client("203.0.113.88")
+    assert membre.post("/api/auth/register", json={"email": "bulle@test.fr", "password": "motdepasse123"}).status_code == 200
+    r = membre.post("/api/assistant/chat", json={"messages": [{"role": "user", "content": "quelle carte pour le 1080p ?"}],
+                                                 "aide": True, "page": "/configurateur"})
+    data = r.json()
+    assert r.status_code == 200 and data["composants"] == [gpu["id"]] and data["ticket"] is None
+    # La bulle reçoit de quoi afficher et ajouter le composant sans charger tout le catalogue.
+    assert data["fiches"][str(gpu["id"])]["categorie"] == "GPU" and data["fiches"][str(gpu["id"])]["nom"] == gpu["nom"]
+    assert "bulle d'aide du site" in vus[-1] and "/configurateur" in vus[-1]
