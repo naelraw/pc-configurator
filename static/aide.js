@@ -197,7 +197,7 @@
       html += '<div class="aide-msg aide-ia' + (m.erreur ? ' aide-erreur' : '') + '"><div class="aide-texte">' + mettreEnForme(m.content) + '</div></div>';
       if(m.suggestion) html += recapitulatif(m, i);
       else if((m.composants || []).length) html += listePieces(m, config);
-      if(m.fps) html += '<div class="aide-fps"><b>Estimation FPS</b>' + echapper(m.fps).trim().replace(/\n/g, '<br>') + '</div>';
+      html += blocFps(m.fps);
     });
     if(enCours) html += '<div class="aide-msg aide-ia"><div class="aide-texte aide-attente"><span></span><span></span><span></span></div></div>';
     if(etat.ticket && !enCours) html += carteTicket(etat.ticket);
@@ -207,6 +207,17 @@
     fil.scrollTop = afficher.garderPosition ? position : fil.scrollHeight;
     afficher.garderPosition = false;
     champ.disabled = envoyer.disabled = enCours;
+  }
+
+  // Même contenu que sur la page de l'assistant : le texte d'estimation et,
+  // s'il y a un goulot d'étranglement, la pièce à changer.
+  function blocFps(fps){
+    if(!fps || !fps.estimation) return '';
+    var conseil = fps.suggestion
+      ? '<p>Remplacer ton ' + echapper(fps.suggestion.categorie) + ' par <strong>' + echapper(fps.suggestion.nom) + '</strong>'
+        + (fps.suggestion.prix_indicatif != null ? ' (' + euros(fps.suggestion.prix_indicatif) + ')' : '') + ' réduirait ce goulot d’étranglement.</p>'
+      : '';
+    return '<div class="aide-fps"><b>Estimation FPS</b><p>' + echapper(String(fps.estimation)).trim().replace(/\n/g, '<br>') + '</p>' + conseil + '</div>';
   }
 
   function etatAjout(f, config){

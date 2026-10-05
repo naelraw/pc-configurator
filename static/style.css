@@ -2047,6 +2047,8 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   font-size:0.8rem; line-height:1.5; color:var(--text-2); padding:10px 12px;
   border:1px solid var(--line); background:var(--surface-2); border-radius:var(--r-sm);
 }
+.aide-fps p + p{ margin-top:6px; }
+.aide-fps strong{ color:var(--text); font-weight:600; }
 .aide-fps b{ display:block; font-size:0.72rem; color:var(--text-3); font-weight:500; margin-bottom:2px; }
 
 @media (max-width:640px){
