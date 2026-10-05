@@ -4582,6 +4582,25 @@ MAX_AI_ATTEMPTS = 3
 GEMINI_CALL_TIMEOUT_SECONDS = 8
 _gemini_call_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="gemini-call")
 
+# Une clé Gemini qui ne répond pas (ou quota atteint) est mise de côté 10 min :
+# sans ça, chaque message attendait 8 s par clé en panne avant d'essayer la
+# suivante (mesuré le 5 octobre 2026 : 2 clés sur 4 sans réponse, les 2 autres
+# répondent en ~1 s). La dernière clé qui a marché passe en premier.
+GEMINI_PAUSE_SECONDES = 600
+_gemini_cles_en_pause = {}
+_gemini_derniere_bonne = {"cle": None}
+
+
+def _cles_gemini_dans_l_ordre():
+    maintenant = time.time()
+    actives = [k for k in GEMINI_API_KEYS if _gemini_cles_en_pause.get(k, 0) <= maintenant]
+    bonne = _gemini_derniere_bonne["cle"]
+    if bonne in actives:
+        actives.remove(bonne)
+        actives.insert(0, bonne)
+    # Toutes en pause : on retente quand même celle qui revient le plus tôt.
+    return actives or sorted(GEMINI_API_KEYS, key=lambda k: _gemini_cles_en_pause.get(k, 0))[:1]
+
 
 def _call_gemini_with_hard_timeout(func):
     future = _gemini_call_executor.submit(func)
@@ -4620,18 +4639,21 @@ def call_ai_model(prompt, max_tokens=800, temperature=0.7, reasoning_effort="non
     """
     if genai_new is not None and GEMINI_API_KEYS:
         last_error = None
-        for api_key in GEMINI_API_KEYS:
+        for api_key in _cles_gemini_dans_l_ordre():
             try:
                 gemini_client = genai_new.Client(api_key=api_key)
                 response = _call_gemini_with_hard_timeout(
                     lambda gc=gemini_client: gc.models.generate_content(model="gemini-3.5-flash-lite", contents=prompt)
                 )
                 if response.text and response.text.strip():
+                    _gemini_derniere_bonne["cle"] = api_key
+                    _gemini_cles_en_pause.pop(api_key, None)
                     return response.text
                 last_error = RuntimeError("réponse vide")
             except Exception as error:
                 last_error = error
-                print(f"Projet Gemini indisponible (call_ai_model), tentative suivante : {error}")
+                _gemini_cles_en_pause[api_key] = time.time() + GEMINI_PAUSE_SECONDES
+                print(f"Projet Gemini indisponible (call_ai_model), clé mise de côté 10 min, tentative suivante : {error}")
         print(f"Gemini échoué sur toutes les clés, repli Groq : {last_error}")
 
     if groq_client is None:
@@ -6742,8 +6764,9 @@ Règles :
   remplissant "ticket" et dis en une phrase que tu peux le transmettre à l'équipe avec le bouton
   ci-dessous. Ne dis jamais qu'un ticket est déjà envoyé : c'est le visiteur qui confirme.
 {regles_tickets}
-- Hors sujet complet : réponds brièvement et poliment, sans inventer, puis rappelle que tu es là pour
-  aider sur PC Radar.
+- Hors sujet (culture générale, maths, devoirs, une personne, l'actualité...) : ne donne PAS la
+  réponse, même si tu la connais. Dis gentiment en une phrase que tu es là pour aider sur PC Radar et les
+  PC, et propose ton aide. Salutations et remerciements : réponds brièvement et gentiment.
 - Tu ne peux rien modifier toi-même (compte, prix, commandes) et PC Radar ne vend rien : les achats,
   livraisons et retours se font chez Amazon.
 
@@ -7003,6 +7026,34 @@ def _respecter_demande(suggestion, question, components_by_id):
     return suggestion, remplaces
 
 
+def _meilleurs_pour_la_demande(question, components, limite=8):
+    """« quelle carte graphique pour le 1440p à moins de 500 € » : les pièces de
+    la catégorie citée les plus performantes qui tiennent dans le budget (un
+    représentant par produit). L'échantillon du catalogue donné à l'IA est
+    réparti par prix et ratait justement ces bonnes affaires."""
+    texte = (question or "").lower()
+    motifs = [("CPU", r"processeur|cpu|ryzen|intel core")] + [(cat, motif) for _, cat, motif in CATEGORIES_CITEES]
+    categories = [cat for cat, motif in motifs if re.search(motif, texte)]
+    if not categories:
+        return []
+    budget = _budget_from_text(question)
+    trouves = []
+    for cat in categories:
+        options = [c for c in components if c.get("categorie") == cat and c.get("en_stock", True)
+                   and float(c.get("prix_indicatif") or 0) > 0 and (not budget or float(c["prix_indicatif"]) <= budget)]
+        # Les plus performantes d'abord (puis les moins chères), une annonce par produit.
+        options.sort(key=lambda c: (-(c.get("perf_index") or 0), float(c["prix_indicatif"])))
+        vus = set()
+        for c in options:
+            if c.get("groupe_id", c["id"]) in vus:
+                continue
+            vus.add(c.get("groupe_id", c["id"]))
+            trouves.append(c)
+            if len(vus) >= limite:
+                break
+    return trouves
+
+
 def _composants_de_couleur(couleur, components, texte="", limite=36):
     """Composants en stock de la couleur demandée (un par produit), pour que
     l'IA les ait sous les yeux : seulement les catégories citées s'il y en a."""
@@ -7152,6 +7203,8 @@ def assistant_chat(request: AssistantChatRequest, _user=Depends(require_login), 
         texte_utilisateur = " ".join(m.content for m in messages if m.role == "user")[-1500:]
         cites = _composants_cites(texte_utilisateur, components)
         couleur_voulue = _couleur_demandee(question) or _couleur_demandee(texte_utilisateur)
+        deja = {c["id"] for c in cites}
+        cites += [c for c in _meilleurs_pour_la_demande(question, components) if c["id"] not in deja]
         if couleur_voulue:
             deja = {c["id"] for c in cites}
             cites += [c for c in _composants_de_couleur(couleur_voulue, components, question) if c["id"] not in deja]
@@ -7202,23 +7255,18 @@ Ta façon d'aider :
   seule question courte et naturelle au lieu de supposer ou de tout couvrir d'un coup.
 - Ne parle de sa config en cours que si c'est utile pour sa question.
 - Pas de formules toutes faites (« Excellente question ! », « N'hésite pas si... »), pas d'emojis.
-Questions hors du PC (une personne, un youtubeur, un sujet général) :
-- Réponds simplement en une ou deux phrases, sans inventer de détails : sur une personne réelle, reste
-  sur ce qui est connu et neutre (son métier, ce qu'elle fait), sinon dis que tu ne sais pas.
-- Fais un lien avec le PC SEULEMENT s'il est naturel et logique, sous forme d'une question qui découle
-  de ta réponse. Exemple : « Joyca est un youtubeur et streamer français, connu pour ses vidéos de jeux et
-  de défis. Tu voudrais un PC pour streamer ou faire du montage comme lui ? »
-- S'il n'y a aucun lien logique, n'en invente pas : pas de transition forcée du type « C'est reparti
-  pour ton PC » ou « pendant ta pause, on regarde ton PC ? ». Réponds, et c'est tout. Exemples :
-  « j'ai faim » -> « Bon appétit ! » ; « quelle heure est-il ? » -> « Je n'ai pas accès à l'heure, regarde
-  en haut de ton écran. »
+Questions hors sujet : tu ne réponds QU'aux questions sur les PC, les composants, le matériel
+informatique, les jeux vidéo (performances, configs, matériel pour jouer ou streamer) et PC Radar.
+- Pour toute autre question (culture générale, maths, devoirs, une personne, l'actualité, la cuisine,
+  l'heure...), ne donne PAS la réponse, même si tu la connais. Dis gentiment en une phrase que tu es là
+  pour les PC et PC Radar, et propose une aide. Exemple : « combien de lettres a l'alphabet ? » ->
+  « Je suis là uniquement pour t'aider avec ton PC et PC Radar. Tu cherches une config, un composant ou
+  des infos sur un jeu ? »
+- Si la question a un vrai rapport avec le PC, réponds-y : « un PC pour streamer comme Joyca ? » est
+  une question PC (le matériel pour streamer), pas une question sur la personne.
+- Salutations, remerciements, politesse (« salut », « merci », « t'es qui ? ») : réponds brièvement et
+  gentiment, puis propose ton aide sur le PC.
 - Tu es un assistant, pas un humain : ne prétends jamais avoir faim, être fatigué, avoir vécu quelque chose.
-- Une seule réponse courte par sujet hors PC. Si on te demande d'en dire plus (« parle-moi de lui »,
-  « raconte sa vie »), ne développe pas : pas de biographie, de vrai nom, de date, de vie privée ni de
-  détail que tu pourrais inventer. Dis gentiment que tu es spécialisé dans les PC, et propose une aide en
-  rapport avec le sujet. Exemple : « Je suis spécialisé dans les PC, donc je ne peux pas t'en dire beaucoup
-  plus sur lui. Par contre, si tu veux savoir de quel matériel on a besoin pour streamer ou monter des
-  vidéos comme lui, je peux t'aider. »
 - Chaque phrase doit découler de la précédente : jamais deux idées sans rapport l'une à la suite de l'autre.
 {bloc_aide}
 Discussion jusqu'ici :
