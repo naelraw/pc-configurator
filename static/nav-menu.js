@@ -9,6 +9,56 @@
     document.head.appendChild(s);
   }
 
+  // Mises à jour du site en direct (/api/version) : un nouveau style remplace
+  // l'ancien sur place ; de nouvelles pages ou de nouveaux scripts rechargent
+  // la page dès qu'on ne fait rien (rien en cours de saisie, pas de réponse
+  // d'IA en attente). Discussions et config sont gardées dans le navigateur,
+  // et le navigateur garde la position dans la page.
+  var version = null, rechargementPrevu = false, derniereAction = Date.now();
+  function occupe(){
+    var actif = document.activeElement;
+    if(actif && /^(INPUT|TEXTAREA|SELECT)$/.test(actif.tagName)) return true;
+    if(document.querySelector('.aide-attente, .chat-attente, .gs-overlay:not([hidden]), .show[id$="-overlay"]')) return true;
+    // Un message en cours d'écriture (bulle, assistant, ticket) serait perdu ;
+    // la recherche et les filtres, eux, sont déjà gardés par les pages.
+    return Array.prototype.some.call(document.querySelectorAll('textarea'), function(c){
+      return c.value && c.offsetParent !== null;
+    });
+  }
+  function nouveauStyle(v){
+    document.querySelectorAll('link[rel="stylesheet"][href^="/static/"]').forEach(function(ancien){
+      var neuf = ancien.cloneNode();
+      neuf.href = ancien.getAttribute('href').split('?')[0] + '?v=' + v;
+      neuf.onload = function(){ ancien.remove(); };   // pas de page sans style le temps du chargement
+      ancien.after(neuf);
+    });
+  }
+  function essayerDeRecharger(){
+    if(rechargementPrevu && !document.hidden && Date.now() - derniereAction > 15000 && !occupe()) location.reload();
+  }
+  function verifierVersion(){
+    if(document.hidden) return;
+    fetch('/api/version', { cache: 'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(v){
+      if(!v || !v.css) return;
+      if(version && v.css !== version.css) nouveauStyle(v.css);
+      if(version && v.pages !== version.pages) rechargementPrevu = true;
+      version = v;
+      essayerDeRecharger();
+    }).catch(function(){});
+  }
+  ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(function(type){
+    window.addEventListener(type, function(){ derniereAction = Date.now(); }, { passive: true, capture: true });
+  });
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden) return;
+    // Retour sur l'onglet : on recharge tout de suite si une mise à jour attend.
+    if(rechargementPrevu && !occupe()){ location.reload(); return; }
+    verifierVersion();
+  });
+  setInterval(verifierVersion, 60000);
+  setInterval(essayerDeRecharger, 5000);
+  window.addEventListener('load', verifierVersion);
+
   document.addEventListener('keydown', function(e){
     if((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
       e.preventDefault();

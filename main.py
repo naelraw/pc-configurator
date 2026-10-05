@@ -849,6 +849,40 @@ titre indicatif et peuvent différer de la réalité au moment de l'achat.
     return Response(content=content, media_type="text/plain")
 
 
+# Version du site pour les pages ouvertes (nav-menu.js) : un changement de
+# style est appliqué sur place, un changement de pages ou de scripts recharge
+# la page dès que la personne ne fait rien (discussions et config sont gardées).
+_VERSION_CACHE = {"at": 0.0, "data": None}
+_FICHIERS_PAGES_PY = ("guides.py", "component_pages.py", "comparisons.py", "erreurs.py")
+
+
+def _empreinte(chemins):
+    h = hashlib.sha1()
+    for chemin in sorted(chemins):
+        try:
+            st = os.stat(chemin)
+        except OSError:
+            continue
+        h.update(f"{chemin}:{st.st_mtime_ns}:{st.st_size}".encode())
+    return h.hexdigest()[:12]
+
+
+@app.get("/api/version")
+def api_version():
+    if _VERSION_CACHE["data"] is None or time.time() - _VERSION_CACHE["at"] > 15:
+        racine = os.path.dirname(os.path.abspath(__file__))
+        statique = os.path.join(racine, "static")
+        css, pages = [], [os.path.join(racine, f) for f in _FICHIERS_PAGES_PY]
+        for dossier, _, fichiers in os.walk(statique):
+            for f in fichiers:
+                if f.endswith(".css"):
+                    css.append(os.path.join(dossier, f))
+                elif f.endswith((".js", ".html")) and f not in ("sw.js",):
+                    pages.append(os.path.join(dossier, f))
+        _VERSION_CACHE.update(at=time.time(), data={"css": _empreinte(css), "pages": _empreinte(pages)})
+    return JSONResponse(_VERSION_CACHE["data"], headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/config")
 def api_config():
     """Config publique consommée par le frontend (rien de sensible ici)."""
@@ -5717,7 +5751,7 @@ def ventirad_fourni(cpu):
     return False
 
 
-def _choisir_ventirad(cpu, boitier, components_by_id):
+def _choisir_ventirad(cpu, boitier, components_by_id, couleur=None):
     """Refroidissement le moins cher compatible (socket, hauteur ou radiateur
     dans le boîtier) ; watercooling 240 mm ou plus pour les processeurs de plus de 150 W."""
     specs_cpu = (cpu or {}).get("specs") or {}
@@ -5736,6 +5770,8 @@ def _choisir_ventirad(cpu, boitier, components_by_id):
         if not check_refroidissement(specs_cpu, specs_boitier, s)[0]:
             continue
         options.append(c)
+    if couleur:
+        options = [c for c in options if _couleur(c) == couleur] or options
     return min(options, key=lambda c: float(c["prix_indicatif"]), default=None)
 
 
@@ -5813,6 +5849,12 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
         if champ in fixes:
             return [components_by_id[fixes[champ]]]
         return candidats
+
+    couleur = contraintes.get("couleur") if contraintes.get("couleur") in COULEURS else None
+    if couleur:
+        for cat in CATEGORIES_COULEUR:
+            if par_cat.get(cat):
+                par_cat[cat] = [c for c in par_cat[cat] if _couleur(c) == couleur] or par_cat[cat]
 
     cpus = [c for c in par_cat.get("CPU", []) if c.get("perf_index") and (c.get("specs") or {}).get("socket") and (c.get("specs") or {}).get("tdp")]
     cpus = [c for c in cpus if marque_ok(c, "marque_cpu")] or cpus
@@ -5919,7 +5961,7 @@ def _optimiser_config_passe(budget, components_by_id, contraintes, fixes, exigea
                 if not ventirad_fourni(cpu):
                     cle = (cpu["specs"]["socket"], (cpu["specs"].get("tdp") or 0) >= 150, boitier["id"])
                     if cle not in ventirads:
-                        ventirads[cle] = _choisir_ventirad(cpu, boitier, components_by_id)
+                        ventirads[cle] = _choisir_ventirad(cpu, boitier, components_by_id, couleur)
                     refroid = ventirads[cle]
                     if not refroid:
                         continue
@@ -5955,7 +5997,8 @@ def _ajuster_modification(suggestion, precedente, budget, components_by_id):
              if c.get("categorie") == voulu.get("categorie") and c.get("en_stock", True) and prix(c) > 0
              and c["id"] != precedente.get(champ)
              and (champ != "psu_id" or any(x in str((c.get("specs") or {}).get("certification") or "") for x in CERTIFICATIONS_OK))),
-            key=lambda c: abs(prix(c) - prix(voulu)),
+            # Même couleur que la pièce choisie d'abord (un boîtier blanc reste blanc), puis prix le plus proche.
+            key=lambda c: (_couleur(voulu) is not None and _couleur(c) != _couleur(voulu), abs(prix(c) - prix(voulu))),
         )
         for c in options[:120]:
             essai = {**suggestion, champ: c["id"]}
@@ -5983,7 +6026,7 @@ def _repair_compatibility(suggestion, components_by_id):
         options = sorted(
             (c for c in components_by_id.values()
              if c.get("categorie") == category and c.get("en_stock", True) and price(c) > 0 and c["id"] != current["id"]),
-            key=lambda c: abs(price(c) - price(current)),
+            key=lambda c: (_couleur(current or {}) is not None and _couleur(c) != _couleur(current or {}), abs(price(c) - price(current))),
         )
         for c in options[:80]:
             trial = {**suggestion, field: c["id"]}
@@ -6022,7 +6065,7 @@ def _budget_from_text(text):
     return None
 
 
-def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800, precedente=None):
+def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800, precedente=None, couleur=None):
     """
     Boucle de génération + correction partagée par /suggest-config (nouvelle
     config) et /api/refine-config (modification d'une config existante) :
@@ -6095,7 +6138,12 @@ Réponds UNIQUEMENT avec le JSON demandé."""
         if isinstance(parsed, dict) and isinstance(budget_max, (int, float)) and budget_max > 0 and not modification:
             demandees = parsed.get("pieces_demandees") if isinstance(parsed.get("pieces_demandees"), list) else []
             fixes = {f: parsed.get(f) for f in demandees if f in CONFIG_ID_FIELDS}
-            optimale = _optimiser_config(budget_max, components_by_id, parsed.get("contraintes"), fixes)
+            contraintes = dict(parsed.get("contraintes")) if isinstance(parsed.get("contraintes"), dict) else {}
+            # Couleur demandée par l'utilisateur : la config optimisée la respecte
+            # aussi, même si l'IA a oublié de la noter dans ses contraintes.
+            if couleur and not contraintes.get("couleur"):
+                contraintes["couleur"] = couleur
+            optimale = _optimiser_config(budget_max, components_by_id, contraintes, fixes)
             if optimale:
                 usage = (parsed.get("contraintes") or {}).get("usage") if isinstance(parsed.get("contraintes"), dict) else None
                 score_ia = _score_config(components_by_id.get(parsed.get("cpu_id")), components_by_id.get(parsed.get("gpu_id")), usage or "jeu")
@@ -6767,11 +6815,77 @@ def _composants_cites(texte, components, limite=24):
     return trouves[:limite]
 
 
+# Couleurs reconnues (nom du produit d'abord : « White », « Blanc »... ; puis
+# la caractéristique « couleur », renseignée sur une partie des fiches).
+COULEURS = {
+    "blanc": r"\b(white|blanc|blanche|snow|neige)\b",
+    "noir": r"\b(black|noir|noire)\b",
+    "rose": r"\b(pink|rose)\b",
+    "gris": r"\b(grey|gray|gris|grise|silver|argent)\b",
+    "rouge": r"\b(red|rouge)\b",
+    "bleu": r"\b(blue|bleu|bleue)\b",
+    "vert": r"\b(green|vert|verte)\b",
+}
+# Catégories où la couleur se voit (le processeur et le SSD n'ont pas de couleur qui compte).
+CATEGORIES_COULEUR = ("Boîtier", "Refroidissement", "RAM", "GPU", "Carte mère", "Alimentation")
+
+
+def _couleur(c):
+    nom = (c.get("nom") or "").lower()
+    for couleur, motif in COULEURS.items():
+        if re.search(motif, nom):
+            return couleur
+    valeur = str((c.get("specs") or {}).get("couleur") or "").lower()
+    for couleur, motif in COULEURS.items():
+        if re.search(motif, valeur):
+            return couleur
+    return None
+
+
+def _couleur_demandee(texte):
+    """« un boîtier blanc », « config toute blanche » -> "blanc" (ou None)."""
+    texte = (texte or "").lower()
+    for couleur, motif in COULEURS.items():
+        if couleur != "noir" and re.search(motif, texte):
+            return couleur
+    return "noir" if re.search(COULEURS["noir"], texte) else None
+
+
 def _ligne_composant(c):
     specs = c.get("specs") or {}
     utiles = [f"{k}={specs[k]}" for k in REQUIRED_FIELDS.get(c["categorie"], {}) if k in specs]
+    couleur = _couleur(c) if c.get("categorie") in CATEGORIES_COULEUR else None
+    if couleur:
+        utiles.append(f"couleur={couleur}")
     stock = "" if c.get("en_stock", True) else " (épuisé)"
     return f"- id {c['id']}: [{c['categorie']}] {c['nom']}{' {' + ', '.join(utiles) + '}' if utiles else ''} ({c['prix_indicatif']}€){stock}"
+
+
+def _composants_de_couleur(couleur, components, texte="", limite=36):
+    """Composants en stock de la couleur demandée (un par produit), pour que
+    l'IA les ait sous les yeux : seulement les catégories citées s'il y en a."""
+    texte = (texte or "").lower()
+    citees = [cat for cat, motif in (
+        ("Boîtier", r"bo[iî]tier|case"), ("Refroidissement", r"ventirad|refroidi|watercool|aio|cooler"),
+        ("RAM", r"\bram\b|m[ée]moire|barrette"), ("GPU", r"carte graphique|\bgpu\b|rtx|radeon|\brx\b"),
+        ("Carte mère", r"carte m[eè]re|motherboard"), ("Alimentation", r"alim"),
+    ) if re.search(motif, texte)] or list(CATEGORIES_COULEUR)
+    trouves, vus = [], set()
+    for c in sorted(components, key=lambda c: c.get("prix_indicatif") or 0):
+        if (c.get("categorie") in citees and c.get("en_stock", True) and _couleur(c) == couleur
+                and c.get("groupe_id", c["id"]) not in vus):
+            vus.add(c.get("groupe_id", c["id"]))
+            trouves.append(c)
+    # Toutes catégories confondues, une répartition équilibrée.
+    par_cat = {}
+    for c in trouves:
+        par_cat.setdefault(c["categorie"], []).append(c)
+    choisis = []
+    while len(choisis) < limite and any(par_cat.values()):
+        for liste in par_cat.values():
+            if liste and len(choisis) < limite:
+                choisis.append(liste.pop(0))
+    return choisis
 
 
 def _texte_config(ids, components_by_id):
@@ -6812,7 +6926,12 @@ def assistant_chat(request: AssistantChatRequest, _user=Depends(require_login), 
         derniere = {f: v for f, v in (request.derniere_config or {}).items() if f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD) and isinstance(v, int)}
         budget_precedent = (request.derniere_config or {}).get("budget_max")
 
-        cites = _composants_cites(" ".join(m.content for m in messages if m.role == "user")[-1500:], components)
+        texte_utilisateur = " ".join(m.content for m in messages if m.role == "user")[-1500:]
+        cites = _composants_cites(texte_utilisateur, components)
+        couleur_voulue = _couleur_demandee(question) or _couleur_demandee(texte_utilisateur)
+        if couleur_voulue:
+            deja = {c["id"] for c in cites}
+            cites += [c for c in _composants_de_couleur(couleur_voulue, components, question) if c["id"] not in deja]
         catalogue = _sample_catalog_for_prompt(components)
         bloc_aide, champ_ticket = "", ""
         if request.aide:
@@ -6905,7 +7024,7 @@ Choisis UNE des deux formes de réponse :
 
 (2) Une configuration complète : nouvelle demande de config, OU modification de la dernière config
 proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
-{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "cooler_id": <id d'un refroidissement ou null>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>}}}}
+{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "cooler_id": <id d'un refroidissement ou null>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>, "couleur": <"blanc", "noir", "rose", "gris", "rouge", "bleu", "vert" ou null>}}}}
 - "contraintes" résume les souhaits exprimés dans toute la discussion (null quand il n'a rien dit) : le site
   s'en sert pour optimiser la config dans le budget.
 - Dans "message", ne cite pas de modèle précis (la liste des composants s'affiche à côté) : explique
@@ -6923,6 +7042,10 @@ proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
   "budget_max" et ne le dépasse jamais ; vise 85 à 100 % du budget en mettant l'argent d'abord dans le
   GPU (jeu) ou le CPU (travail). Sans budget, "budget_max": null. Ne refuse jamais un budget serré :
   propose la meilleure config possible.
+- Couleur : si l'utilisateur veut une couleur (« blanc », « tout noir », « un boîtier blanc »), choisis
+  UNIQUEMENT des composants dont la "couleur" listée est celle-là pour les pièces concernées, mets-la dans
+  "contraintes.couleur", et dis-le honnêtement si une pièce n'existe pas dans cette couleur sur le site.
+  Ne propose jamais une pièce d'une autre couleur en la présentant comme celle demandée.
 - CPU et GPU de gamme comparable pour le jeu. Pas moins de 16 Go de RAM ni de SSD sous 500 Go si le
   budget le permet. Ne propose pas de composant épuisé.
 
@@ -6931,7 +7054,7 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
         result = _generate_and_verify_suggestion(
             prompt, components_by_id, allow_advice=True,
             budget_hint=_budget_from_text(question), max_tokens=1200,
-            precedente=derniere or ma_config,
+            precedente=derniere or ma_config, couleur=couleur_voulue,
         )
 
         def estimation(ids, jeux):
