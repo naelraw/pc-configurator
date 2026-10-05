@@ -2047,6 +2047,14 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   font-size:0.8rem; line-height:1.5; color:var(--text-2); padding:10px 12px;
   border:1px solid var(--line); background:var(--surface-2); border-radius:var(--r-sm);
 }
+.aide-liens{ display:flex; flex-direction:column; gap:6px; }
+.aide-lien{
+  display:block; padding:9px 12px; border-radius:var(--r-sm); text-decoration:none; font-size:0.84rem; font-weight:500;
+  border:1px solid var(--line-strong); background:var(--surface-2); color:var(--text);
+}
+.aide-lien:hover{ border-color:var(--accent-line); color:var(--accent); }
+.aide-lien-externe{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+.aide-lien-externe:hover{ background:var(--accent-hover); color:var(--accent-ink); }
 .aide-fps p + p{ margin-top:6px; }
 .aide-fps strong{ color:var(--text); font-weight:600; }
 .aide-fps b{ display:block; font-size:0.72rem; color:var(--text-3); font-weight:500; margin-bottom:2px; }
@@ -2080,3 +2088,6 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   .erreur-boutons{ flex-direction:column; align-self:stretch; }
   .erreur-boutons .btn{ justify-content:center; }
 }
+
+/* Liens donnés par l'assistant (panier Amazon, partage...) */
+.chat-liens{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }

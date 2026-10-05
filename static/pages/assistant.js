@@ -281,6 +281,12 @@
     $('detail-modal-overlay').classList.remove('show');
   }
 
+  // Liens fabriqués par le serveur à la demande de l'IA (panier Amazon, partage, fiches, pages du site).
+  function blocLiens(liens){
+    if(!liens || !liens.length) return '';
+    return `<div class="chat-liens">${liens.map(l => `<a class="btn ${l.externe ? 'btn-primary' : 'btn-secondary'}" href="${escapeHtml(l.url)}"${l.externe ? ' target="_blank" rel="noopener noreferrer sponsored"' : ''}>${escapeHtml(l.libelle)}${l.externe ? ' ↗' : ''}</a>`).join('')}</div>`;
+  }
+
   function blocFps(fps){
     if(!fps || !fps.estimation) return '';
     const conseil = fps.suggestion ? `<p>Remplacer ton ${escapeHtml(fps.suggestion.categorie)} par
@@ -315,7 +321,7 @@
       if(m.role === 'user'){
         html += `<div class="msg msg-moi"><div class="msg-corps">${escapeHtml(m.content).replace(/\n/g, '<br>')}</div></div>`;
       }else{
-        html += bulleAssistant(formater(m.content) + (m.suggestion ? carteConfig(m.suggestion, i) : '') + panneauComposants(m.composants) + blocFps(m.fps)
+        html += bulleAssistant(formater(m.content) + (m.suggestion ? carteConfig(m.suggestion, i) : '') + panneauComposants(m.composants) + blocFps(m.fps) + blocLiens(m.liens)
           + (m.relancer && i === discussion.length - 1 ? '<div class="guide-boutons"><button type="button" class="cfg-btn cfg-ajouter" data-action="guide-relancer">Réessayer</button></div>' : ''),
           m.erreur ? 'msg-erreur' : '');
       }
@@ -574,7 +580,8 @@
       }
       if(res.ok && data.status === 'ok'){
         reponse = { role: 'assistant', content: data.message || '', suggestion: data.suggestion || null,
-          composants: Array.isArray(data.composants) ? data.composants : [], fps: data.fps_estimation || null };
+          composants: Array.isArray(data.composants) ? data.composants : [], fps: data.fps_estimation || null,
+          liens: Array.isArray(data.liens) ? data.liens : [] };
       }else{
         reponse = { role: 'assistant', content: data.message || data.detail || 'L’assistant n’a pas pu répondre, réessaie.', erreur: true };
       }

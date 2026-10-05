@@ -6114,7 +6114,8 @@ Réponds UNIQUEMENT avec le JSON demandé."""
 
         if allow_advice and isinstance(parsed, dict) and parsed.get("type") == "advice":
             return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or [],
-                    "composants": parsed.get("composants") or [], "ticket": parsed.get("ticket")}
+                    "composants": parsed.get("composants") or [], "ticket": parsed.get("ticket"),
+                    "liens": parsed.get("liens") or []}
 
         # Processeur vendu sans ventirad : le site en ajoute un (compté dans le budget).
         if isinstance(parsed, dict) and parsed.get("cpu_id"):
@@ -6956,10 +6957,91 @@ def _composants_de_couleur(couleur, components, texte="", limite=36):
 
 
 def _texte_config(ids, components_by_id):
+    """Config lue par l'IA : ce que la personne voit sur le site pour chaque pièce
+    (prix du jour, stock, plus bas prix relevé), et le total."""
     champs = {**FIELD_TO_CATEGORY_BACKEND, CHAMP_VENTIRAD: "Refroidissement"}
-    lignes = [f"  - {champs[f]} : {components_by_id[ids[f]]['nom']} ({components_by_id[ids[f]]['prix_indicatif']}€) [id {ids[f]}]"
-              for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD) if ids.get(f) in components_by_id]
-    return "\n".join(lignes) if lignes else "  (vide)"
+    lignes, total = [], 0.0
+    for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD):
+        c = components_by_id.get(ids.get(f))
+        if not c:
+            continue
+        total += float(c.get("prix_indicatif") or 0)
+        infos = [f"{c['prix_indicatif']}€", "en stock" if c.get("en_stock", True) else "épuisé"]
+        try:
+            stats = _component_price_stats(c["id"])
+        except Exception:
+            stats = None
+        if stats and stats["n"] > 1:
+            infos.append(f"plus bas relevé {stats['min']}€ depuis le {stats['depuis']}")
+        lignes.append(f"  - {champs[f]} : {c['nom']} ({', '.join(infos)}) [id {c['id']}]")
+    if not lignes:
+        return "  (vide)"
+    return "\n".join(lignes) + f"\n  Total : {total:.2f}€"
+
+
+# Liens que l'IA peut faire afficher sous sa réponse : le serveur les fabrique
+# lui-même (code partenaire compris), l'IA n'écrit jamais d'adresse.
+PAGES_DU_SITE = {
+    "configurateur": ("/configurateur", "Ouvrir le configurateur"),
+    "assistant": ("/assistant", "Ouvrir l'assistant IA"),
+    "comparateur": ("/comparateur", "Ouvrir le comparateur"),
+    "estimer-fps": ("/estimer-fps", "Estimer mes FPS"),
+    "compte": ("/compte", "Mon compte"),
+    "guides": ("/guides", "Guides par budget"),
+    "application": ("/application", "Installer l'application"),
+}
+
+
+def _lien_amazon(c):
+    lien = next((p.get("lien") for p in (c.get("prix_marche") or []) if p.get("vendeur") == "Amazon" and p.get("lien")), None)
+    if not lien and c.get("asin"):
+        lien = f"https://www.amazon.{AMAZON_DOMAIN_TLD}/dp/{c['asin']}"
+    return _affiliate_amazon_link(lien) if lien else None
+
+
+def _resoudre_liens(demandes, question, config_ids, cites_ids, components_by_id):
+    """["panier", "partage", "amazon:12", "fiche:12", "configurateur"...] ->
+    [{"libelle", "url", "externe"}]. Ajoute aussi le lien évident quand la
+    question le demande et que l'IA l'a oublié (« donne-moi le panier Amazon »)."""
+    demandes = [str(d).strip().lower() for d in (demandes if isinstance(demandes, list) else []) if d]
+    texte = (question or "").lower()
+    pieces = [components_by_id[i] for i in dict.fromkeys(config_ids) if i in components_by_id]
+    if re.search(r"panier", texte) or (re.search(r"amazon", texte) and re.search(r"lien|acheter|commander", texte) and pieces):
+        demandes.append("panier")
+    if re.search(r"partag", texte) and pieces:
+        demandes.append("partage")
+    if re.search(r"amazon", texte) and re.search(r"lien|acheter|commander", texte) and not pieces:
+        demandes += [f"amazon:{i}" for i in cites_ids[:3]]
+    liens, vus = [], set()
+    for d in demandes:
+        if d in vus:
+            continue
+        vus.add(d)
+        if d == "panier" and pieces:
+            avec_asin = [c for c in pieces if c.get("asin")]
+            if not avec_asin:
+                continue
+            params = {"AssociateTag": AMAZON_ASSOCIATE_TAG} if AMAZON_ASSOCIATE_TAG else {}
+            for n, c in enumerate(avec_asin, 1):
+                params[f"ASIN.{n}"] = c["asin"]
+                params[f"Quantity.{n}"] = "1"
+            libelle = f"Tout mettre dans le panier Amazon ({len(avec_asin)} article{'s' if len(avec_asin) > 1 else ''})"
+            liens.append({"libelle": libelle, "url": f"https://www.amazon.{AMAZON_DOMAIN_TLD}/gp/aws/cart/add.html?{urlencode(params)}", "externe": True})
+        elif d == "partage" and pieces:
+            liens.append({"libelle": "Lien de partage de la config", "url": f"{SITE_URL}/partage?c={'-'.join(str(c['id']) for c in pieces)}", "externe": False})
+        elif d.startswith(("amazon:", "fiche:")):
+            genre, _, ident = d.partition(":")
+            c = components_by_id.get(int(ident)) if ident.strip().isdigit() else None
+            if not c:
+                continue
+            if genre == "amazon" and _lien_amazon(c):
+                liens.append({"libelle": f"{c['nom'][:60]} sur Amazon", "url": _lien_amazon(c), "externe": True})
+            elif genre == "fiche" and c.get("page"):
+                liens.append({"libelle": f"Fiche {c['nom'][:60]}", "url": c["page"], "externe": False})
+        elif d in PAGES_DU_SITE:
+            url, libelle = PAGES_DU_SITE[d]
+            liens.append({"libelle": libelle, "url": url, "externe": False})
+    return liens[:6]
 
 
 @app.post("/api/assistant/chat")
@@ -7083,7 +7165,7 @@ Nouveau message de l'utilisateur : {question}
 Choisis UNE des deux formes de réponse :
 
 (1) Une réponse de discussion (question, conseil, explication, comparaison, avis sur sa config...) :
-{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>]{champ_ticket}}}
+{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>], "liens": [<liens à afficher sous ta réponse, voir plus bas>]{champ_ticket}}}
 - Réponse directe, en respectant les règles de « Ta façon d'aider ». Une courte liste avec des tirets
   seulement si ça aide vraiment. Tu peux mettre un mot important en **gras**. Pas de titres, pas de tableaux.
 - N'écris jamais les "id" dans "message" : ils ne servent qu'au champ "composants".
@@ -7091,6 +7173,14 @@ Choisis UNE des deux formes de réponse :
   dans "composants" (6 au maximum, dans l'ordre où tu en parles) : le site les affiche sous ta réponse
   avec leur fiche. Si l'utilisateur demande des infos sur un composant précis ou en compare plusieurs,
   mets-les toujours dans "composants". Liste vide si tu ne parles d'aucun composant précis.
+- Liens : tu as accès à tout ce que l'utilisateur voit sur le site. Quand il demande un lien ou veut
+  acheter (« donne-moi le lien Amazon », « le panier », « où acheter », « partage ma config »), ne lui
+  dis JAMAIS d'aller le chercher lui-même : mets-le dans "liens", le site l'affiche en bouton sous ta
+  réponse, et dis-le simplement (« Voici le lien pour tout mettre dans ton panier Amazon. »). Valeurs
+  possibles : "panier" (toute la config dont on parle dans le panier Amazon, en un clic), "partage" (lien
+  de partage de cette config), "amazon:<id>" (page Amazon d'un composant), "fiche:<id>" (sa fiche sur
+  PC Radar), "configurateur", "comparateur", "estimer-fps", "compte", "guides", "application".
+  N'écris jamais d'adresse web toi-même. Liste vide si rien n'est demandé.
 - Ne donne jamais de chiffres de FPS toi-même : si l'utilisateur demande les performances dans un
   jeu, remplis "jeux" et le site ajoutera sa propre estimation sous ta réponse.
 - Si on te demande une config sans usage NI budget, ne la propose pas encore : pose UNE question courte
@@ -7098,7 +7188,7 @@ Choisis UNE des deux formes de réponse :
 
 (2) Une configuration complète : nouvelle demande de config, OU modification de la dernière config
 proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
-{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "cooler_id": <id d'un refroidissement ou null>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>, "couleur": <"blanc", "noir", "rose", "gris", "rouge", "bleu", "vert" ou null>}}}}
+{{"type": "config", "message": "<1 ou 2 phrases simples : l'idée de la config et pourquoi elle lui va, sans lister les composants>", "liens": [<même règle que plus haut>], "cpu_id": <id>, "motherboard_id": <id>, "ram_id": <id>, "gpu_id": <id>, "psu_id": <id>, "storage_id": <id>, "case_id": <id>, "cooler_id": <id d'un refroidissement ou null>, "budget_max": <nombre ou null>, "jeux": [<jeux cités>], "modification": <true si tu modifies une config existante, sinon false>, "pieces_demandees": [<champs "..._id" des pièces que l'utilisateur a EXPLICITEMENT demandées, ex : "gpu_id" s'il veut telle carte graphique ; sinon liste vide>], "contraintes": {{"usage": <"jeu", "travail", "creation" ou "mixte">, "wifi": <true, false ou null>, "stockage_min_go": <nombre ou null>, "ram_min_go": <nombre ou null>, "marque_cpu": <"AMD", "Intel" ou null>, "marque_gpu": <"AMD", "NVIDIA", "Intel" ou null>, "rgb": <true, false ou null>, "compact": <true, false ou null>, "couleur": <"blanc", "noir", "rose", "gris", "rouge", "bleu", "vert" ou null>}}}}
 - "contraintes" résume les souhaits exprimés dans toute la discussion (null quand il n'a rien dit) : le site
   s'en sert pour optimiser la config dans le budget.
 - Dans "message", ne cite pas de modèle précis (la liste des composants s'affiche à côté) : explique
@@ -7148,9 +7238,13 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             # Les numéros internes (« id 2500 ») n'ont rien à faire dans le texte.
             texte = re.sub(r"\(\s*id\s*\d+\s*[,;]\s*", "(", result["message"] or "")
             texte = re.sub(r"\s*[\(\[]\s*id\s*\d+\s*[\)\]]|,?\s*\bid\s*\d+\b", "", texte)
+            config_parlee = derniere or ma_config
             reponse = {"status": "ok", "message": texte.strip() or "Je n'ai pas compris, tu peux reformuler ?",
                        "composants": ids_cites[:6],
-                       "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]])}
+                       "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]]),
+                       "liens": _resoudre_liens(result.get("liens"), question,
+                                                [config_parlee.get(f) for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD)],
+                                                ids_cites, components_by_id)}
             if request.aide:
                 reponse["ticket"] = _ticket_propose(result.get("ticket"), question)
                 reponse["fiches"] = _fiches_courtes(ids_cites[:6], components_by_id)
@@ -7190,7 +7284,10 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
         jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
         _compter_assistant("config")
         reponse = {"status": "ok", "message": message, "suggestion": suggestion,
-                   "fps_estimation": estimation(suggestion, jeux)}
+                   "fps_estimation": estimation(suggestion, jeux),
+                   "liens": _resoudre_liens(suggestion.pop("liens", None), question,
+                                            [suggestion.get(f) for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD)],
+                                            [], components_by_id)}
         if request.aide:
             reponse["fiches"] = _fiches_courtes([suggestion.get(f) for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD)], components_by_id)
         return reponse

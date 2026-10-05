@@ -198,6 +198,7 @@
       if(m.suggestion) html += recapitulatif(m, i);
       else if((m.composants || []).length) html += listePieces(m, config);
       html += blocFps(m.fps);
+      html += boutonsLiens(m.liens);
     });
     if(enCours) html += '<div class="aide-msg aide-ia"><div class="aide-texte aide-attente"><span></span><span></span><span></span></div></div>';
     if(etat.ticket && !enCours) html += carteTicket(etat.ticket);
@@ -211,6 +212,15 @@
 
   // Même contenu que sur la page de l'assistant : le texte d'estimation et,
   // s'il y a un goulot d'étranglement, la pièce à changer.
+  // Liens fabriqués par le serveur (panier Amazon, partage, fiches, pages du site).
+  function boutonsLiens(liens){
+    if(!liens || !liens.length) return '';
+    return '<div class="aide-liens">' + liens.map(function(l){
+      return '<a class="aide-lien' + (l.externe ? ' aide-lien-externe' : '') + '" href="' + echapper(l.url) + '"'
+        + (l.externe ? ' target="_blank" rel="noopener noreferrer sponsored"' : '') + '>' + echapper(l.libelle) + (l.externe ? ' ↗' : '') + '</a>';
+    }).join('') + '</div>';
+  }
+
   function blocFps(fps){
     if(!fps || !fps.estimation) return '';
     var conseil = fps.suggestion
@@ -407,6 +417,7 @@
         composants: Array.isArray(data.composants) ? data.composants : [],
         fiches: data.fiches || null,
         fps: data.fps_estimation || null,
+        liens: Array.isArray(data.liens) ? data.liens : [],
       };
       if(reponse.suggestion) appliquerConfig(reponse);
       etat.messages.push(reponse);
