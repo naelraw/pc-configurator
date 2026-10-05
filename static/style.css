@@ -1923,6 +1923,9 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;
   display:flex; flex-direction:column; gap:12px; padding:16px;
 }
+/* Les messages et cartes gardent leur hauteur et le fil défile : sans ça,
+   une carte de config (overflow:hidden) était écrasée à 0 px, illisible. */
+.aide-fil > *, .chat-fil > *{ flex-shrink:0; }
 .aide-msg{ display:flex; }
 .aide-texte{ font-size:0.9rem; line-height:1.55; overflow-wrap:anywhere; }
 .aide-texte p + p{ margin-top:8px; }
