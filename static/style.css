@@ -1394,6 +1394,19 @@ footer{
 .footer-legal-links{ display:flex; gap:4px 16px; flex-wrap:wrap; }
 .footer-legal-links a{ color:var(--text-2); font-size:0.78rem; transition:color .2s var(--ease); }
 .footer-legal-links a:hover{ color:var(--text); }
+/* Bandeau d'avis (ajouté par nav-menu.js) */
+.footer-avis{
+  max-width:1200px; margin:0 auto; padding:18px 24px; border-bottom:1px solid var(--line);
+  display:flex; align-items:center; justify-content:space-between; gap:12px 24px; flex-wrap:wrap;
+}
+.footer-avis p{ font-size:0.86rem; color:var(--text-2); max-width:62ch; }
+.footer-avis p strong{ color:var(--text); font-weight:600; }
+.footer-avis .btn{ flex-shrink:0; }
+.footer-avis-etoiles{ color:var(--accent); letter-spacing:1px; }
+@media (max-width:640px){
+  .footer-avis{ padding:16px; }
+  .footer-avis .btn{ width:100%; justify-content:center; }
+}
 /* Pages sans .footer-inner (ancienne structure) */
 footer > p{ max-width:1200px; margin:0 auto; padding:16px 24px 0; }
 footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:8px 24px 18px; }
