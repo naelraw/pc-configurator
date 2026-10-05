@@ -1993,7 +1993,7 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .aide-texte li + li{ margin-top:3px; }
 
 /* Composants et configs proposés dans la bulle (avec un compte) */
-.aide-pieces, .aide-cfg ul{ list-style:none; margin:0; padding:0; }
+.aide-pieces{ list-style:none; margin:0; padding:0; }
 .aide-pieces{ display:flex; flex-direction:column; gap:8px; }
 .aide-piece{
   display:grid; grid-template-columns:44px 1fr; gap:4px 10px; align-items:center;
@@ -2025,21 +2025,24 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .aide-mini-ico:hover{ background:var(--surface-3); color:var(--text); }
 .aide-dedans{ font-size:0.76rem; color:var(--accent); white-space:nowrap; }
 
-.aide-cfg{ border:1px solid var(--line); border-radius:var(--r-md); background:var(--surface-2); overflow:hidden; }
-.aide-cfg-ligne{ display:flex; flex-direction:column; gap:2px; padding:9px 12px; border-bottom:1px solid var(--line); }
-.aide-cfg-bas{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.aide-cfg-vide{ font-size:0.82rem; color:var(--text-3); }
-.aide-cfg-total{ display:flex; align-items:baseline; gap:8px; padding:10px 12px 4px; font-size:0.84rem; color:var(--text-2); }
-.aide-cfg-total strong{ font-family:var(--font-mono); font-size:1.02rem; color:var(--text); }
-.aide-cfg-total em{ font-style:normal; font-size:0.76rem; color:var(--text-3); margin-left:auto; }
-.aide-cfg-boutons{ display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px 12px; }
-.aide-btn{
-  font:inherit; font-size:0.8rem; font-weight:500; cursor:pointer; text-decoration:none; text-align:center;
-  padding:7px 11px; border-radius:var(--r-sm); border:1px solid var(--line-strong); background:none; color:var(--text-2);
+/* Config appliquée directement depuis la bulle : ce qui a changé, et « Annuler ». */
+.aide-recap{
+  display:flex; flex-direction:column; gap:8px; padding:12px 14px;
+  border:1px solid var(--accent-line); border-radius:var(--r-md); background:var(--accent-soft); font-size:0.84rem;
 }
-.aide-btn:hover{ color:var(--text); border-color:var(--text-3); }
-.aide-btn-plein{ flex-basis:100%; background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600; }
-.aide-btn-plein:hover{ background:var(--accent-hover); color:var(--accent-ink); }
+.aide-recap-titre{ font-weight:600; color:var(--accent); }
+.aide-recap ul{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.aide-recap li{ display:flex; flex-direction:column; }
+.aide-recap li > span:not(.aide-piece-cat):not(.aide-piece-prix){ color:var(--text-2); }
+.aide-recap-pied{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-top:4px; color:var(--text-2); }
+.aide-recap-pied strong{ font-family:var(--font-mono); color:var(--text); }
+.aide-recap-pied a{ color:var(--accent); }
+.aide-recap-pied button{
+  margin-left:auto; font:inherit; font-size:0.8rem; cursor:pointer; padding:4px 10px; border-radius:999px;
+  border:1px solid var(--line-strong); background:var(--surface); color:var(--text-2);
+}
+.aide-recap-pied button:hover{ color:var(--text); border-color:var(--text-3); }
+.aide-recap-annule{ border-color:var(--line); background:var(--surface-2); color:var(--text-2); }
 .aide-fps{
   font-size:0.8rem; line-height:1.5; color:var(--text-2); padding:10px 12px;
   border:1px solid var(--line); background:var(--surface-2); border-radius:var(--r-sm);

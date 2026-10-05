@@ -2,9 +2,9 @@
  * Bulle d'aide PC Radar, en bas à droite de toutes les pages (chargée par
  * nav-menu.js).
  * - Avec un compte : c'est l'assistant IA (/api/assistant/chat, mode « aide ») :
- *   questions sur le site ET sur les PC, composants et configs complètes à
- *   mettre dans sa config en un clic (même brouillon que le configurateur),
- *   panier Amazon, partage.
+ *   questions sur le site ET sur les PC, composants à ajouter en un clic, et
+ *   configs ou changements demandés appliqués directement à sa config (même
+ *   brouillon que le configurateur), avec « Annuler ».
  * - Sans compte : questions sur le site seulement (/api/aide/chat), l'IA
  *   invite à créer un compte pour les composants et les configs.
  * Dans les deux cas, un problème décrit devient un ticket proposé, que la
@@ -46,7 +46,6 @@
   }
 
   var connecte = null;          // inconnu tant que /api/auth/me n'a pas répondu
-  var tagAmazon = '';
   var bouton, panneau, fil, champ, envoyer, enCours = false;
 
   function echapper(t){
@@ -169,9 +168,6 @@
       afficher();
       setTimeout(function(){ champ.focus(); }, 30);
       verifierCompte().then(function(){ if(!enCours) afficher(); });
-      if(!tagAmazon){
-        fetch('/api/config').then(function(r){ return r.json(); }).then(function(d){ tagAmazon = d.amazon_tag || ''; }).catch(function(){});
-      }
     }
   }
 
@@ -199,7 +195,7 @@
         return;
       }
       html += '<div class="aide-msg aide-ia' + (m.erreur ? ' aide-erreur' : '') + '"><div class="aide-texte">' + mettreEnForme(m.content) + '</div></div>';
-      if(m.suggestion) html += carteConfig(m, i, config);
+      if(m.suggestion) html += recapitulatif(m, i);
       else if((m.composants || []).length) html += listePieces(m, config);
       if(m.fps) html += '<div class="aide-fps"><b>Estimation FPS</b>' + echapper(m.fps).trim().replace(/\n/g, '<br>') + '</div>';
     });
@@ -232,33 +228,51 @@
     return lignes ? '<ul class="aide-pieces">' + lignes + '</ul>' : '';
   }
 
-  function carteConfig(m, index, config){
-    var s = m.suggestion, fiches = m.fiches || {}, total = 0, toutDedans = true;
-    var lignes = Object.keys(CHAMPS).map(function(champ){
-      var f = fiches[s[champ]];
+  // Une config proposée est mise directement dans la config de la personne
+  // (pas de confirmation) : on montre seulement ce qui a changé, avec
+  // « Annuler » pour revenir à la config d'avant.
+  function appliquerConfig(m){
+    var avant = lireConfig();
+    var apres = Object.assign({}, avant);
+    var changements = [], total = 0;
+    Object.keys(CHAMPS).forEach(function(champ){
+      var f = (m.fiches || {})[m.suggestion[champ]];
       if(!f){
-        if(champ === 'cooler_id') return s.ventirad_fourni ? '<li class="aide-cfg-ligne"><span class="aide-piece-cat">Refroidissement</span><span class="aide-cfg-vide">Ventirad fourni avec le processeur</span></li>' : '';
-        return '';
+        // Processeur vendu avec son ventirad : l'ancien refroidissement n'a plus lieu d'être.
+        if(champ === 'cooler_id' && m.suggestion.ventirad_fourni && apres.Refroidissement){
+          delete apres.Refroidissement;
+          changements.push({ categorie: 'Refroidissement', nom: 'ventirad fourni avec le processeur', prix: null });
+        }
+        return;
       }
       total += Number(f.prix_indicatif) || 0;
-      if(config[f.categorie] !== f.id) toutDedans = false;
-      return '<li class="aide-cfg-ligne">'
-        + '<span class="aide-piece-cat">' + echapper(CHAMPS[champ]) + '</span>'
-        + '<button type="button" class="aide-piece-nom" data-detail="' + f.id + '">' + echapper(f.nom) + '</button>'
-        + '<span class="aide-cfg-bas"><span class="aide-piece-prix">' + euros(f.prix_indicatif) + '</span>'
-        + '<span class="aide-piece-actions">' + etatAjout(f, config)
-        + '<button type="button" class="aide-mini aide-mini-ico" data-changer="' + index + '" data-champ="' + champ + '" title="Demander une autre option" aria-label="Autre choix">↻</button></span></span>'
-        + '</li>';
+      if(apres[f.categorie] !== f.id){
+        apres[f.categorie] = f.id;
+        changements.push({ categorie: CHAMPS[champ], nom: f.nom, prix: f.prix_indicatif, id: f.id });
+      }
+    });
+    ecrireConfig(apres);
+    m.avant = avant;
+    m.changements = changements;
+    m.total = total;
+    suivre('tout_ajouter');
+  }
+
+  function recapitulatif(m, index){
+    if(m.annule){
+      return '<div class="aide-recap aide-recap-annule">Changement annulé, ta config est revenue comme avant.</div>';
+    }
+    var lignes = (m.changements || []).map(function(c){
+      return '<li><span class="aide-piece-cat">' + echapper(c.categorie) + '</span>'
+        + (c.id ? '<button type="button" class="aide-piece-nom" data-detail="' + c.id + '">' + echapper(c.nom) + '</button>' : '<span>' + echapper(c.nom) + '</span>')
+        + (c.prix != null ? '<span class="aide-piece-prix">' + euros(c.prix) + '</span>' : '') + '</li>';
     }).join('');
-    return '<div class="aide-cfg"><ul>' + lignes + '</ul>'
-      + '<div class="aide-cfg-total"><span>Total</span><strong>' + euros(total) + '</strong>'
-      + (Number(s.budget_max) > 0 ? '<em>budget ' + euros(s.budget_max) + '</em>' : '') + '</div>'
-      + '<div class="aide-cfg-boutons">'
-      + (toutDedans
-          ? '<a class="aide-btn aide-btn-plein" href="/configurateur">Voir ma config</a>'
-          : '<button type="button" class="aide-btn aide-btn-plein" data-tout="' + index + '">Tout mettre dans ma config</button><a class="aide-btn" href="/configurateur">Voir ma config</a>')
-      + '<button type="button" class="aide-btn" data-amazon="' + index + '">Panier Amazon</button>'
-      + '<button type="button" class="aide-btn" data-partager="' + index + '">Partager</button>'
+    return '<div class="aide-recap">'
+      + '<div class="aide-recap-titre">✓ ' + (lignes ? 'Mis dans ta config' : 'Ta config contenait déjà tout ça') + '</div>'
+      + (lignes ? '<ul>' + lignes + '</ul>' : '')
+      + '<div class="aide-recap-pied"><span>Total <strong>' + euros(m.total) + '</strong></span>'
+      + (location.pathname === '/configurateur' ? '' : '<a href="/configurateur">Voir ma config</a>')
+      + (lignes ? '<button type="button" data-annuler="' + index + '">Annuler</button>' : '')
       + '</div></div>';
   }
 
@@ -300,34 +314,8 @@
     document.head.appendChild(s);
   }
 
-  function piecesDe(m){
-    return Object.keys(CHAMPS).map(function(c){ return (m.fiches || {})[m.suggestion[c]]; }).filter(Boolean);
-  }
 
-  function panierAmazon(m){
-    var avecAsin = piecesDe(m).filter(function(f){ return f.asin; });
-    if(!avecAsin.length) return;
-    var params = new URLSearchParams();
-    if(tagAmazon) params.set('AssociateTag', tagAmazon);
-    avecAsin.forEach(function(f, i){ params.set('ASIN.' + (i + 1), f.asin); params.set('Quantity.' + (i + 1), '1'); });
-    suivre('amazon');
-    window.open('https://www.amazon.fr/gp/aws/cart/add.html?' + params.toString(), '_blank', 'noopener');
-  }
 
-  function partager(m, b){
-    var ids = piecesDe(m).map(function(f){ return f.id; });
-    if(!ids.length) return;
-    var lien = location.origin + '/partage?c=' + ids.join('-');
-    suivre('partage');
-    if(navigator.share){
-      navigator.share({ title: 'Ma config PC', text: 'Regarde la config que PC Radar m’a proposée :', url: lien }).catch(function(){});
-      return;
-    }
-    (navigator.clipboard ? navigator.clipboard.writeText(lien) : Promise.reject()).then(function(){
-      b.textContent = 'Lien copié';
-      setTimeout(function(){ b.textContent = 'Partager'; }, 2500);
-    }).catch(function(){ window.prompt('Lien de ta config :', lien); });
-  }
 
   function clic(e){
     var t = e.target.closest('button, a');
@@ -338,18 +326,9 @@
     if(t.classList.contains('aide-ticket-envoyer')){ envoyerTicket(); return; }
     if(t.classList.contains('aide-ticket-annuler')){ etat.ticket = null; sauver(); afficher(); return; }
     var m;
-    if(t.hasAttribute('data-tout')){
-      m = etat.messages[Number(t.getAttribute('data-tout'))];
-      if(m && m.suggestion){ suivre('tout_ajouter'); ajouterPieces(piecesDe(m)); }
-      return;
-    }
-    if(t.hasAttribute('data-amazon')){ m = etat.messages[Number(t.getAttribute('data-amazon'))]; if(m && m.suggestion) panierAmazon(m); return; }
-    if(t.hasAttribute('data-partager')){ m = etat.messages[Number(t.getAttribute('data-partager'))]; if(m && m.suggestion) partager(m, t); return; }
-    if(t.hasAttribute('data-changer')){
-      m = etat.messages[Number(t.getAttribute('data-changer'))];
-      var champ = t.getAttribute('data-champ');
-      var f = m && m.suggestion && (m.fiches || {})[m.suggestion[champ]];
-      if(f) poser('Propose-moi un autre ' + CHAMPS[champ] + ' à la place de ' + f.nom + ' dans cette config.');
+    if(t.hasAttribute('data-annuler')){
+      m = etat.messages[Number(t.getAttribute('data-annuler'))];
+      if(m && m.avant){ ecrireConfig(m.avant); m.annule = true; sauver(); afficher.garderPosition = true; afficher(); }
     }
   }
 
@@ -411,13 +390,15 @@
     (connecte === null ? verifierCompte() : Promise.resolve()).then(function(){
       return demander(connecte);
     }).then(function(data){
-      etat.messages.push({
+      var reponse = {
         role: 'assistant', content: data.message || '',
         suggestion: data.suggestion || null,
         composants: Array.isArray(data.composants) ? data.composants : [],
         fiches: data.fiches || null,
         fps: data.fps_estimation || null,
-      });
+      };
+      if(reponse.suggestion) appliquerConfig(reponse);
+      etat.messages.push(reponse);
       etat.ticket = data.ticket || null;
     }).catch(function(err){
       etat.messages.push({ role: 'assistant', content: err.message, erreur: true });
@@ -429,7 +410,7 @@
       var bulles = fil.querySelectorAll('.aide-ia');
       var derniere = bulles[bulles.length - 1];
       var suite = derniere && derniere.nextElementSibling;
-      if(suite && /aide-cfg|aide-pieces/.test(suite.className)) fil.scrollTop = Math.max(0, derniere.offsetTop - 8);
+      if(suite && /aide-pieces/.test(suite.className)) fil.scrollTop = Math.max(0, derniere.offsetTop - 8);
       champ.focus();
     });
   }

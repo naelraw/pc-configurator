@@ -33,3 +33,21 @@ def test_version_du_site(client):
     r = client.get("/api/version")
     assert r.status_code == 200 and set(r.json()) == {"css", "pages"}
     assert r.headers["cache-control"] == "no-store"
+
+
+def test_la_piece_demandee_est_respectee(monkeypatch):
+    def b(id_, nom, formats, prix):
+        return {"id": id_, "categorie": "Boîtier", "nom": nom, "prix_indicatif": prix, "en_stock": True,
+                "specs": {"formats_supportes": formats}}
+    par_id = {c["id"]: c for c in (
+        b(1, "MSI MAG Forge 120A Airflow White", ["ATX", "Micro-ATX"], 66),
+        b(2, "NZXT H3 Flow White", ["Micro-ATX", "Mini-ITX"], 62),
+        b(3, "NZXT H5 Flow Black", ["ATX", "Micro-ATX"], 75),
+    )}
+    monkeypatch.setattr(main, "verify_compatibility", lambda s: {"compatible": True, "errors": []})
+    s, champs = main._respecter_demande({"case_id": 1}, "change le boîtier pour un NZXT blanc", par_id)
+    assert s["case_id"] == 2 and champs == ["case_id"]
+    s, _ = main._respecter_demande({"case_id": 3}, "un boîtier compact", par_id)
+    assert s["case_id"] == 2
+    s, champs = main._respecter_demande({"case_id": 1}, "mets un boîtier blanc", par_id)
+    assert s["case_id"] == 1 and champs == []          # déjà blanc : on ne touche à rien

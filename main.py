@@ -6861,6 +6861,73 @@ def _ligne_composant(c):
     return f"- id {c['id']}: [{c['categorie']}] {c['nom']}{' {' + ', '.join(utiles) + '}' if utiles else ''} ({c['prix_indicatif']}€){stock}"
 
 
+# Pièces citées dans une demande (« un boîtier blanc ») : champ de la config.
+CATEGORIES_CITEES = (
+    ("case_id", "Boîtier", r"bo[iî]tier|\bcase\b|\btour\b"),
+    (CHAMP_VENTIRAD, "Refroidissement", r"ventirad|refroidi|watercool|\baio\b|cooler"),
+    ("ram_id", "RAM", r"\bram\b|m[ée]moire vive|barrette"),
+    ("gpu_id", "GPU", r"carte graphique|\bgpu\b"),
+    ("motherboard_id", "Carte mère", r"carte m[eè]re|motherboard"),
+    ("psu_id", "Alimentation", r"\balim"),
+    ("storage_id", "Stockage", r"\bssd\b|stockage|disque"),
+)
+MARQUES_EN_DEUX_MOTS = ("be quiet", "lian li", "fractal design", "mars gaming", "cooler master", "deep cool", "g.skill")
+
+
+def _marque(c):
+    nom = (c.get("nom") or "").lower()
+    for marque in MARQUES_EN_DEUX_MOTS:
+        if nom.startswith(marque):
+            return marque
+    return nom.split()[0] if nom.split() else ""
+
+
+def _respecter_demande(suggestion, question, components_by_id):
+    """
+    L'IA choisit parfois une pièce qui ne correspond pas à la demande (« un
+    NZXT blanc » -> un MSI, « un boîtier compact » -> une grande tour) alors
+    que le catalogue a ce qu'il faut. Pour chaque pièce citée dans la demande,
+    le serveur vérifie la couleur, la marque et le format compact ; si la pièce
+    choisie ne colle pas, il prend la pièce compatible qui colle, au prix le
+    plus proche. Renvoie (suggestion, champs remplacés).
+    """
+    texte = (question or "").lower()
+    couleur = _couleur_demandee(texte)
+    remplaces = []
+    for champ, categorie, motif in CATEGORIES_CITEES:
+        if not re.search(motif, texte):
+            continue
+        options = [c for c in components_by_id.values()
+                   if c.get("categorie") == categorie and c.get("en_stock", True) and float(c.get("prix_indicatif") or 0) > 0]
+        # NVIDIA, AMD, Intel : fabricants de la puce (déjà gérés par marque_gpu / marque_cpu), pas la marque de la carte.
+        marques = {_marque(c) for c in options} - {"nvidia", "amd", "intel"}
+        marque = next((m for m in sorted(marques, key=len, reverse=True) if len(m) > 2 and re.search(r"\b" + re.escape(m) + r"\b", texte)), None)
+        compact = categorie == "Boîtier" and re.search(r"compact|petit|\bmini\b|\bitx\b|micro", texte)
+
+        def colle(c):
+            if couleur and categorie in CATEGORIES_COULEUR and _couleur(c) != couleur:
+                return False
+            if marque and _marque(c) != marque:
+                return False
+            if compact and any(f in ("ATX", "E-ATX") for f in (c.get("specs") or {}).get("formats_supportes") or ["ATX"]):
+                return False
+            return True
+
+        if not (couleur and categorie in CATEGORIES_COULEUR) and not marque and not compact:
+            continue
+        actuel = components_by_id.get(suggestion.get(champ))
+        if actuel and colle(actuel):
+            continue
+        reference = float((actuel or {}).get("prix_indicatif") or 0)
+        for c in sorted((c for c in options if colle(c)), key=lambda c: abs(float(c["prix_indicatif"]) - reference) if reference else float(c["prix_indicatif"])):
+            essai = {**suggestion, champ: c["id"]}
+            if verify_compatibility(essai)["compatible"]:
+                suggestion = essai
+                remplaces.append(champ)
+                break
+    return suggestion, remplaces
+
+
 def _composants_de_couleur(couleur, components, texte="", limite=36):
     """Composants en stock de la couleur demandée (un par produit), pour que
     l'IA les ait sous les yeux : seulement les catégories citées s'il y en a."""
@@ -6945,6 +7012,13 @@ Tu réponds ici dans la bulle d'aide du site (petite fenêtre en bas à droite),
   d'amélioration) : si c'est trop vague, pose UNE question courte (quelle page, quel composant, ce qui se
   passe). Dès que c'est clair, réponds avec la forme (1) en remplissant "ticket", et dis en une phrase que
   tu peux le transmettre à l'équipe avec le bouton ci-dessous (le visiteur confirme lui-même).
+- Ici, une config que tu proposes est MISE DIRECTEMENT dans la config de l'utilisateur (il peut annuler).
+  Dès qu'il demande de changer, mettre, ajouter ou remplacer une pièce (« mets un boîtier blanc », « change
+  la carte graphique pour une RTX », « ajoute un ventirad »), réponds avec la forme (2) en modification
+  ("modification": true) de sa config en cours (ou de la dernière que tu as proposée), en gardant toutes les
+  autres pièces. Dans "message", dis au passé ce que tu as changé, en une phrase (« J'ai mis le boîtier
+  … »). S'il n'a encore aucune config et demande une seule pièce, réponds avec la forme (1) en citant les
+  composants.
 """
             champ_ticket = (', "ticket": <null, ou pour un problème sur le site : {"categorie": "bug", "prix", '
                             '"compte", "suggestion", "question" ou "autre", "titre": "<moins de 80 caractères>", '
@@ -7086,6 +7160,9 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             return {"status": "ok", "message": result["message"]}
 
         suggestion = result["suggestion"]
+        suggestion, remplaces = _respecter_demande(suggestion, question, components_by_id)
+        if remplaces:
+            result["ajustee"] = True      # le texte de l'IA ne décrit plus forcément la bonne pièce
         message = str(suggestion.pop("message", "") or "Voici ce que je te propose :")
         suggestion.pop("type", None)
         precedente = derniere or ma_config
