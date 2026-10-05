@@ -80,3 +80,19 @@ def test_trop_d_essais_bloque_le_code(new_client):
     for _ in range(5):
         c.post("/api/auth/register/verifier", json={"email": "essais@test.fr", "code": faux})
     assert c.post("/api/auth/register/verifier", json={"email": "essais@test.fr", "code": bon}).status_code == 429
+
+
+def test_mots_de_passe_anciens_renforces_a_la_connexion(new_client):
+    import hashlib, main
+    sel = "ab" * 16
+    ancien = f"{sel}${hashlib.pbkdf2_hmac('sha256', b'motdepasse123', bytes.fromhex(sel), 260_000).hex()}"
+    assert main.verify_password("motdepasse123", ancien) and not main.verify_password("autre", ancien)
+    nouveau = main.hash_password("motdepasse123")
+    assert nouveau.startswith("pbkdf2$600000$") and main.verify_password("motdepasse123", nouveau)
+    db = sqlite3.connect(DB)
+    db.execute("INSERT INTO users (email, password_hash, created_at) VALUES ('ancien@test.fr', ?, '2026-01-01')", [ancien])
+    db.commit()
+    c = new_client("203.0.113.40")
+    assert c.post("/api/auth/login", json={"email": "ancien@test.fr", "password": "motdepasse123"}).status_code == 200
+    stocke = sqlite3.connect(DB).execute("select password_hash from users where email='ancien@test.fr'").fetchone()[0]
+    assert stocke.startswith("pbkdf2$600000$")

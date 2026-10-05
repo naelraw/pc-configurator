@@ -262,7 +262,7 @@
       if(data.status === 'ok'){
         fpsBox.innerHTML = PCFps.render(data);
       }else{
-        fpsBox.innerHTML = `<div class="no-price">${data.message || data.detail || "Estimation indisponible."}</div>`;
+        fpsBox.innerHTML = `<div class="no-price">${escapeHtml(typeof (data.message || data.detail) === "string" ? (data.message || data.detail) : "Estimation indisponible.")}</div>`;
       }
     }catch(e){
       fpsBox.innerHTML = `<div class="no-price">Erreur réseau lors de l'estimation.</div>`;

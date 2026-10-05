@@ -18,3 +18,9 @@ scratch_*.json
 *.zip
 *.deepnote
 skills-lock.json
+# Base de données et sauvegardes (jamais dans le dépôt public)
+data/
+*.db
+*.db-*
+backups/
+.env.*

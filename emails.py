@@ -233,6 +233,17 @@ def gabarit(titre, intro_html, contenu_html="", cta=None, note_html="", pied_htm
 SITE = "https://pcradar.tech"
 
 
+def alerte_admin(echecs, ips):
+    """Nombreux mauvais mots de passe admin en une heure."""
+    titre = "Tentatives répétées sur l'admin"
+    intro = (f"{echecs} mauvais mots de passe admin ont été essayés depuis une heure, depuis {ips} adresse"
+             f"{'s' if ips > 1 else ''} IP différente{'s' if ips > 1 else ''}. Si ce n'est pas toi, change le mot de passe "
+             "admin (ops/set_admin_secret.sh).")
+    texte = f"{titre}\n\n{intro}"
+    html_body = gabarit(titre, escape(intro), pied_html="E-mail automatique réservé à l'administration de PC Radar.")
+    return f"[PC Radar] {titre}", texte, html_body, banniere("Sécurité", titre)
+
+
 def code_inscription(code, minutes):
     """Code à 6 chiffres pour confirmer l'adresse à l'inscription."""
     titre = "Ton code pour créer ton compte"

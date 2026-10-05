@@ -230,7 +230,7 @@
         ` : '';
         fpsBox.innerHTML = PCFps.render(data) + suggestionHtml;
       }else{
-        fpsBox.innerHTML = `<div class="compat-result compat-fail">${data.message || data.detail || "Estimation indisponible."}</div>`;
+        fpsBox.innerHTML = `<div class="compat-result compat-fail">${escapeHtml(typeof (data.message || data.detail) === "string" ? (data.message || data.detail) : "Estimation indisponible.")}</div>`;
       }
     }catch(e){
       fpsBox.innerHTML = `<div class="compat-result compat-fail">Erreur réseau lors de l'estimation.</div>`;

@@ -1347,20 +1347,34 @@ def check_compatibility_route(payload: dict = Body(...)):
     return {"compatible": result["compatible"], "erreurs": result["errors"], "avertissements": result["warnings"]}
 
 
+PBKDF2_ITERATIONS = 600_000          # recommandation OWASP pour PBKDF2-HMAC-SHA256
+PBKDF2_ITERATIONS_ANCIENNES = 260_000
+
+
 def hash_password(password: str) -> str:
-    """PBKDF2-HMAC-SHA256 avec sel aléatoire par mot de passe. Format stocké : "sel$hash" (hex)."""
+    """PBKDF2-HMAC-SHA256 avec sel aléatoire par mot de passe.
+    Format stocké : "sel$hash" (ancien, 260 000 itérations) ou "pbkdf2$600000$sel$hash"."""
     salt = secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), 260_000)
-    return f"{salt}${digest.hex()}"
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), PBKDF2_ITERATIONS)
+    return f"pbkdf2${PBKDF2_ITERATIONS}${salt}${digest.hex()}"
 
 
 def verify_password(password: str, stored: str) -> bool:
     try:
-        salt, digest_hex = stored.split("$", 1)
+        if stored.startswith("pbkdf2$"):
+            _, iterations, salt, digest_hex = stored.split("$", 3)
+            iterations = int(iterations)
+        else:
+            salt, digest_hex = stored.split("$", 1)
+            iterations = PBKDF2_ITERATIONS_ANCIENNES
+        computed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), iterations)
     except ValueError:
         return False
-    computed = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), bytes.fromhex(salt), 260_000)
     return secrets.compare_digest(computed.hex(), digest_hex)
+
+
+def password_a_renforcer(stored: str) -> bool:
+    return not stored.startswith(f"pbkdf2${PBKDF2_ITERATIONS}$")
 
 
 def get_current_user(request: Request):
@@ -1542,6 +1556,15 @@ def login(request: Request, payload: dict = Body(...)):
         raise HTTPException(status_code=401, detail="E-mail ou mot de passe incorrect.")
 
     user_id = result.rows[0][0]
+    if password_a_renforcer(result.rows[0][1]):
+        # Ancien format (260 000 itérations) : réenregistré au format actuel.
+        client = get_client()
+        try:
+            client.execute("UPDATE users SET password_hash = ? WHERE id = ?", [hash_password(password), user_id])
+        except Exception as err:
+            print(f"Mot de passe non renforcé : {err}")
+        finally:
+            client.close()
     request.session["user"] = {"id": user_id, "email": email}
     return {"status": "ok", "email": email}
 
@@ -2630,7 +2653,30 @@ def require_admin(request: Request, x_admin_secret: str = Header(default="")):
     _check_rate_limit("admin", request, limit=10, window_seconds=15 * 60)
     if not ADMIN_SECRET or not secrets.compare_digest(x_admin_secret.encode(), ADMIN_SECRET.encode()):
         _record_attempt("admin", request)
+        _alerter_essais_admin()
         raise HTTPException(status_code=401, detail="Accès admin refusé.")
+
+
+ALERTE_ADMIN_ESSAIS = 20      # mauvais mots de passe admin en une heure, toutes adresses IP confondues
+
+
+def _alerter_essais_admin():
+    """La limite par IP n'arrête pas quelqu'un qui change d'adresse : au-delà de
+    20 échecs en une heure au total, un e-mail prévient l'admin (une fois par heure)."""
+    client = get_client()
+    try:
+        echecs, ips = client.execute("SELECT COUNT(*), COUNT(DISTINCT ip) FROM auth_attempts WHERE bucket = 'admin' AND ts > ?",
+                                     [time.time() - 3600]).rows[0]
+    except Exception:
+        return
+    finally:
+        client.close()
+    if echecs < ALERTE_ADMIN_ESSAIS or not ADMIN_EMAIL:
+        return
+    if time.time() - float(_state_get("derniere_alerte_admin", 0) or 0) < 3600:
+        return
+    _state_set("derniere_alerte_admin", time.time())
+    send_site_email_later(ADMIN_EMAIL, emails.alerte_admin, echecs, ips)
 
 
 @app.get("/admin")
