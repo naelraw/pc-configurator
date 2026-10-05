@@ -101,8 +101,8 @@
       document.body.appendChild(aide);
     }
 
-    // Lien d'avis tout à droite du pied de page, sur toutes les pages (les
-    // liens légaux ne bougent pas). Simple lien vers la page d'avis Trustpilot :
+    // Lien d'avis en premier dans les liens du pied de page, en petit bouton
+    // bien visible, sur toutes les pages (les liens légaux gardent leur ordre). Simple lien vers la page d'avis Trustpilot :
     // leur widget charge un script et des cookies tiers, bloqués par la CSP et
     // contraires à la page Cookies.
     var pied = document.querySelector('footer .footer-legal-links') || document.querySelector('footer');
@@ -113,8 +113,8 @@
       avis.target = '_blank';
       avis.rel = 'noopener';
       avis.title = 'PC Radar t’a été utile ? Ton avis aide un petit site indépendant';
-      avis.innerHTML = '<span aria-hidden="true">★</span> Laisser un avis';
-      pied.appendChild(avis);
+      avis.innerHTML = '<span aria-hidden="true">★★★★★</span> Laisser un avis';
+      pied.insertBefore(avis, pied.firstChild);
     }
 
     var wrap = document.querySelector('header .nav-wrap');

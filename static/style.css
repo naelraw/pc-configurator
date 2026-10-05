@@ -1394,12 +1394,15 @@ footer{
 .footer-legal-links{ display:flex; gap:4px 16px; flex-wrap:wrap; justify-content:flex-end; }
 .footer-legal-links a{ color:var(--text-2); font-size:0.78rem; transition:color .2s var(--ease); }
 .footer-legal-links a:hover{ color:var(--text); }
-/* Lien d'avis (ajouté par nav-menu.js), tout à droite du pied de page */
-.footer-legal-links .footer-avis, .footer-avis{ color:var(--text); font-size:0.78rem; font-weight:500; white-space:nowrap; transition:color .2s var(--ease); }
-.footer-legal-links .footer-avis{ padding-left:16px; border-left:1px solid var(--line-strong); }
-.footer-legal-links .footer-avis:hover{ color:var(--accent); }
-.footer-avis span{ color:var(--accent); }
-.footer-avis:hover{ color:var(--accent); }
+/* Lien d'avis (ajouté par nav-menu.js), en premier dans les liens du pied de page */
+.footer-legal-links .footer-avis, .footer-avis{
+  display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; white-space:nowrap;
+  font-size:0.8rem; font-weight:600; color:var(--accent); background:var(--accent-soft); border:1px solid var(--accent-line);
+  transition:background .2s var(--ease), color .2s var(--ease);
+}
+.footer-avis span{ letter-spacing:1px; font-size:0.74rem; }
+.footer-legal-links .footer-avis:hover, .footer-avis:hover{ background:var(--accent); color:var(--accent-ink); }
+.footer-legal-links{ align-items:center; }
 footer > .footer-avis{ display:block; max-width:1200px; margin:0 auto; padding:0 24px 18px; }
 /* Pages sans .footer-inner (ancienne structure) */
 footer > p{ max-width:1200px; margin:0 auto; padding:16px 24px 0; }
