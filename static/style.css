@@ -1388,16 +1388,19 @@ footer{
   max-width:1200px; margin:0 auto; padding:16px 24px 18px;
   display:flex; justify-content:space-between; align-items:center; gap:10px 24px; flex-wrap:wrap;
 }
-.footer-brand{ display:flex; flex-direction:column; gap:2px; max-width:78ch; }
+.footer-brand{ display:flex; flex-direction:column; gap:2px; max-width:78ch; flex:1 1 320px; min-width:0; }
 .footer-brand strong{ color:var(--text); font-weight:600; font-size:0.85rem; }
 .footer-brand .footer-amazon{ font-size:0.72rem; color:var(--text-3); }
-.footer-legal-links{ display:flex; gap:4px 16px; flex-wrap:wrap; }
+.footer-legal-links{ display:flex; gap:4px 16px; flex-wrap:wrap; justify-content:flex-end; }
 .footer-legal-links a{ color:var(--text-2); font-size:0.78rem; transition:color .2s var(--ease); }
 .footer-legal-links a:hover{ color:var(--text); }
-/* Lien d'avis (ajouté par nav-menu.js) */
-.footer-legal-links a.footer-avis{ color:var(--text); font-weight:500; }
+/* Lien d'avis (ajouté par nav-menu.js), tout à droite du pied de page */
+.footer-legal-links .footer-avis, .footer-avis{ color:var(--text); font-size:0.78rem; font-weight:500; white-space:nowrap; transition:color .2s var(--ease); }
+.footer-legal-links .footer-avis{ padding-left:16px; border-left:1px solid var(--line-strong); }
+.footer-legal-links .footer-avis:hover{ color:var(--accent); }
 .footer-avis span{ color:var(--accent); }
-.footer-legal-links a.footer-avis:hover{ color:var(--accent); }
+.footer-avis:hover{ color:var(--accent); }
+footer > .footer-avis{ display:block; max-width:1200px; margin:0 auto; padding:0 24px 18px; }
 /* Pages sans .footer-inner (ancienne structure) */
 footer > p{ max-width:1200px; margin:0 auto; padding:16px 24px 0; }
 footer > .footer-legal-links{ max-width:1200px; margin:0 auto; padding:8px 24px 18px; }

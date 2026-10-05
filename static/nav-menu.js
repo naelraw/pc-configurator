@@ -101,11 +101,12 @@
       document.body.appendChild(aide);
     }
 
-    // Lien d'avis discret dans les liens du pied de page, sur toutes les pages.
-    // Simple lien vers la page d'avis Trustpilot : leur widget charge un script
-    // et des cookies tiers, bloqués par la CSP et contraires à la page Cookies.
-    var liensPied = document.querySelector('footer .footer-legal-links');
-    if(liensPied && !liensPied.querySelector('.footer-avis')){
+    // Lien d'avis tout à droite du pied de page, sur toutes les pages (les
+    // liens légaux ne bougent pas). Simple lien vers la page d'avis Trustpilot :
+    // leur widget charge un script et des cookies tiers, bloqués par la CSP et
+    // contraires à la page Cookies.
+    var pied = document.querySelector('footer .footer-legal-links') || document.querySelector('footer');
+    if(pied && !pied.querySelector('.footer-avis')){
       var avis = document.createElement('a');
       avis.className = 'footer-avis';
       avis.href = 'https://fr.trustpilot.com/evaluate/pcradar.tech';
@@ -113,7 +114,7 @@
       avis.rel = 'noopener';
       avis.title = 'PC Radar t’a été utile ? Ton avis aide un petit site indépendant';
       avis.innerHTML = '<span aria-hidden="true">★</span> Laisser un avis';
-      liensPied.insertBefore(avis, liensPied.firstChild);
+      pied.appendChild(avis);
     }
 
     var wrap = document.querySelector('header .nav-wrap');
