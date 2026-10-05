@@ -3518,6 +3518,23 @@ def _marquer_vitrine(component_id, vitrine):
     _state_set("fiches_vitrine", vitrines)
 
 
+# Une fiche épuisée n'a plus d'entrée Amazon, donc plus de date de relevé :
+# sans cette date mémorisée à part, elle passait en tête de la rotation CHAQUE
+# nuit et occupait presque toutes les places Bright Data (le seul service
+# fiable), au détriment des fiches en stock. Elle tourne maintenant comme les
+# autres, selon la date de sa dernière vérification.
+def _noter_verification_epuise(component_id, epuise):
+    dates = _state_get("epuises_verifies", {})
+    cle = str(component_id)
+    if epuise:
+        dates[cle] = datetime.utcnow().date().isoformat()
+    elif cle in dates:
+        dates.pop(cle)
+    else:
+        return
+    _state_set("epuises_verifies", dates)
+
+
 # Garde-fous communs à tous les fournisseurs (mêmes seuils que les « prix
 # suspects » de l'admin) : un prix hors de [0,5 ; 1,6] × le dernier prix connu
 # est revérifié TOUT DE SUITE par un deuxième service. S'ils sont d'accord
@@ -3614,6 +3631,7 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
 
     remis_en_stock = prix_trouve and not was_en_stock
     passe_epuise = not prix_trouve and was_en_stock
+    _noter_verification_epuise(component_id, not prix_trouve)
 
     # Pas de détourage automatique (voir le commentaire dans
     # admin_fetch_asin) : on prend l'image fraîchement récupérée telle
@@ -3699,6 +3717,29 @@ BRIGHTDATA_MONTHLY_QUOTA = 5000       # fiches
 BRIGHTDATA_ADDITION_RESERVE = 100     # fiches gardées pour les ajouts (~3 par jour)
 ZENROWS_MONTHLY_CREDITS = 5000        # crédits (10 par fiche Amazon)
 APIFY_MONTHLY_ITEMS = 20000           # ~4 $ sur les 5 $ offerts chaque mois
+# Depuis octobre 2026, Amazon bloque une bonne partie des lancements Apify
+# (page anti-robot sur tout le lot : 0 prix lu) et un lot bloqué coûte PLUS
+# cher qu'un lot réussi. Compter les fiches ne suffit donc plus : la dépense
+# réelle en dollars est lue chez Apify et étalée sur les jours restants de
+# son cycle (du 22 au 21), pour ne jamais atteindre la coupure à 5 $.
+APIFY_CREDIT_USD = 5.0
+APIFY_CREDIT_MARGE_USD = 0.3
+
+
+def _apify_credit():
+    """(dépense du cycle en $, jours restants du cycle) lus chez Apify, ou None."""
+    if not APIFY_API_TOKEN:
+        return None
+    try:
+        r = requests.get("https://api.apify.com/v2/users/me/limits", params={"token": APIFY_API_TOKEN}, timeout=20)
+        r.raise_for_status()
+        data = r.json()["data"]
+        fin = datetime.fromisoformat(data["monthlyUsageCycle"]["endAt"].replace("Z", "+00:00")).replace(tzinfo=None)
+        jours = max(1, -(-(fin - datetime.utcnow()).total_seconds() // 86400))
+        return float(data["current"]["monthlyUsageUsd"]), int(jours)
+    except Exception as err:
+        print(f"Crédit Apify illisible : {err}")
+        return None
 
 
 def _current_month():
@@ -3879,6 +3920,24 @@ def admin_quotas(_admin=Depends(require_admin)):
     }
 
 
+def _compter_en_stock_a_jour():
+    """Fiches en stock et leur fraîcheur : {total, aujourd_hui, moins_de_3_jours}."""
+    client = get_client()
+    try:
+        rows = client.execute("SELECT prix_marche_json FROM components WHERE en_stock = 1 AND asin IS NOT NULL AND asin != ''").rows
+    finally:
+        client.close()
+    aujourd_hui = datetime.utcnow().date()
+    dates = [_last_amazon_check_date(row[0]) for row in rows]
+    def age(d):
+        try:
+            return (aujourd_hui - datetime.fromisoformat(d).date()).days
+        except ValueError:
+            return 99
+    return {"total": len(rows), "aujourd_hui": sum(age(d) == 0 for d in dates),
+            "moins_de_3_jours": sum(age(d) <= 2 for d in dates)}
+
+
 def _last_amazon_check_date(prix_marche_json):
     try:
         prix_marche = json.loads(prix_marche_json) if prix_marche_json else []
@@ -3917,7 +3976,8 @@ def _run_daily_price_refresh_rotation():
     if not rows:
         return {"updated": 0, "errors": [], "remis_en_stock": 0, "passes_epuises": 0}
 
-    rows_sorted = sorted(rows, key=lambda row: _last_amazon_check_date(row[3]))
+    epuises_verifies = _state_get("epuises_verifies", {})
+    rows_sorted = sorted(rows, key=lambda row: _last_amazon_check_date(row[3]) or epuises_verifies.get(str(row[0]), ""))
 
     brightdata_rows = rows_sorted[:refresh_allowance("brightdata")] if BRIGHTDATA_API_TOKEN else []
     reste = rows_sorted[len(brightdata_rows):]
@@ -3927,6 +3987,9 @@ def _run_daily_price_refresh_rotation():
     tentes = len(brightdata_rows) + len(zenrows_rows) + len(apify_rows)
 
     updated = 0
+    prix_lus = 0
+    bloques_apify = 0
+    reportes = 0
     remis_en_stock = 0
     passes_epuises = 0
     errors = []
@@ -3975,6 +4038,7 @@ def _run_daily_price_refresh_rotation():
                 if outcome["passe_epuise"]:
                     passes_epuises += 1
                 updated += 0 if outcome.get("ignore") else 1
+                prix_lus += 1 if info.get("prix") is not None and not outcome.get("ignore") else 0
 
         for row in zenrows_rows:
             component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
@@ -3998,6 +4062,7 @@ def _run_daily_price_refresh_rotation():
             if outcome["passe_epuise"]:
                 passes_epuises += 1
             updated += 0 if outcome.get("ignore") else 1
+            prix_lus += 1 if info.get("prix") is not None and not outcome.get("ignore") else 0
 
         # Par lots de APIFY_MAX_ROWS_PER_RUN. Un lot en échec (panne, crédit
         # épuisé) ne touche à RIEN : ses composants seront repris à un prochain
@@ -4011,12 +4076,28 @@ def _run_daily_price_refresh_rotation():
         for row in ignorees:
             errors.append(f"{row[1]} ({row[2]}) : fiche vitrine (pas d'offre Amazon), laissée à Bright Data.")
         apify_rows = [row for row in apify_rows if str(row[0]) not in vitrines]
+        tentes -= len(ignorees)
+        credit = _apify_credit() if apify_rows else None
+        budget_jour = None
+        if credit:
+            depense_debut, jours = credit
+            budget_jour = max(0.0, APIFY_CREDIT_USD - APIFY_CREDIT_MARGE_USD - depense_debut) / jours
         for start in range(0, len(apify_rows), APIFY_MAX_ROWS_PER_RUN):
             batch = apify_rows[start:start + APIFY_MAX_ROWS_PER_RUN]
+            # Budget du jour en dollars atteint : le reste attend demain (ces
+            # fiches restent les plus anciennes, donc passent en premier).
+            if budget_jour is not None:
+                actuel = _apify_credit()
+                if actuel and actuel[0] - depense_debut >= budget_jour:
+                    reportes = len(apify_rows) - start
+                    tentes -= reportes
+                    errors.append(f"Apify : budget du jour atteint ({budget_jour:.2f} $), {reportes} fiche(s) reportée(s) au prochain passage.")
+                    break
             try:
                 results_by_asin = fetch_amazon_products_apify([row[2] for row in batch])
             except Exception as error:
                 errors.append(f"Apify (lot de {len(batch)}, ignoré) : {error}")
+                bloques_apify += len(batch)
                 continue
 
             for row in batch:
@@ -4025,7 +4106,8 @@ def _run_daily_price_refresh_rotation():
                 )
                 info = results_by_asin.get(asin)
                 if info is None or info.get("prix") is None:
-                    errors.append(f"{nom} ({asin}) : prix non lu par Apify, stock inchangé.")
+                    errors.append(f"{nom} ({asin}) : prix non lu par Apify (page bloquée par Amazon), stock inchangé.")
+                    bloques_apify += 1
                     continue
                 outcome = _apply_amazon_price_info(
                     client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
@@ -4038,10 +4120,12 @@ def _run_daily_price_refresh_rotation():
                 if outcome["passe_epuise"]:
                     passes_epuises += 1
                 updated += 0 if outcome.get("ignore") else 1
+                prix_lus += 1 if info.get("prix") is not None and not outcome.get("ignore") else 0
     finally:
         client.close()
 
-    return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises, "tentes": tentes}
+    return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises,
+            "tentes": tentes, "prix_lus": prix_lus, "bloques": bloques_apify, "reportes": reportes}
 
 
 PRICE_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60
@@ -4107,6 +4191,8 @@ async def price_refresh_loop():
                     "duree_min": round((datetime.utcnow() - debut).total_seconds() / 60),
                     "mis_a_jour": stats["updated"], "tentes": stats.get("tentes"), "remis_en_stock": stats["remis_en_stock"],
                     "passes_epuises": stats["passes_epuises"], "erreurs": len(stats["errors"]),
+                    "prix_lus": stats.get("prix_lus"), "bloques": stats.get("bloques"), "reportes": stats.get("reportes"),
+                    "en_stock": _compter_en_stock_a_jour(),
                     "exemples_erreurs": stats["errors"][:8],
                 })
                 invalidate_catalog()

@@ -235,9 +235,21 @@
         const p = quotas && quotas.dernier_passage;
         if(!p) return kpi('Mise à jour des prix', '—', 'pas encore de bilan');
         const quand = new Date(p.date + 'Z').toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-        return kpi('Mise à jour des prix', nombre(p.mis_a_jour),
-          `prix revérifiés le ${quand} · ${nombre(p.erreurs)} non lus${p.passes_epuises ? ` · ${nombre(p.passes_epuises)} épuisés` : ''}`,
-          p.mis_a_jour ? 'is-ok' : 'is-alert');
+        if(p.prix_lus == null){
+          return kpi('Mise à jour des prix', nombre(p.mis_a_jour),
+            `prix revérifiés le ${quand} · ${nombre(p.erreurs)} non lus${p.passes_epuises ? ` · ${nombre(p.passes_epuises)} épuisés` : ''}`,
+            p.mis_a_jour ? 'is-ok' : 'is-alert');
+        }
+        // Les fiches bloquées par Amazon ou reportées (budget du jour) restent
+        // les plus anciennes : elles passent en premier la nuit suivante.
+        const s = p.en_stock || {};
+        const details = [`relus le ${quand}`];
+        if(s.total) details.push(`${nombre(s.moins_de_3_jours)} / ${nombre(s.total)} fiches en stock vérifiées depuis moins de 3 jours`);
+        if(p.bloques) details.push(`${nombre(p.bloques)} bloqués par Amazon`);
+        if(p.reportes) details.push(`${nombre(p.reportes)} reportés`);
+        if(p.passes_epuises) details.push(`${nombre(p.passes_epuises)} passés épuisés`);
+        details.push('les non lus passent en priorité la nuit suivante');
+        return kpi('Prix relus cette nuit', nombre(p.prix_lus), details.join(' · '), p.prix_lus ? 'is-ok' : 'is-alert');
       })(),
     ].join('');
 
