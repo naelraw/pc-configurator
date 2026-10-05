@@ -6503,12 +6503,18 @@ class ChatMessage(BaseModel):
     content: str = Field(max_length=MAX_USER_INPUT * 2)
 
 
+class TicketConnu(BaseModel):
+    id: int
+    jeton: str = Field(max_length=64)
+
+
 class AssistantChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=40)
     derniere_config: dict | None = None     # dernière config proposée dans la discussion
     ma_config: dict | None = None           # config en cours de la personne ({catégorie: id})
     aide: bool = False                      # bulle d'aide : aussi les questions sur le site et les tickets
     page: str | None = Field(default=None, max_length=300)
+    tickets: list[TicketConnu] | None = Field(default=None, max_length=20)   # tickets envoyés depuis ce navigateur
 
 
 # ---------------------------------------------------------------------------
@@ -6563,6 +6569,7 @@ Contact : contact.pcradar@gmail.com. Données hébergées en France."""
 class AideRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=30)
     page: str | None = Field(default=None, max_length=300)
+    tickets: list[TicketConnu] | None = Field(default=None, max_length=20)
 
 
 class TicketRequest(BaseModel):
@@ -6606,8 +6613,68 @@ def _preparer_tickets():
                 note_admin TEXT
             )
         """)
+        colonnes = [r[1] for r in client.execute("PRAGMA table_info(tickets)").rows]
+        if "jeton" not in colonnes:
+            client.execute("ALTER TABLE tickets ADD COLUMN jeton TEXT")
     finally:
         client.close()
+
+
+TICKET_STATUTS_TEXTE = {"ouvert": "reçu, pas encore traité", "en_cours": "en cours de traitement", "resolu": "résolu"}
+
+
+def _tickets_du_visiteur(user, tickets_connus):
+    """Tickets que ce visiteur a envoyés : ceux de son compte, et ceux envoyés
+    depuis ce navigateur (numéro + jeton secret reçu à l'envoi). Jamais ceux des autres."""
+    _preparer_tickets()
+    client = get_client()
+    try:
+        lignes = []
+        if user and user.get("id"):
+            lignes += client.execute("SELECT id, date, statut, titre FROM tickets WHERE user_id = ? ORDER BY id DESC LIMIT 10",
+                                     [user["id"]]).rows
+        for t in (tickets_connus or [])[:20]:
+            lignes += client.execute("SELECT id, date, statut, titre FROM tickets WHERE id = ? AND jeton = ?",
+                                     [t.id, t.jeton]).rows
+    finally:
+        client.close()
+    vus, resultat = set(), []
+    for r in sorted(lignes, key=lambda r: -r[0]):
+        if r[0] not in vus:
+            vus.add(r[0])
+            resultat.append({"id": r[0], "date": r[1], "statut": r[2], "titre": r[3]})
+    return resultat
+
+
+def _texte_tickets(tickets):
+    if not tickets:
+        return "  (aucun ticket envoyé par ce visiteur)"
+    return "\n".join(f"  - n° {t['id']} du {t['date'][8:10]}/{t['date'][5:7]} : « {t['titre']} », "
+                     f"{TICKET_STATUTS_TEXTE.get(t['statut'], t['statut'])}" for t in tickets)
+
+
+REGLES_TICKETS = """- Tickets déjà envoyés par ce visiteur (seule source fiable, ne parle jamais d'un autre) :
+{tickets}
+  S'il demande où en est un ticket, réponds avec cette liste (numéro, sujet, statut). Si le numéro
+  n'y est pas, dis-le simplement (le ticket n'a peut-être pas été envoyé : il faut cliquer sur
+  « Envoyer à l'équipe » sous le formulaire). L'équipe répond par e-mail quand une adresse a été laissée.
+- S'il demande EXPLICITEMENT à créer, ouvrir ou envoyer un ticket, remplis "ticket" TOUT DE SUITE avec ce
+  que tu sais (même peu) : le formulaire s'affiche et il complète les détails lui-même. Ne pose pas de
+  question avant dans ce cas."""
+
+
+def _demande_un_ticket(question):
+    """« crée-moi un ticket », « tu peux ouvrir un ticket », « fais un ticket stp »..."""
+    texte = (question or "").lower()
+    return bool(re.search(r"\b(cr[ée]\w*|ouvr\w*|fai\w*|envo\w*|nouveau|signal\w*|met\w*)\b\W+(?:\w+\W+){0,3}tickets?\b", texte)
+                or re.search(r"\btickets?\b.{0,20}\b(stp|svp|s'il)", texte))
+
+
+def _ticket_par_defaut(question, messages):
+    """Formulaire pré-rempli quand le visiteur demande un ticket et que l'IA n'en a pas proposé."""
+    precedents = [m.content.strip() for m in messages[:-1] if m.role == "user" and m.content.strip()]
+    return {"categorie": "autre", "titre": "Demande d'aide",
+            "description": ("\n".join(precedents[-3:]) or question)[:3000]}
 
 
 def _ticket_propose(ticket, question):
@@ -6645,8 +6712,10 @@ def aide_chat(body: AideRequest, request: Request):
         f"{'Utilisateur' if m.role == 'user' else 'Assistant'} : {m.content.strip()[:CHAT_MAX_CHARS]}"
         for m in messages[:-1]
     ) or "(début de la discussion)"
-    connecte = bool(get_current_user(request))
+    user = get_current_user(request)
+    connecte = bool(user)
     page = (body.page or "").strip()[:300] or "inconnue"
+    regles_tickets = REGLES_TICKETS.format(tickets=_texte_tickets(_tickets_du_visiteur(user, body.tickets)))
 
     prompt = f"""Tu es l'aide de PC Radar : une petite bulle d'aide en bas à droite du site. Tu aides les visiteurs à
 utiliser le site et tu recueilles les problèmes qu'ils rencontrent. Ton : sympa, simple, en français, en
@@ -6672,6 +6741,7 @@ Règles :
   page, quel composant, ce qui se passe exactement). Dès que c'est assez clair, propose un ticket en
   remplissant "ticket" et dis en une phrase que tu peux le transmettre à l'équipe avec le bouton
   ci-dessous. Ne dis jamais qu'un ticket est déjà envoyé : c'est le visiteur qui confirme.
+{regles_tickets}
 - Hors sujet complet : réponds brièvement et poliment, sans inventer, puis rappelle que tu es là pour
   aider sur PC Radar.
 - Tu ne peux rien modifier toi-même (compte, prix, commandes) et PC Radar ne vend rien : les achats,
@@ -6699,7 +6769,10 @@ ou, pour proposer un ticket :
         # Réponse en texte simple au lieu du JSON demandé : on la garde telle quelle.
         data = {"message": brut.strip()} if brut and "{" not in brut else {}
     message = str(data.get("message") or "").strip() or "Je n'ai pas compris, tu peux reformuler ?"
-    return {"status": "ok", "message": message[:2000], "ticket": _ticket_propose(data.get("ticket"), question)}
+    ticket = _ticket_propose(data.get("ticket"), question)
+    if not ticket and _demande_un_ticket(question):
+        ticket = _ticket_par_defaut(question, messages)
+    return {"status": "ok", "message": message[:2000], "ticket": ticket}
 
 
 @app.post("/api/aide/ticket")
@@ -6712,14 +6785,15 @@ def aide_ticket(body: TicketRequest, request: Request):
         raise HTTPException(status_code=422, detail="Adresse e-mail invalide.")
     categorie = body.categorie if body.categorie in TICKET_CATEGORIES else "autre"
     discussion = [{"role": m.role, "content": m.content[:CHAT_MAX_CHARS]} for m in (body.discussion or [])][-20:]
+    jeton = secrets.token_urlsafe(16)
     _preparer_tickets()
     client = get_client()
     try:
         client.execute(
-            "INSERT INTO tickets (date, statut, categorie, titre, description, page, email, user_id, discussion_json) "
-            "VALUES (?, 'ouvert', ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tickets (date, statut, categorie, titre, description, page, email, user_id, discussion_json, jeton) "
+            "VALUES (?, 'ouvert', ?, ?, ?, ?, ?, ?, ?, ?)",
             [datetime.utcnow().isoformat(timespec="seconds"), categorie, body.titre.strip(), body.description.strip(),
-             (body.page or "")[:300] or None, email, user.get("id"), json.dumps(discussion, ensure_ascii=False)],
+             (body.page or "")[:300] or None, email, user.get("id"), json.dumps(discussion, ensure_ascii=False), jeton],
         )
         numero = client.execute("SELECT MAX(id) FROM tickets").rows[0][0]
     finally:
@@ -6729,7 +6803,7 @@ def aide_ticket(body: TicketRequest, request: Request):
             "id": numero, "categorie": TICKET_CATEGORIES[categorie], "titre": body.titre.strip(),
             "description": body.description.strip(), "page": body.page, "email": email,
         }, f"{SITE_URL}/admin#tickets")
-    return {"status": "ok", "id": numero}
+    return {"status": "ok", "id": numero, "jeton": jeton}
 
 
 @app.get("/api/admin/tickets")
@@ -7094,6 +7168,7 @@ Tu réponds ici dans la bulle d'aide du site (petite fenêtre en bas à droite),
   d'amélioration) : si c'est trop vague, pose UNE question courte (quelle page, quel composant, ce qui se
   passe). Dès que c'est clair, réponds avec la forme (1) en remplissant "ticket", et dis en une phrase que
   tu peux le transmettre à l'équipe avec le bouton ci-dessous (le visiteur confirme lui-même).
+{REGLES_TICKETS.format(tickets=_texte_tickets(_tickets_du_visiteur(_user, request.tickets)))}
 - Ici, une config que tu proposes est MISE DIRECTEMENT dans la config de l'utilisateur (il peut annuler).
   Dès qu'il demande de changer, mettre, ajouter ou remplacer une pièce (« mets un boîtier blanc », « change
   la carte graphique pour une RTX », « ajoute un ventirad »), réponds avec la forme (2) en modification
@@ -7247,6 +7322,8 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
                                                 ids_cites, components_by_id)}
             if request.aide:
                 reponse["ticket"] = _ticket_propose(result.get("ticket"), question)
+                if not reponse["ticket"] and _demande_un_ticket(question):
+                    reponse["ticket"] = _ticket_par_defaut(question, messages)
                 reponse["fiches"] = _fiches_courtes(ids_cites[:6], components_by_id)
             return reponse
         if result["status"] == "error":

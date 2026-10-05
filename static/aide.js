@@ -379,13 +379,28 @@
     });
   }
 
+  // Tickets envoyés depuis ce navigateur (numéro + code secret donné par le
+  // serveur) : l'IA peut dire où ils en sont, même sans compte.
+  var CLE_TICKETS = 'pcr-tickets';
+  function mesTickets(){
+    try{
+      var liste = JSON.parse(localStorage.getItem(CLE_TICKETS) || '[]');
+      return Array.isArray(liste) ? liste.slice(-20) : [];
+    }catch(e){ return []; }
+  }
+  function memoriserTicket(id, jeton){
+    var liste = mesTickets().filter(function(t){ return t.id !== id; });
+    liste.push({ id: id, jeton: jeton });
+    try{ localStorage.setItem(CLE_TICKETS, JSON.stringify(liste.slice(-20))); }catch(e){}
+  }
+
   function demander(avecCompte){
     var derniere = null;
     for(var i = etat.messages.length - 1; i >= 0; i--){ if(etat.messages[i].suggestion){ derniere = etat.messages[i].suggestion; break; } }
     var url = avecCompte ? '/api/assistant/chat' : '/api/aide/chat';
     var corps = avecCompte
-      ? { messages: historique(), aide: true, page: location.pathname, derniere_config: derniere, ma_config: lireConfig() }
-      : { messages: historique(), page: location.pathname };
+      ? { messages: historique(), aide: true, page: location.pathname, derniere_config: derniere, ma_config: lireConfig(), tickets: mesTickets() }
+      : { messages: historique(), page: location.pathname, tickets: mesTickets() };
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
       .then(function(res){
         return res.json().catch(function(){ return {}; }).then(function(data){
@@ -470,6 +485,7 @@
         }
         etat.ticket = null;
         etat.ticketEnvoye = data.id;
+        if(data.jeton) memoriserTicket(data.id, data.jeton);
         sauver();
         afficher();
       });

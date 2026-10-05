@@ -75,3 +75,32 @@ def test_avec_un_compte_la_bulle_propose_des_composants(new_client, catalog, mon
     # La bulle reçoit de quoi afficher et ajouter le composant sans charger tout le catalogue.
     assert data["fiches"][str(gpu["id"])]["categorie"] == "GPU" and data["fiches"][str(gpu["id"])]["nom"] == gpu["nom"]
     assert "bulle d'aide du site" in vus[-1] and "/configurateur" in vus[-1]
+
+
+def test_suivi_des_tickets_et_demande_explicite(client, monkeypatch):
+    main._tickets_par_ip.clear()
+    main._aide_par_ip.clear()
+    r = client.post("/api/aide/ticket", json={"categorie": "bug", "titre": "Bouton cassé sur le comparateur",
+                                              "description": "Le bouton Comparer ne répond pas."})
+    numero, jeton = r.json()["id"], r.json()["jeton"]
+    assert jeton and len(jeton) >= 16
+    vus = []
+
+    def ia(prompt, **k):
+        vus.append(prompt)
+        return '{"message": "D\'accord.", "ticket": null}'
+    monkeypatch.setattr(main, "call_ai_model", ia)
+    # Avec le bon code : l'IA connaît le ticket et son statut.
+    client.post("/api/aide/chat", json={"messages": [{"role": "user", "content": f"où en est mon ticket {numero} ?"}],
+                                        "tickets": [{"id": numero, "jeton": jeton}]})
+    assert "Bouton cassé sur le comparateur" in vus[-1] and "pas encore traité" in vus[-1]
+    # Mauvais code : rien (jamais les tickets des autres).
+    main._aide_par_ip.clear()
+    client.post("/api/aide/chat", json={"messages": [{"role": "user", "content": "et mon ticket ?"}],
+                                        "tickets": [{"id": numero, "jeton": "faux"}]})
+    assert "Bouton cassé" not in vus[-1] and "aucun ticket" in vus[-1]
+    # Demande explicite : le formulaire s'affiche même si l'IA n'a pas proposé de ticket.
+    main._aide_par_ip.clear()
+    data = client.post("/api/aide/chat", json={"messages": [{"role": "user", "content": "tu peux me créer un ticket"}]}).json()
+    assert data["ticket"] and data["ticket"]["titre"] == "Demande d'aide"
+    client.delete(f"/api/admin/tickets/{numero}", headers=ADMIN)
