@@ -293,7 +293,7 @@
       <strong>${escapeHtml(fps.suggestion.nom)}</strong>${fps.suggestion.prix_indicatif != null ? ` (${prix(fps.suggestion.prix_indicatif)})` : ''}
       réduirait ce goulot d'étranglement.</p>` : '';
     return `<div class="ai-verification">
-      <span class="ai-verification-label"><i class="ph ph-game-controller" aria-hidden="true"></i> Estimation FPS</span>
+      <span class="ai-verification-label"><i class="ph ph-game-controller" aria-hidden="true"></i> Estimation FPS${fps.qualite && fps.qualite.label ? ' · qualité ' + escapeHtml(String(fps.qualite.label).toLowerCase()) : ''}</span>
       <p>${escapeHtml(fps.estimation).trim().replace(/\n/g, '<br>')}</p>${conseil}
     </div>`;
   }

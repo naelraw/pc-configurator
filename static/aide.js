@@ -230,7 +230,8 @@
       ? '<p>Remplacer ton ' + echapper(fps.suggestion.categorie) + ' par <strong>' + echapper(fps.suggestion.nom) + '</strong>'
         + (fps.suggestion.prix_indicatif != null ? ' (' + euros(fps.suggestion.prix_indicatif) + ')' : '') + ' réduirait ce goulot d’étranglement.</p>'
       : '';
-    return '<div class="aide-fps"><b>Estimation FPS</b><p>' + echapper(String(fps.estimation)).trim().replace(/\n/g, '<br>') + '</p>' + conseil + '</div>';
+    var qualite = fps.qualite && fps.qualite.label ? ' · qualité ' + echapper(String(fps.qualite.label).toLowerCase()) : '';
+    return '<div class="aide-fps"><b>Estimation FPS' + qualite + '</b><p>' + echapper(String(fps.estimation)).trim().replace(/\n/g, '<br>') + '</p>' + conseil + '</div>';
   }
 
   function etatAjout(f, config){

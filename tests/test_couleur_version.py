@@ -51,3 +51,10 @@ def test_la_piece_demandee_est_respectee(monkeypatch):
     assert s["case_id"] == 2
     s, champs = main._respecter_demande({"case_id": 1}, "mets un boîtier blanc", par_id)
     assert s["case_id"] == 1 and champs == []          # déjà blanc : on ne touche à rien
+
+
+def test_budget_par_defaut_selon_l_usage():
+    assert main._budget_par_defaut({"jeux": ["Fortnite"], "contraintes": {"usage": "jeu"}}) == 1000
+    assert main._budget_par_defaut({"jeux": ["Cyberpunk 2077"]}) == 1100
+    assert main._budget_par_defaut({"contraintes": {"usage": "travail"}}) == 650
+    assert main._budget_par_defaut({"contraintes": {"usage": "creation"}}) == 1300

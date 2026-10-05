@@ -9,6 +9,7 @@ import ipaddress
 import json
 import os
 import re
+import random
 import secrets
 import socket
 import threading
@@ -6087,7 +6088,28 @@ def _budget_from_text(text):
     return None
 
 
-def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800, precedente=None, couleur=None):
+# Demande de PC sans budget (« un PC pour jouer à Fortnite ») : l'IA choisissait
+# seule ses pièces, souvent mal (RTX 5050 et 243 € de RAM pour 1 172 €). On part
+# d'un budget raisonnable pour l'usage et le serveur optimise, comme avec un
+# budget donné ; la réponse dit qu'on peut l'ajuster.
+JEUX_LEGERS = ("fortnite", "valorant", "minecraft", "roblox", "league of legends", "lol", "counter-strike", "cs2",
+               "rocket league", "ea fc", "fifa", "overwatch", "apex", "sims", "genshin", "dota")
+
+
+def _budget_par_defaut(parsed):
+    contraintes = parsed.get("contraintes") if isinstance(parsed.get("contraintes"), dict) else {}
+    usage = contraintes.get("usage") or "jeu"
+    jeux = " ".join(str(j) for j in parsed.get("jeux") or []).lower()
+    if usage == "travail":
+        return 650
+    if usage == "creation":
+        return 1300
+    if jeux and all(any(l in j for l in JEUX_LEGERS) for j in jeux.split(",") if j.strip()) and any(l in jeux for l in JEUX_LEGERS):
+        return 1000       # ~110 FPS en 1080p ultra sur Fortnite (RX 9060 XT), pour viser la fluidité
+    return 1100
+
+
+def _generate_and_verify_suggestion(base_prompt, components_by_id, allow_advice=False, budget_hint=None, max_tokens=800, precedente=None, couleur=None, budget_auto=False):
     """
     Boucle de génération + correction partagée par /suggest-config (nouvelle
     config) et /api/refine-config (modification d'une config existante) :
@@ -6158,6 +6180,10 @@ Réponds UNIQUEMENT avec le JSON demandé."""
         # si elle est aussi bonne (compatible, dans le budget, performances
         # proches). Une modification demandée reste, elle, pièce par pièce.
         modification = isinstance(parsed, dict) and (parsed.get("type") == "modification" or parsed.get("modification") is True)
+        if budget_auto and isinstance(parsed, dict) and not modification and not (isinstance(budget_max, (int, float)) and budget_max > 0):
+            budget_max = _budget_par_defaut(parsed)
+            parsed["budget_max"] = budget_max
+            parsed["budget_auto"] = True
         if isinstance(parsed, dict) and isinstance(budget_max, (int, float)) and budget_max > 0 and not modification:
             demandees = parsed.get("pieces_demandees") if isinstance(parsed.get("pieces_demandees"), list) else []
             fixes = {f: parsed.get(f) for f in demandees if f in CONFIG_ID_FIELDS}
@@ -7248,6 +7274,9 @@ Ta façon d'aider :
 - Écoute d'abord. Réponds exactement à ce qui est demandé, rien de plus. Pas d'infos en bonus que
   l'utilisateur n'a pas demandées (pas de conseils de montage, de refroidissement, d'écran, de périphériques,
   d'alternatives ou d'avertissements s'il n'en a pas parlé).
+- Tu es là pour l'aider à réussir son PC : intéresse-toi à son projet, explique tes choix simplement
+  (pourquoi cette carte, ce que ça donne en jeu), et termine quand c'est utile par une proposition
+  concrète pour la suite (ajuster le budget, changer une pièce, estimer un autre jeu, le panier).
 - Fais court : 1 à 3 phrases le plus souvent. Plus long seulement s'il demande une explication détaillée
   ou une comparaison.
 - Adapte-toi à son niveau : s'il semble débutant (vocabulaire simple, « je n'y connais rien »), pas de
@@ -7319,7 +7348,9 @@ Choisis UNE des deux formes de réponse :
 - Ne donne jamais de chiffres de FPS toi-même : si l'utilisateur demande les performances dans un
   jeu, remplis "jeux" et le site ajoutera sa propre estimation sous ta réponse.
 - Si on te demande une config sans usage NI budget, ne la propose pas encore : pose UNE question courte
-  ici (par exemple son budget ou à quoi servira le PC). S'il donne au moins l'un des deux, propose-la.
+  ici (par exemple son budget ou à quoi servira le PC). S'il donne au moins l'un des deux (un jeu suffit,
+  ex : « un PC pour Fortnite »), propose-la TOUT DE SUITE avec la forme (2) et "budget_max": null, sans
+  demander le budget avant : le site part d'un budget raisonnable et le lui dit.
 
 (2) Une configuration complète : nouvelle demande de config, OU modification de la dernière config
 proposée (ou de la config en cours si l'utilisateur parle de « ma config ») :
@@ -7353,7 +7384,7 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
         result = _generate_and_verify_suggestion(
             prompt, components_by_id, allow_advice=True,
             budget_hint=_budget_from_text(question), max_tokens=1200,
-            precedente=derniere or ma_config, couleur=couleur_voulue,
+            precedente=derniere or ma_config, couleur=couleur_voulue, budget_auto=True,
         )
 
         def estimation(ids, jeux):
@@ -7405,23 +7436,18 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
                 f"{FIELD_TO_CATEGORY_BACKEND[f].lower()} : **{components_by_id[suggestion[f]]['nom']}** "
                 f"({float(components_by_id[suggestion[f]]['prix_indicatif']):.2f} €)".replace(".", ",") for f in changes)
             message = f"C'est fait, nouveau {details}. Le reste ne bouge pas, total {total:.0f} €."
-        elif result.get("ajustee"):
-            # Le serveur a changé des composants (budget, compatibilité) : le texte
-            # de l'IA peut citer des pièces qui ne sont plus dans la config.
-            cpu = components_by_id.get(suggestion.get("cpu_id"))
-            gpu = components_by_id.get(suggestion.get("gpu_id"))
-            total = compute_real_total(suggestion, components_by_id)
-            budget = suggestion.get("budget_max")
-            message = (f"Voici une config à {total:.0f} €" + (f" pour ton budget de {budget:.0f} €" if isinstance(budget, (int, float)) and budget > 0 else "")
-                       + (f", construite autour du **{cpu['nom']}** et de la **{gpu['nom']}**" if cpu and gpu else "")
-                       + (f", de quoi bien profiter de {', '.join(str(j) for j in suggestion['jeux'][:3])}"
-                          if isinstance(suggestion.get("jeux"), list) and suggestion["jeux"] else "")
-                       + ". Tout est compatible, et j'ai mis le maximum du budget dans ce qui compte pour tes performances. "
-                       + "Dis-moi si tu veux changer une pièce.")
         jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
+        fps_estimation = estimation(suggestion, jeux)
+        if result.get("ajustee") and not (suggestion.get("modification") is True and precedente and 0 < len(changes) <= 2):
+            # Le serveur a choisi ou changé des pièces (budget, compatibilité) : le
+            # texte de l'IA peut citer des pièces qui ne sont plus dans la config.
+            message = _message_config(suggestion, components_by_id, fps_estimation)
+        elif suggestion.get("budget_auto"):
+            message += (f" Tu ne m'as pas donné de budget, alors je suis parti sur environ "
+                        f"{float(suggestion['budget_max']):.0f} € : dis-moi le tien et j'ajuste.")
         _compter_assistant("config")
         reponse = {"status": "ok", "message": message, "suggestion": suggestion,
-                   "fps_estimation": estimation(suggestion, jeux),
+                   "fps_estimation": fps_estimation,
                    "liens": _resoudre_liens(suggestion.pop("liens", None), question,
                                             [suggestion.get(f) for f in (*CONFIG_ID_FIELDS, CHAMP_VENTIRAD)],
                                             [], components_by_id)}
@@ -7434,6 +7460,47 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
     except Exception as error:
         print(f"[assistant-chat] échec inattendu : {error}")
         return {"status": "error", "message": AI_PROVIDERS_UNAVAILABLE_MESSAGE}
+
+
+def _message_config(suggestion, components_by_id, fps_estimation):
+    """Réponse d'assistant pour une config que le serveur a construite : pour quoi,
+    autour de quoi, ce que ça donne en jeu, le prix, et une suite à proposer."""
+    cpu = components_by_id.get(suggestion.get("cpu_id"))
+    gpu = components_by_id.get(suggestion.get("gpu_id"))
+    total = compute_real_total(suggestion, components_by_id)
+    jeux = [str(j)[:1].upper() + str(j)[1:] for j in suggestion.get("jeux") or [] if j][:2]
+    usage = ((suggestion.get("contraintes") or {}) if isinstance(suggestion.get("contraintes"), dict) else {}).get("usage")
+    pour = (f"Pour {' et '.join(jeux)}" if jeux else "Pour le travail" if usage == "travail"
+            else "Pour la création et le montage" if usage == "creation" else "Pour jouer")
+    phrases = [f"{pour}, je t'ai monté un PC autour de la **{gpu['nom']}** avec le **{cpu['nom']}**" if cpu and gpu
+               else f"{pour}, voici une config complète"]
+    fps = None
+    for r in (fps_estimation or {}).get("resultats") or []:
+        if r.get("couvert"):
+            fps = ((r.get("resolutions") or {}).get("1080p") or {}).get("fps")
+            break
+    if fps:
+        niveau = ("de quoi profiter d'un écran 144 Hz" if fps >= 144 else "c'est largement fluide" if fps >= 90
+                  else "c'est fluide" if fps >= 60 else "c'est jouable, sans plus")
+        phrases[0] += f" : environ {fps:.0f} FPS en 1080p sur {jeux[0] if jeux else 'ce jeu'}, {niveau}."
+    else:
+        phrases[0] += "."
+    budget = suggestion.get("budget_max")
+    if suggestion.get("budget_auto"):
+        phrases.append(f"Le tout fait {total:.0f} €. Tu ne m'as pas donné de budget, alors je suis parti sur environ "
+                       f"{float(budget):.0f} €, un bon équilibre pour cet usage : dis-moi le tien et j'ajuste.")
+    elif isinstance(budget, (int, float)) and budget > 0:
+        phrases.append(f"Le tout fait {total:.0f} € pour ton budget de {budget:.0f} €, en mettant l'argent là où ça compte "
+                       f"pour {'tes performances en jeu' if usage in (None, 'jeu', 'mixte') else 'ton usage'}.")
+    else:
+        phrases.append(f"Le tout fait {total:.0f} €, et tout est compatible.")
+    phrases.append(random.choice((
+        "Une pièce ne te plaît pas ? Dis-moi laquelle et je la change.",
+        "Tu veux que je regarde ce que donnerait une version un peu plus puissante ?",
+        "Si tu veux, je peux aussi estimer les FPS sur un autre jeu.",
+        "Tu veux que je te mette tout dans le panier Amazon ?",
+    )))
+    return " ".join(phrases)
 
 
 class EstimateFpsRequest(BaseModel):
