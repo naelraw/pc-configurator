@@ -21,7 +21,8 @@ except ImportError:
 import time
 import unicodedata
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from urllib.parse import parse_qsl, urlencode, urlparse
 import requests
 from dotenv import load_dotenv
@@ -4463,7 +4464,29 @@ def _run_daily_price_refresh_rotation():
             "ids_prioritaires": sorted(prioritaires)}
 
 
-PRICE_REFRESH_INTERVAL_SECONDS = 24 * 60 * 60
+# La mise à jour des prix tourne la nuit, entre 2 h et 6 h (heure de Paris) :
+# moins de visiteurs sur le site pendant l'heure qu'elle dure, et des prix
+# frais dès le matin. Une seule fois par nuit ; si le serveur était arrêté
+# pendant toute la fenêtre, elle attend la nuit suivante.
+PRIX_FUSEAU = ZoneInfo("Europe/Paris")
+PRIX_HEURE_DEBUT, PRIX_HEURE_FIN = 2, 6
+
+
+def _mise_a_jour_prix_due(maintenant=None) -> bool:
+    maintenant = maintenant or datetime.now(PRIX_FUSEAU)
+    if not PRIX_HEURE_DEBUT <= maintenant.hour < PRIX_HEURE_FIN:
+        return False
+    derniere = _state_get("derniere_mise_a_jour_prix", None)
+    if not derniere:
+        return True
+    try:
+        # Mémorisée en UTC sans fuseau (_mark_task_done).
+        derniere = datetime.fromisoformat(derniere).replace(tzinfo=timezone.utc).astimezone(PRIX_FUSEAU)
+    except (TypeError, ValueError):
+        return True
+    return derniere.date() < maintenant.date()
+
+
 # Les tâches quotidiennes vérifient leur échéance toutes les 30 minutes, à
 # partir de l'heure de leur dernière exécution MÉMORISÉE EN BASE : un
 # redémarrage du service (chaque déploiement) ne repousse plus la tâche de 24 h
@@ -4503,12 +4526,10 @@ def _mark_task_done(key: str):
 
 
 async def price_refresh_loop():
-    """Boucle de fond : rafraîchit une tranche du catalogue une fois par jour (voir _run_daily_price_refresh_rotation)."""
+    """Boucle de fond : rafraîchit une tranche du catalogue chaque nuit entre 2 h et 6 h (voir _run_daily_price_refresh_rotation)."""
     await asyncio.sleep(5 * 60)  # laisse le service démarrer tranquillement
     while True:
-        if datetime.utcnow() < DAILY_ROTATION_START or not await asyncio.to_thread(
-            _task_is_due, "derniere_mise_a_jour_prix", PRICE_REFRESH_INTERVAL_SECONDS
-        ):
+        if datetime.utcnow() < DAILY_ROTATION_START or not await asyncio.to_thread(_mise_a_jour_prix_due):
             await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
             continue
         if not PRICE_REFRESH_LOCK.acquire(blocking=False):
