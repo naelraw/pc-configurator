@@ -149,3 +149,13 @@ def test_page_serveur_reservee_a_l_admin(client):
     assert client.get("/api/admin/serveur").status_code == 401
     d = client.get("/api/admin/serveur", headers=ADMIN).json()
     assert d["status"] == "ok" and {"cpu", "memoire", "disque", "services", "taches", "certificat"} <= set(d)
+
+
+def test_serveur_en_direct(client, monkeypatch):
+    import json, main
+    assert client.get("/api/admin/serveur/direct").status_code == 401
+    monkeypatch.setattr(main, "SERVEUR_DIRECT_DUREE", 2)        # le flux s'arrête seul pendant le test
+    with client.stream("GET", "/api/admin/serveur/direct", headers=ADMIN) as r:
+        assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
+        lignes = [json.loads(l[6:]) for l in r.iter_lines() if l.startswith("data: ")]
+    assert lignes and lignes[0]["complet"] is True and all("cpu" in l for l in lignes)

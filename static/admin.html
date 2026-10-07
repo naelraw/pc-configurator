@@ -35,18 +35,22 @@
 </div>
 
 <div class="app" id="app" hidden>
+  <header class="mobile-top">
+    <div class="brand"><img src="/static/favicon.svg" alt=""> <span id="mobile-titre">Tableau de bord</span></div>
+    <button class="icon-btn" id="mobile-plus" data-onclick="basculerMenuMobile()" aria-label="Plus d'actions" aria-expanded="false"><i class="ph ph-dots-three-outline"></i></button>
+  </header>
   <aside class="side">
     <div class="brand"><img src="/static/favicon.svg" alt=""> PC Radar <small>admin</small></div>
     <nav class="nav" aria-label="Sections">
-      <button data-view="dashboard" data-onclick="showView('dashboard')"><i class="ph ph-squares-four"></i><span class="lbl">Tableau de bord</span></button>
-      <button data-view="tickets" data-onclick="showView('tickets')"><i class="ph ph-lifebuoy"></i><span class="lbl">Tickets</span><span class="count" id="nav-tickets"></span></button>
-      <button data-view="watch" data-onclick="showView('watch')"><i class="ph ph-warning-circle"></i><span class="lbl">À surveiller</span><span class="count" id="nav-watch"></span></button>
-      <button data-view="catalog" data-onclick="showView('catalog')"><i class="ph ph-cpu"></i><span class="lbl">Catalogue</span><span class="count" id="nav-catalog"></span></button>
-      <button data-view="add" data-onclick="showView('add')"><i class="ph ph-plus-circle"></i><span class="lbl">Ajouter</span></button>
-      <button data-view="links" data-onclick="showView('links')"><i class="ph ph-link"></i><span class="lbl">Liens</span><span class="count" id="nav-links"></span></button>
-      <button data-view="stats" data-onclick="showView('stats')"><i class="ph ph-chart-bar"></i><span class="lbl">Statistiques</span></button>
-      <button data-view="serveur" data-onclick="showView('serveur')"><i class="ph ph-hard-drives"></i><span class="lbl">Serveur</span><span class="count" id="nav-serveur"></span></button>
-      <button data-view="builds" data-onclick="showView('builds')"><i class="ph ph-star"></i><span class="lbl">Configurations</span></button>
+      <button data-view="dashboard" data-onclick="showView('dashboard')"><i class="ph ph-squares-four"></i><span class="lbl">Tableau de bord</span><span class="court">Accueil</span></button>
+      <button data-view="tickets" data-onclick="showView('tickets')"><i class="ph ph-lifebuoy"></i><span class="lbl">Tickets</span><span class="court">Tickets</span><span class="count" id="nav-tickets"></span></button>
+      <button data-view="watch" data-onclick="showView('watch')"><i class="ph ph-warning-circle"></i><span class="lbl">À surveiller</span><span class="court">Surveiller</span><span class="count" id="nav-watch"></span></button>
+      <button data-view="catalog" data-onclick="showView('catalog')"><i class="ph ph-cpu"></i><span class="lbl">Catalogue</span><span class="court">Catalogue</span><span class="count" id="nav-catalog"></span></button>
+      <button data-view="add" data-onclick="showView('add')"><i class="ph ph-plus-circle"></i><span class="lbl">Ajouter</span><span class="court">Ajouter</span></button>
+      <button data-view="links" data-onclick="showView('links')"><i class="ph ph-link"></i><span class="lbl">Liens</span><span class="court">Liens</span><span class="count" id="nav-links"></span></button>
+      <button data-view="stats" data-onclick="showView('stats')"><i class="ph ph-chart-bar"></i><span class="lbl">Statistiques</span><span class="court">Stats</span></button>
+      <button data-view="serveur" data-onclick="showView('serveur')"><i class="ph ph-hard-drives"></i><span class="lbl">Serveur</span><span class="court">Serveur</span><span class="count" id="nav-serveur"></span></button>
+      <button data-view="builds" data-onclick="showView('builds')"><i class="ph ph-star"></i><span class="lbl">Configurations</span><span class="court">Configs</span></button>
     </nav>
     <div class="side-foot nav">
       <button data-onclick="downloadExtension()" title="Pour l'installer sur un autre PC"><i class="ph ph-puzzle-piece"></i><span class="lbl">Télécharger l'extension</span></button>
@@ -177,8 +181,8 @@
     <!-- Serveur -->
     <section data-section="serveur" hidden>
       <div class="view-head">
-        <div><h2>Serveur</h2><p id="serveur-resume">Processeur, mémoire, disque et services du serveur Oracle, mis à jour toutes les 10 secondes.</p></div>
-        <button class="btn btn-secondary" data-onclick="loadServeur()"><i class="ph ph-arrows-clockwise"></i>Actualiser</button>
+        <div><h2>Serveur</h2><p id="serveur-resume">Processeur, mémoire, disque et services du serveur Oracle.</p></div>
+        <span class="direct hors-ligne" id="serveur-direct"><i aria-hidden="true"></i><span id="serveur-direct-texte">Connexion…</span></span>
       </div>
       <div class="kpis" id="serveur-kpis"><p class="empty">Chargement…</p></div>
       <div class="serveur-grille">

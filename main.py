@@ -28,7 +28,7 @@ import requests
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -7149,6 +7149,29 @@ def aide_ticket(body: TicketRequest, request: Request):
 def admin_serveur(_admin=Depends(require_admin)):
     """État du serveur (processeur, mémoire, disque, services, sauvegardes, certificat) : page « Serveur » de l'admin."""
     return {"status": "ok", **serveur_info.etat_du_serveur()}
+
+
+SERVEUR_DIRECT_DUREE = 600          # une connexion dure 10 min au plus, la page se reconnecte seule
+SERVEUR_DIRECT_COMPLET = 30         # services, disque, certificat : relus toutes les 30 s
+
+
+@app.get("/api/admin/serveur/direct")
+async def admin_serveur_direct(request: Request, _admin=Depends(require_admin)):
+    """Page Serveur en continu : une ligne JSON par seconde (processeur, mémoire...),
+    l'état complet toutes les 30 s. S'arrête dès que la page est fermée."""
+    async def flux():
+        fin, dernier_complet = time.time() + SERVEUR_DIRECT_DUREE, 0.0
+        while time.time() < fin and not await request.is_disconnected():
+            if time.time() - dernier_complet >= SERVEUR_DIRECT_COMPLET:
+                donnees = await asyncio.to_thread(serveur_info.etat_du_serveur)
+                dernier_complet = time.time()
+            else:
+                donnees = await asyncio.to_thread(serveur_info.mesures_rapides)
+            yield "data: " + json.dumps(donnees, ensure_ascii=False) + "\n\n"
+            await asyncio.sleep(0.75)      # + 0,25 s de mesure du processeur ≈ une ligne par seconde
+    # Format « événements serveur » : exclu de la compression gzip, qui retiendrait les lignes.
+    return StreamingResponse(flux(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
 
 
 @app.get("/api/admin/tickets")

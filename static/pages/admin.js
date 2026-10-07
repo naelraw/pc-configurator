@@ -196,14 +196,30 @@
     document.querySelectorAll('.nav [data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === name));
     if(location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
     window.scrollTo(0, 0);
-    if(name === 'catalog') setTimeout(() => $('catalog-search').focus(), 0);
-    // Page Serveur : actualisée toutes les 10 s tant qu'elle est affichée.
-    clearInterval(minuterieServeur);
-    if(name === 'serveur'){
-      loadServeur();
-      minuterieServeur = setInterval(() => { if(!document.hidden) loadServeur(); }, 10000);
+    if(name === 'catalog' && !matchMedia('(max-width:980px)').matches) setTimeout(() => $('catalog-search').focus(), 0);
+    // Mobile : titre de la section en haut, menu « Plus » refermé, onglet actif visible dans la barre du bas.
+    const bouton = document.querySelector(`.nav [data-view="${name}"]`);
+    if(bouton){
+      $('mobile-titre').textContent = bouton.querySelector('.lbl').textContent;
+      bouton.scrollIntoView({ block: 'nearest', inline: 'center' });
     }
+    basculerMenuMobile(false);
+    // Page Serveur : mesures en direct tant qu'elle est affichée.
+    vueActuelle = name;
+    if(name === 'serveur') demarrerFluxServeur(); else arreterFluxServeur();
   }
+
+  // Menu « Plus » du mobile : extension, revenus Amazon, voir le site, déconnexion.
+  function basculerMenuMobile(ouvrir){
+    const pied = document.querySelector('.side-foot');
+    const ouvert = typeof ouvrir === 'boolean' ? ouvrir : !pied.classList.contains('ouvert');
+    pied.classList.toggle('ouvert', ouvert);
+    $('mobile-plus').setAttribute('aria-expanded', ouvert ? 'true' : 'false');
+  }
+  document.addEventListener('click', e => {
+    const pied = document.querySelector('.side-foot');
+    if(pied && pied.classList.contains('ouvert') && !e.target.closest('.side-foot, #mobile-plus')) basculerMenuMobile(false);
+  });
 
   // ---------------------------------------------------------------------
   // Tableau de bord
@@ -1106,7 +1122,49 @@
   // ---------------------------------------------------------------------
   // Serveur (processeur, mémoire, disque, services)
   // ---------------------------------------------------------------------
-  let minuterieServeur = null;
+  let vueActuelle = '', fluxServeur = null, etatServeur = null;
+
+  // Flux en direct (/api/admin/serveur/direct) : une mesure par seconde, l'état
+  // complet toutes les 30 s. Coupé quand on quitte la page ou l'onglet, puis
+  // reconnecté tout seul.
+  function arreterFluxServeur(){
+    if(fluxServeur){ fluxServeur.abort(); fluxServeur = null; }
+  }
+  async function demarrerFluxServeur(){
+    arreterFluxServeur();
+    const controle = new AbortController();
+    fluxServeur = controle;
+    try{
+      const res = await fetch(API_BASE + '/api/admin/serveur/direct', {
+        headers: { 'X-Admin-Secret': adminSecret }, signal: controle.signal, cache: 'no-store' });
+      if(!res.ok) throw new Error('Erreur ' + res.status);
+      const lecteur = res.body.getReader(), decodeur = new TextDecoder();
+      let tampon = '';
+      for(;;){
+        const { value, done } = await lecteur.read();
+        if(done) break;
+        tampon += decodeur.decode(value, { stream: true });
+        let fin;
+        while((fin = tampon.indexOf('\n\n')) >= 0){
+          const bloc = tampon.slice(0, fin); tampon = tampon.slice(fin + 2);
+          const ligne = bloc.split('\n').find(l => l.startsWith('data: '));
+          if(ligne) afficherServeur(JSON.parse(ligne.slice(6)));
+        }
+      }
+    }catch(e){
+      if(e.name === 'AbortError') return;
+      $('serveur-direct').className = 'direct hors-ligne';
+      $('serveur-direct-texte').textContent = 'Connexion perdue, nouvel essai…';
+    }
+    if(fluxServeur === controle && vueActuelle === 'serveur' && !document.hidden) setTimeout(() => {
+      if(fluxServeur === controle) demarrerFluxServeur();
+    }, 1500);
+  }
+  document.addEventListener('visibilitychange', () => {
+    if(vueActuelle !== 'serveur') return;
+    if(document.hidden) arreterFluxServeur(); else demarrerFluxServeur();
+  });
+  async function loadServeur(){ demarrerFluxServeur(); }
   const octets = n => {
     if(n == null) return '—';
     const u = ['o', 'Ko', 'Mo', 'Go', 'To']; let i = 0, v = n;
@@ -1132,10 +1190,10 @@
       ${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
   }
 
-  async function loadServeur(){
-    let d;
-    try{ d = await api('/api/admin/serveur'); }
-    catch(e){ $('serveur-kpis').innerHTML = `<p class="empty">État du serveur indisponible : ${escapeHtml(e.message)}</p>`; return; }
+  function afficherServeur(mesure){
+    // Les mesures rapides complètent le dernier état complet.
+    etatServeur = mesure.complet || !etatServeur ? mesure : { ...etatServeur, ...mesure };
+    const d = etatServeur;
     const cpu = d.cpu || {}, mem = d.memoire, disque = d.disque, cert = d.certificat, sauv = d.sauvegarde;
     const pctMem = mem ? mem.utilise / mem.total * 100 : null;
     const pctDisque = disque ? disque.utilise / disque.total * 100 : null;
@@ -1166,7 +1224,8 @@
       || '<p class="empty">Tâches non disponibles.</p>';
     $('serveur-dossiers').innerHTML = disque ? disque.dossiers.map(x => `<div class="item">
       <div><div class="t">${escapeHtml(x.nom)}</div></div><div class="actions"><span class="serveur-taille">${octets(x.taille)}</span></div></div>`).join('') : '';
-    $('serveur-resume').textContent = `Mis à jour à ${new Date(d.mesure_le + 'Z').toLocaleTimeString('fr-FR')} · actualisation toutes les 10 secondes.`;
+    $('serveur-direct').className = 'direct';
+    $('serveur-direct-texte').textContent = `En direct · ${new Date(d.mesure_le + 'Z').toLocaleTimeString('fr-FR')}`;
     const compteur = $('nav-serveur');
     compteur.textContent = enPanne.length ? String(enPanne.length) : '';
     compteur.classList.toggle('alert', enPanne.length > 0);

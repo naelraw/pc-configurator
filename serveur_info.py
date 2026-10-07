@@ -158,9 +158,24 @@ def _certificat():
         return None
 
 
+def mesures_rapides():
+    """Ce qui change d'une seconde à l'autre (processeur, mémoire, durée de
+    fonctionnement), pour la page Serveur en direct. Le reste (services,
+    disque, certificat...) est relu moins souvent par etat_du_serveur()."""
+    uptime = _lire("/proc/uptime")
+    return {
+        "complet": False,
+        "demarre_depuis_s": int(float(uptime.split()[0])) if uptime else None,
+        "cpu": _cpu(),
+        "memoire": _memoire(),
+        "mesure_le": datetime.datetime.utcnow().isoformat(timespec="seconds"),
+    }
+
+
 def etat_du_serveur():
     uptime = _lire("/proc/uptime")
     return {
+        "complet": True,
         "nom": socket.gethostname(),
         "systeme": " ".join((_lire("/etc/os-release") or "").split('PRETTY_NAME="', 1)[-1].split('"', 1)[:1]) or None,
         "demarre_depuis_s": int(float(uptime.split()[0])) if uptime else None,
