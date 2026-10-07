@@ -67,6 +67,7 @@
         showError('verify-error', data.detail || 'Code incorrect.');
         return false;
       }
+      connexionFaite = true;
       await refreshView();
     }catch(e){
       showError('verify-error', 'Erreur réseau.');
@@ -122,6 +123,7 @@
         showError('login-error', "Erreur lors de la connexion.");
         return false;
       }
+      connexionFaite = true;
       await refreshView();
     }catch(e){
       showError('login-error', 'Erreur réseau.');
@@ -155,6 +157,7 @@
         afficherSaisieCode(data.email || email);
         return false;
       }
+      connexionFaite = true;
       await refreshView();
     }catch(e){
       showError('register-error', 'Erreur réseau.');
@@ -547,7 +550,9 @@
       document.getElementById('guest-view').style.display = 'none';
       document.getElementById('user-view').style.display = 'block';
       document.getElementById('account-email').textContent = data.user.email;
-      const next = safeNext();
+      // Juste après une connexion ou une inscription : direction l'assistant (ou la
+      // page d'où venait la personne). Déjà connecté, on reste sur Mon compte.
+      const next = safeNext() || (connexionFaite ? PAGE_APRES_CONNEXION : null);
       if(next){ window.location.href = next; return; }
       loadBuilds();
       PCAccount.renderFavorites(document.getElementById('favorites-list'), id => {
@@ -559,6 +564,9 @@
       document.getElementById('user-view').style.display = 'none';
     }
   }
+
+  const PAGE_APRES_CONNEXION = '/assistant';
+  let connexionFaite = false;
 
   // ?next=/configurateur : page d'où vient l'utilisateur (ex: bouton
   // "Suivre" sans être connecté). Chemin interne uniquement.
@@ -581,8 +589,8 @@
     try{
       const providers = await fetch(API_BASE + '/api/auth/providers').then(r => r.json());
       if(providers.google){
-        const next = safeNext();
-        document.getElementById('google-btn').href = '/api/auth/google/login' + (next ? '?next=' + encodeURIComponent(next) : '');
+        const next = safeNext() || PAGE_APRES_CONNEXION;
+        document.getElementById('google-btn').href = '/api/auth/google/login?next=' + encodeURIComponent(next);
         document.getElementById('google-block').hidden = false;
       }
     }catch(e){ /* bouton Google simplement masqué */ }
