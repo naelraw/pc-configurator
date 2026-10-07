@@ -98,7 +98,7 @@
 
   fetch('/api/configs-vedette').then(function(r){ return r.json(); }).then(function(data){
     configs = data.configs || [];
-    if(data.nb_composants) document.getElementById('catalog-count').innerHTML = data.nb_composants.toLocaleString('fr-FR') + '<small>composants suivis</small>';
+    if(data.nb_composants) document.getElementById('catalog-count').textContent = data.nb_composants.toLocaleString('fr-FR');
     // Le « bon compromis » par défaut : c'est le profil le plus demandé.
     current = Math.min(1, Math.max(0, configs.length - 1));
     if(configs.length) render(); else showError();

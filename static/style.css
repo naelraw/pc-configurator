@@ -2151,3 +2151,45 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   .compte-connexion .oauth-block, .compte-connexion .auth-form{ max-width:none; }
   .compte-connexion .auth-form label:first-of-type{ margin-top:12px; }
 }
+
+/* ===================================================================
+   Accueil allégé : niveaux compacts, repères, 3 atouts
+   =================================================================== */
+.home-hero h1 br{ display:block; }
+.niveaux-compacts{ gap:8px; }
+.niveaux-compacts .niveau{ padding:12px 14px; }
+.niveaux-compacts .niveau-desc{ font-size:0.86rem; }
+
+.reperes-section{ padding-top:8px; padding-bottom:8px; }
+.reperes{
+  list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr));
+  border:1px solid var(--line); border-radius:var(--r-lg); background:var(--surface);
+}
+.reperes li{ display:flex; flex-direction:column; gap:2px; padding:20px 24px; }
+.reperes li + li{ border-left:1px solid var(--line); }
+.reperes strong{ font-family:var(--font-mono); font-size:1.5rem; font-weight:500; letter-spacing:-0.02em; color:var(--accent); }
+.reperes span{ color:var(--text-2); font-size:0.9rem; }
+
+.atouts{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; }
+.atout{
+  display:flex; flex-direction:column; gap:10px; padding:24px; border-radius:var(--r-lg);
+  background:var(--surface); border:1px solid var(--line); color:var(--text);
+  transition:border-color .2s var(--ease), transform .2s var(--ease), background-color .2s var(--ease);
+}
+.atout:hover{ border-color:var(--accent-line); background:var(--surface-2); transform:translateY(-2px); text-decoration:none; }
+.atout .icon{
+  width:42px; height:42px; display:grid; place-items:center; border-radius:var(--r-sm);
+  background:var(--accent-soft); border:1px solid var(--accent-line); color:var(--accent); font-size:1.3rem;
+}
+.atout h3{ font-size:1.08rem; font-weight:620; letter-spacing:-0.015em; }
+.atout p{ color:var(--text-2); font-size:0.92rem; line-height:1.55; }
+@media (prefers-reduced-motion:reduce){ .atout{ transition:none; } .atout:hover{ transform:none; } }
+
+@media (max-width:860px){
+  .reperes{ grid-template-columns:1fr; }
+  .reperes li{ display:grid; grid-template-columns:118px minmax(0, 1fr); align-items:baseline; gap:12px; padding:13px 16px; }
+  .reperes li + li{ border-left:none; border-top:1px solid var(--line); }
+  .reperes strong{ font-size:1.05rem; white-space:nowrap; }
+  .atouts{ grid-template-columns:1fr; }
+  .atout{ padding:20px; }
+}
