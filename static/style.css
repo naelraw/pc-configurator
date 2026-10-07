@@ -2131,3 +2131,9 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 @media (prefers-reduced-motion:reduce){
   .ia-ecrit i{ animation-duration:1.2s !important; animation-iteration-count:infinite !important; }
 }
+
+/* Avantages du compte (compte.html, vue non connectée) */
+.compte-avantages{ list-style:none; margin:12px 0 0; padding:0; display:flex; flex-direction:column; gap:8px; max-width:62ch; }
+.compte-avantages li{ position:relative; padding-left:22px; color:var(--text-2); font-size:0.95rem; line-height:1.5; }
+.compte-avantages li::before{ content:''; position:absolute; left:2px; top:0.55em; width:8px; height:8px; border-radius:50%; background:var(--accent); }
+.compte-avantages strong{ color:var(--text); font-weight:600; }

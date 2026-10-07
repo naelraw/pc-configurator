@@ -540,6 +540,8 @@
       // Réseau indisponible : on montre le formulaire plutôt qu'une page vide.
     }
     document.getElementById('account-loading').hidden = true;
+    // La bulle de l'assistant (réservée aux comptes) apparaît ou disparaît sans recharger.
+    if(window.PCAide) window.PCAide.actualiser();
 
     if(data.logged_in){
       document.getElementById('guest-view').style.display = 'none';

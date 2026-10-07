@@ -1,6 +1,6 @@
 /*
  * Bulle d'aide PC Radar, en bas à droite de toutes les pages (chargée par
- * nav-menu.js).
+ * nav-menu.js), réservée aux personnes connectées à un compte.
  * - Avec un compte : c'est l'assistant IA (/api/assistant/chat, mode « aide ») :
  *   questions sur le site ET sur les PC, composants à ajouter en un clic, et
  *   configs ou changements demandés appliqués directement à sa config (même
@@ -513,7 +513,26 @@
     });
   }
 
-  window.PCAide = { ouvrir: function(){ basculer(true); } };
-  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', construire);
-  else construire();
+  // Bulle réservée aux comptes (c'est un des avantages de l'inscription) :
+  // rien n'est affiché tant que la personne n'est pas connectée.
+  function demarrer(){
+    return verifierCompte().then(function(){
+      if(connecte && !bouton) construire();
+      if(!connecte && bouton) retirer();
+    });
+  }
+  function retirer(){
+    if(panneau) panneau.remove();
+    if(bouton) bouton.remove();
+    panneau = bouton = null;
+    try{ sessionStorage.removeItem(CLE); }catch(e){}
+    etat = { messages: [], ticket: null, ticketEnvoye: null };
+  }
+
+  window.PCAide = {
+    ouvrir: function(){ demarrer().then(function(){ if(bouton) basculer(true); }); },
+    actualiser: demarrer,          // appelé par la page compte après connexion / déconnexion
+  };
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer);
+  else demarrer();
 })();

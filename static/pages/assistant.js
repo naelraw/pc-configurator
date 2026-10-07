@@ -763,6 +763,7 @@
         <ul class="assistant-acces-liste">
           <li><i class="ph ph-check" aria-hidden="true"></i> Gratuit, sans carte bancaire</li>
           <li><i class="ph ph-check" aria-hidden="true"></i> Connexion en un clic avec Google, ou par e-mail</li>
+          <li><i class="ph ph-check" aria-hidden="true"></i> L'assistant disponible sur toutes les pages, en bas à droite</li>
           <li><i class="ph ph-check" aria-hidden="true"></i> Tes configs sauvegardées et des alertes quand les prix baissent</li>
         </ul>
         <div class="assistant-acces-boutons">
