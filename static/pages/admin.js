@@ -197,29 +197,43 @@
     if(location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
     window.scrollTo(0, 0);
     if(name === 'catalog' && !matchMedia('(max-width:980px)').matches) setTimeout(() => $('catalog-search').focus(), 0);
-    // Mobile : titre de la section en haut, menu « Plus » refermé, onglet actif visible dans la barre du bas.
+    // Mobile : titre de la section dans la barre du haut, menu refermé.
     const bouton = document.querySelector(`.nav [data-view="${name}"]`);
-    if(bouton){
-      $('mobile-titre').textContent = bouton.querySelector('.lbl').textContent;
-      bouton.scrollIntoView({ block: 'nearest', inline: 'center' });
-    }
+    if(bouton) $('mobile-titre').textContent = bouton.querySelector('.lbl').textContent;
     basculerMenuMobile(false);
     // Page Serveur : mesures en direct tant qu'elle est affichée.
     vueActuelle = name;
     if(name === 'serveur') demarrerFluxServeur(); else arreterFluxServeur();
   }
 
-  // Menu « Plus » du mobile : extension, revenus Amazon, voir le site, déconnexion.
+  // Menu du mobile : toutes les sections en tuiles, puis les actions (extension,
+  // revenus Amazon, voir le site, déconnexion). Construit à partir du menu de
+  // gauche de l'ordinateur, pour qu'ils restent toujours identiques.
   function basculerMenuMobile(ouvrir){
-    const pied = document.querySelector('.side-foot');
-    const ouvert = typeof ouvrir === 'boolean' ? ouvrir : !pied.classList.contains('ouvert');
-    pied.classList.toggle('ouvert', ouvert);
+    const menu = $('menu-mobile'), fond = $('menu-mobile-fond');
+    const ouvert = typeof ouvrir === 'boolean' ? ouvrir : menu.hidden;
+    if(ouvert && !$('menu-mobile-sections').childElementCount){
+      $('menu-mobile-sections').innerHTML = [...document.querySelectorAll('.side > nav.nav [data-view]')].map(b => {
+        const compte = b.querySelector('.count');
+        return `<button data-onclick="showView('${b.dataset.view}')" data-vue="${b.dataset.view}">${b.querySelector('i').outerHTML}
+          <span>${escapeHtml(b.querySelector('.lbl').textContent)}</span>${compte && compte.textContent ? `<em class="${compte.className}">${escapeHtml(compte.textContent)}</em>` : ''}</button>`;
+      }).join('');
+      $('menu-mobile-actions').innerHTML = [...document.querySelectorAll('.side-foot button')].map(b => b.outerHTML).join('');
+    }
+    if(ouvert){
+      // Section ouverte en surbrillance, compteurs à jour.
+      document.querySelectorAll('#menu-mobile-sections [data-vue]').forEach(t => {
+        t.classList.toggle('active', t.dataset.vue === vueActuelle);
+        const compte = document.querySelector(`.side > nav.nav [data-view="${t.dataset.vue}"] .count`);
+        const em = t.querySelector('em');
+        if(em) em.remove();
+        if(compte && compte.textContent) t.insertAdjacentHTML('beforeend', `<em class="${compte.className}">${escapeHtml(compte.textContent)}</em>`);
+      });
+    }
+    menu.hidden = fond.hidden = !ouvert;
     $('mobile-plus').setAttribute('aria-expanded', ouvert ? 'true' : 'false');
   }
-  document.addEventListener('click', e => {
-    const pied = document.querySelector('.side-foot');
-    if(pied && pied.classList.contains('ouvert') && !e.target.closest('.side-foot, #mobile-plus')) basculerMenuMobile(false);
-  });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && !$('menu-mobile').hidden) basculerMenuMobile(false); });
 
   // ---------------------------------------------------------------------
   // Tableau de bord

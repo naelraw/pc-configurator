@@ -51,6 +51,7 @@
       <button data-view="stats" data-onclick="showView('stats')"><i class="ph ph-chart-bar"></i><span class="lbl">Statistiques</span><span class="court">Stats</span></button>
       <button data-view="serveur" data-onclick="showView('serveur')"><i class="ph ph-hard-drives"></i><span class="lbl">Serveur</span><span class="court">Serveur</span><span class="count" id="nav-serveur"></span></button>
       <button data-view="builds" data-onclick="showView('builds')"><i class="ph ph-star"></i><span class="lbl">Configurations</span><span class="court">Configs</span></button>
+      <button class="nav-menu-mobile" data-onclick="basculerMenuMobile()" aria-label="Toutes les sections"><i class="ph ph-list"></i><span class="court">Menu</span></button>
     </nav>
     <div class="side-foot nav">
       <button data-onclick="downloadExtension()" title="Pour l'installer sur un autre PC"><i class="ph ph-puzzle-piece"></i><span class="lbl">Télécharger l'extension</span></button>
@@ -59,6 +60,16 @@
       <button data-onclick="logout()"><i class="ph ph-sign-out"></i><span class="lbl">Se déconnecter</span></button>
     </div>
   </aside>
+
+  <!-- Mobile : toutes les sections et actions, sans avoir à faire défiler la barre du bas
+       (sur iPhone, glisser en bas de l'écran change d'application). -->
+  <div class="menu-mobile-fond" id="menu-mobile-fond" data-onclick="basculerMenuMobile(false)" hidden></div>
+  <div class="menu-mobile" id="menu-mobile" role="dialog" aria-label="Toutes les sections" hidden>
+    <div class="menu-mobile-tete"><strong>Menu</strong>
+      <button class="icon-btn" data-onclick="basculerMenuMobile(false)" aria-label="Fermer"><i class="ph ph-x"></i></button></div>
+    <div class="menu-mobile-sections" id="menu-mobile-sections"></div>
+    <div class="menu-mobile-actions" id="menu-mobile-actions"></div>
+  </div>
 
   <main class="main">
 
