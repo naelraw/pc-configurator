@@ -553,7 +553,10 @@
 
     const derniere = [...discussion].reverse().find(m => m.suggestion);
     // Les questions/réponses du parcours guidé sont résumées dans un seul message.
-    const messages = discussion.filter(m => !m.guide).map(m => ({
+    // Les échanges hors sujet (question + refus) ne sont pas renvoyés à l'IA :
+    // elle les recopiait au lieu de traiter la nouvelle question.
+    const messages = discussion.filter((m, i) => !m.guide && !m.horsSujet
+      && !(m.role === 'user' && discussion[i + 1] && discussion[i + 1].horsSujet)).map(m => ({
       role: m.role,
       content: (m.envoi || m.content)
         + (m.suggestion ? `\n(Config proposée : ${resumeConfig(m.suggestion)})` : '')
@@ -569,7 +572,8 @@
       const res = await fetch(API_BASE + '/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages, derniere_config: derniere ? derniere.suggestion : null, ma_config: options.sansMaConfig ? null : lireMaConfig() }),
+        body: JSON.stringify({ messages, derniere_config: derniere ? derniere.suggestion : null, ma_config: options.sansMaConfig ? null : lireMaConfig(),
+          refus_precedents: discussion.filter(m => m.horsSujet).slice(-3).map(m => m.content.slice(0, 400)) }),
       });
       const data = await res.json().catch(() => ({}));
       if(res.status === 401){
@@ -581,7 +585,7 @@
       if(res.ok && data.status === 'ok'){
         reponse = { role: 'assistant', content: data.message || '', suggestion: data.suggestion || null,
           composants: Array.isArray(data.composants) ? data.composants : [], fps: data.fps_estimation || null,
-          liens: Array.isArray(data.liens) ? data.liens : [] };
+          liens: Array.isArray(data.liens) ? data.liens : [], horsSujet: data.hors_sujet === true };
       }else{
         reponse = { role: 'assistant', content: data.message || data.detail || 'L’assistant n’a pas pu répondre, réessaie.', erreur: true };
       }

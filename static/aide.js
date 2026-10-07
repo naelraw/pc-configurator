@@ -365,8 +365,18 @@
 
   // Historique envoyé à l'IA : les configs et composants montrés sont résumés
   // (avec leur id) pour qu'elle sache de quoi on parle.
+  function refusPrecedents(){
+    return etat.messages.filter(function(m){ return m.horsSujet; }).slice(-3).map(function(m){ return m.content.slice(0, 400); });
+  }
+
   function historique(){
-    return etat.messages.filter(function(m){ return !m.erreur; }).slice(-12).map(function(m){
+    // Les échanges hors sujet (question + refus) ne sont pas renvoyés à l'IA :
+    // elle les recopiait au lieu de traiter la nouvelle question.
+    var liste = etat.messages.filter(function(m, i){
+      var suivant = etat.messages[i + 1];
+      return !m.erreur && !m.horsSujet && !(m.role === 'user' && suivant && suivant.horsSujet);
+    });
+    return liste.slice(-12).map(function(m){
       var texte = m.content;
       if(m.suggestion){
         texte += '\n(Config proposée : ' + Object.keys(CHAMPS).map(function(c){
@@ -403,8 +413,8 @@
     for(var i = etat.messages.length - 1; i >= 0; i--){ if(etat.messages[i].suggestion){ derniere = etat.messages[i].suggestion; break; } }
     var url = avecCompte ? '/api/assistant/chat' : '/api/aide/chat';
     var corps = avecCompte
-      ? { messages: historique(), aide: true, page: location.pathname, derniere_config: derniere, ma_config: lireConfig(), tickets: mesTickets() }
-      : { messages: historique(), page: location.pathname, tickets: mesTickets() };
+      ? { messages: historique(), aide: true, page: location.pathname, derniere_config: derniere, ma_config: lireConfig(), tickets: mesTickets(), refus_precedents: refusPrecedents() }
+      : { messages: historique(), page: location.pathname, tickets: mesTickets(), refus_precedents: refusPrecedents() };
     return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) })
       .then(function(res){
         return res.json().catch(function(){ return {}; }).then(function(data){
@@ -437,6 +447,7 @@
         fiches: data.fiches || null,
         fps: data.fps_estimation || null,
         liens: Array.isArray(data.liens) ? data.liens : [],
+        horsSujet: data.hors_sujet === true,
       };
       if(reponse.suggestion) appliquerConfig(reponse);
       etat.messages.push(reponse);

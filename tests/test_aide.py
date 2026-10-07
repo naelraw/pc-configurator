@@ -104,3 +104,21 @@ def test_suivi_des_tickets_et_demande_explicite(client, monkeypatch):
     data = client.post("/api/aide/chat", json={"messages": [{"role": "user", "content": "tu peux me créer un ticket"}]}).json()
     assert data["ticket"] and data["ticket"]["titre"] == "Demande d'aide"
     client.delete(f"/api/admin/tickets/{numero}", headers=ADMIN)
+
+
+def test_refus_hors_sujet_construit_par_le_serveur(client, monkeypatch):
+    r = main._refus_hors_sujet("te dire qui est Amixem", [])
+    assert "te dire qui est Amixem" in r or "Te dire qui est Amixem" in r
+    assert r.rstrip().endswith("?")
+    # Relances déjà utilisées : jamais redites tant qu'il en reste d'autres.
+    deja = list(main.RELANCES_HORS_SUJET[:-1])
+    for _ in range(10):
+        assert main._refus_hors_sujet("faire ce calcul", [], refus_precedents=deja).endswith(main.RELANCES_HORS_SUJET[-1])
+    # L'IA signale le hors sujet : le serveur répond, sans reprendre la question précédente.
+    monkeypatch.setattr(main, "call_ai_model", lambda *a, **k: '{"message": "x", "ticket": null, "hors_sujet": true, "demande": "te dire qui est Amixem"}')
+    main._aide_par_ip.clear()
+    data = client.post("/api/aide/chat", json={"messages": [
+        {"role": "user", "content": "un synonyme de maison"},
+        {"role": "assistant", "content": "Je ne vais pas pouvoir te donner un synonyme de maison."},
+        {"role": "user", "content": "qui est amixem"}]}).json()
+    assert data["hors_sujet"] is True and "Amixem" in data["message"] and "maison" not in data["message"]

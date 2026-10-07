@@ -6335,6 +6335,7 @@ Réponds UNIQUEMENT avec le JSON demandé."""
         if allow_advice and isinstance(parsed, dict) and parsed.get("type") == "advice":
             return {"status": "advice", "message": parsed.get("message") or "", "jeux": parsed.get("jeux") or [],
                     "composants": parsed.get("composants") or [], "ticket": parsed.get("ticket"),
+                    "hors_sujet": parsed.get("hors_sujet") is True, "demande": parsed.get("demande"),
                     "liens": parsed.get("liens") or []}
 
         # Processeur vendu sans ventirad : le site en ajoute un (compté dans le budget).
@@ -6739,6 +6740,7 @@ class AssistantChatRequest(BaseModel):
     aide: bool = False                      # bulle d'aide : aussi les questions sur le site et les tickets
     page: str | None = Field(default=None, max_length=300)
     tickets: list[TicketConnu] | None = Field(default=None, max_length=20)   # tickets envoyés depuis ce navigateur
+    refus_precedents: list[str] | None = Field(default=None, max_length=5)   # derniers refus hors sujet (pour varier)
 
 
 # ---------------------------------------------------------------------------
@@ -6794,6 +6796,7 @@ class AideRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=30)
     page: str | None = Field(default=None, max_length=300)
     tickets: list[TicketConnu] | None = Field(default=None, max_length=20)
+    refus_precedents: list[str] | None = Field(default=None, max_length=5)
 
 
 class TicketRequest(BaseModel):
@@ -6901,6 +6904,45 @@ def _ticket_par_defaut(question, messages):
             "description": ("\n".join(precedents[-3:]) or question)[:3000]}
 
 
+# Questions sans rapport avec le PC : l'IA ne fait que les repérer et reformuler
+# la demande ; la réponse est construite ici. Avant, l'IA écrivait le refus elle-
+# même et finissait par recopier un refus précédent (« qui est Amixem » ->
+# réponse sur les synonymes de maison).
+REFUS_HORS_SUJET = (
+    "Je ne vais pas pouvoir {d} : ici, je m'occupe uniquement des PC et de PC Radar.",
+    "{D}, ce n'est pas dans mes cordes : je suis là pour t'aider avec ton PC.",
+    "Désolé, je ne peux pas {d}, je suis spécialisé dans les PC.",
+    "Là, je passe mon tour : {d}, ce n'est pas mon domaine. Moi, c'est le matériel PC et le site.",
+)
+RELANCES_HORS_SUJET = (
+    "Tu as un projet de PC en tête ?",
+    "Je peux te proposer une config pour ton budget, ça te dit ?",
+    "Tu cherches un composant en particulier ?",
+    "Tu veux savoir combien de FPS tu aurais sur un jeu ?",
+    "Ta config actuelle te convient, ou tu veux la faire évoluer ?",
+)
+RELANCES_HORS_SUJET_SITE = (
+    "Tu as une question sur le site ?",
+    "Tu veux que je t'explique comment marche le configurateur ?",
+)
+
+
+def _refus_hors_sujet(demande, messages, aide_du_site=False, refus_precedents=None):
+    """Refus poli d'une question hors sujet : la demande reformulée par l'IA, une
+    tournure et une relance différentes de celles déjà utilisées dans la discussion."""
+    demande = re.sub(r"\s+", " ", str(demande or "")).strip().rstrip(".?!")
+    if not demande or len(demande) > 90:
+        demande = "répondre à ça"
+    deja_dit = (" ".join(m.content for m in messages if m.role == "assistant")[-2000:]
+                + " " + " ".join(str(r)[:400] for r in (refus_precedents or [])[-5:]))
+    modeles = [m for m in REFUS_HORS_SUJET if m.split("{")[0].strip()[:18] not in deja_dit or not m.split("{")[0].strip()] or list(REFUS_HORS_SUJET)
+    modeles = [m for m in modeles if m.format(d="", D="")[-25:] not in deja_dit] or modeles
+    relances = [r for r in RELANCES_HORS_SUJET + (RELANCES_HORS_SUJET_SITE if aide_du_site else ()) if r not in deja_dit]
+    relances = relances or list(RELANCES_HORS_SUJET)
+    phrase = random.choice(modeles).format(d=demande, D=demande[:1].upper() + demande[1:])
+    return f"{phrase} {random.choice(relances)}"
+
+
 def _ticket_propose(ticket, question):
     """Ticket proposé par l'IA, nettoyé (ou None)."""
     if not isinstance(ticket, dict):
@@ -6966,12 +7008,10 @@ Règles :
   remplissant "ticket" et dis en une phrase que tu peux le transmettre à l'équipe avec le bouton
   ci-dessous. Ne dis jamais qu'un ticket est déjà envoyé : c'est le visiteur qui confirme.
 {regles_tickets}
-- Hors sujet (culture générale, maths, devoirs, une personne, l'actualité...) : ne donne PAS la
-  réponse, même si tu la connais. Deux phrases courtes avec tes propres mots : reprends précisément ce
-  qui a été demandé et dis que tu ne peux pas aider là-dessus car tu es l'aide de PC Radar ; puis relance
-  par une question ouverte sur le site ou son PC (variée à chaque fois). N'invente jamais de lien avec le
-  PC et ne répète jamais une phrase déjà dite. Salutations et remerciements : réponds brièvement et
-  gentiment.
+- Hors sujet (culture générale, maths, devoirs, une personne, l'actualité...) : n'écris PAS de réponse
+  toi-même : mets "hors_sujet": true et "demande" = ce que la DERNIÈRE question demande, reformulé en
+  quelques mots à l'infinitif (« te dire qui est Amixem »), le site écrit la réponse. Salutations et
+  remerciements : réponds brièvement et gentiment.
 - Tu ne peux rien modifier toi-même (compte, prix, commandes) et PC Radar ne vend rien : les achats,
   livraisons et retours se font chez Amazon.
 
@@ -6981,7 +7021,7 @@ Discussion jusqu'ici :
 Nouveau message : {question}
 
 Réponds UNIQUEMENT avec un objet JSON valide, sans markdown autour :
-{{"message": "<ta réponse>", "ticket": null}}
+{{"message": "<ta réponse>", "ticket": null, "hors_sujet": false, "demande": null}}
 ou, pour proposer un ticket :
 {{"message": "<ta réponse>", "ticket": {{"categorie": <"bug", "prix", "compte", "suggestion", "question" ou "autre">, "titre": "<résumé en moins de 80 caractères>", "description": "<le problème décrit clairement pour l'équipe : page, composant, ce qui se passe, ce qui était attendu>"}}}}"""
 
@@ -6996,6 +7036,9 @@ ou, pour proposer un ticket :
     if not isinstance(data, dict):
         # Réponse en texte simple au lieu du JSON demandé : on la garde telle quelle.
         data = {"message": brut.strip()} if brut and "{" not in brut else {}
+    if data.get("hors_sujet") is True:
+        return {"status": "ok", "message": _refus_hors_sujet(data.get("demande"), messages, True, body.refus_precedents), "ticket": None,
+                "hors_sujet": True}
     message = str(data.get("message") or "").strip() or "Je n'ai pas compris, tu peux reformuler ?"
     ticket = _ticket_propose(data.get("ticket"), question)
     if not ticket and _demande_un_ticket(question):
@@ -7466,19 +7509,11 @@ Ta façon d'aider :
 Questions hors sujet : tu ne réponds QU'aux questions sur les PC, les composants, le matériel
 informatique, les jeux vidéo (performances, configs, matériel pour jouer ou streamer) et PC Radar.
 - Pour toute autre question (culture générale, maths, devoirs, une personne, l'actualité, la cuisine,
-  l'heure, ce qu'est un métier ou une personne...), ne donne PAS la réponse, même si tu la connais.
-  Réponds en deux phrases courtes, comme dans une vraie conversation, écrites avec tes propres mots :
-  1. Reformule fidèlement la demande elle-même, pas seulement son sujet (« trouver des synonymes de
-     maison », pas « une maison » ; « expliquer ce qu'est un youtubeur » ; « faire ce calcul »), et dis
-     simplement que ce n'est pas dans tes cordes ici. Change la construction de cette phrase à chaque
-     fois : ne commence pas toujours pareil, et ne redis pas à chaque réponse que tu es l'assistant de
-     PC Radar.
-  2. Relance la conversation par une question ouverte et générale sur son PC : un projet de PC à monter,
-     une config à vérifier, un composant à choisir, un jeu à faire tourner, ou le site. Varie cette
-     question d'une fois à l'autre.
-  N'invente jamais de lien entre le sujet et le PC (pas de « pour ça il te faut un bon processeur »), ne
-  propose pas de composant précis au hasard, et n'écris jamais deux fois la même phrase dans la
-  discussion.
+  l'heure, ce qu'est un métier...), n'écris PAS de réponse toi-même : utilise la forme (1) avec
+  "hors_sujet": true et "demande" = ce que la DERNIÈRE question demande, reformulé en quelques mots à
+  l'infinitif, adressé à l'utilisateur (« te dire qui est Amixem », « te donner des synonymes de maison »,
+  « faire ce calcul »). Ne regarde que le dernier message pour "demande", jamais les questions d'avant.
+  Le site écrit lui-même la réponse.
 - Si la question a un vrai rapport avec le PC, réponds-y : « un PC pour streamer comme Joyca ? » est
   une question PC (le matériel pour streamer), pas une question sur la personne.
 - Salutations, remerciements, politesse (« salut », « merci », « t'es qui ? ») : réponds brièvement et
@@ -7505,7 +7540,7 @@ Nouveau message de l'utilisateur : {question}
 Choisis UNE des deux formes de réponse :
 
 (1) Une réponse de discussion (question, conseil, explication, comparaison, avis sur sa config...) :
-{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>], "liens": [<liens à afficher sous ta réponse, voir plus bas>]{champ_ticket}}}
+{{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux vidéo précis cités, sinon liste vide>], "composants": [<id des composants du site dont tu parles>], "liens": [<liens à afficher sous ta réponse, voir plus bas>], "hors_sujet": <true seulement pour une question sans rapport avec le PC, les jeux ou le site, sinon false>, "demande": <si hors_sujet : la dernière demande reformulée à l'infinitif, sinon null>{champ_ticket}}}
 - Réponse directe, en respectant les règles de « Ta façon d'aider ». Une courte liste avec des tirets
   seulement si ça aide vraiment. Tu peux mettre un mot important en **gras**. Pas de titres, pas de tableaux.
 - N'écris jamais les "id" dans "message" : ils ne servent qu'au champ "composants".
@@ -7570,6 +7605,12 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             return _run_fps_estimation(chosen, jeux)
 
         jeux = result.get("jeux") if isinstance(result.get("jeux"), list) else []
+        if result["status"] == "advice" and result.get("hors_sujet"):
+            reponse = {"status": "ok", "message": _refus_hors_sujet(result.get("demande"), messages, request.aide, request.refus_precedents),
+                       "composants": [], "hors_sujet": True}
+            if request.aide:
+                reponse["ticket"], reponse["fiches"] = None, {}
+            return reponse
         if result["status"] == "advice":
             base = ma_config if ma_config.get("cpu_id") and ma_config.get("gpu_id") else derniere
             ids_cites = []
