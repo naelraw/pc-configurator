@@ -339,3 +339,12 @@ table.liens-table td .btn{ display:inline-flex; align-items:center; gap:6px; fon
 .ticket-note{ display:flex; flex-direction:column; gap:4px; margin-top:10px; max-width:560px; }
 .ticket-note span{ font-size:0.74rem; color:var(--text-3); }
 .ticket-note textarea{ font:inherit; font-size:0.84rem; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:var(--r-sm); padding:6px 9px; resize:vertical; }
+
+/* Page Serveur */
+.kpi.is-warn .value{ color:#f2c14e; }
+.kpi.is-warn .meter span{ background:#f2c14e; }
+.kpi.is-alert .meter span{ background:var(--danger); }
+.serveur-grille{ display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
+.serveur-grille .panel{ margin:0; }
+.serveur-taille{ font-family:var(--font-mono); font-size:0.88rem; color:var(--text); }
+@media (max-width:1100px){ .serveur-grille{ grid-template-columns:1fr; } }

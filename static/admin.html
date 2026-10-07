@@ -45,6 +45,7 @@
       <button data-view="add" data-onclick="showView('add')"><i class="ph ph-plus-circle"></i><span class="lbl">Ajouter</span></button>
       <button data-view="links" data-onclick="showView('links')"><i class="ph ph-link"></i><span class="lbl">Liens</span><span class="count" id="nav-links"></span></button>
       <button data-view="stats" data-onclick="showView('stats')"><i class="ph ph-chart-bar"></i><span class="lbl">Statistiques</span></button>
+      <button data-view="serveur" data-onclick="showView('serveur')"><i class="ph ph-hard-drives"></i><span class="lbl">Serveur</span><span class="count" id="nav-serveur"></span></button>
       <button data-view="builds" data-onclick="showView('builds')"><i class="ph ph-star"></i><span class="lbl">Configurations</span></button>
     </nav>
     <div class="side-foot nav">
@@ -171,6 +172,20 @@
         <div><h2>Statistiques de visite</h2><p>Tirées des journaux du serveur sur 14 jours, sans cookie ni script de suivi. Robots exclus.</p></div>
       </div>
       <div id="stats-content"><p class="empty">Chargement…</p></div>
+    </section>
+
+    <!-- Serveur -->
+    <section data-section="serveur" hidden>
+      <div class="view-head">
+        <div><h2>Serveur</h2><p id="serveur-resume">Processeur, mémoire, disque et services du serveur Oracle, mis à jour toutes les 10 secondes.</p></div>
+        <button class="btn btn-secondary" data-onclick="loadServeur()"><i class="ph ph-arrows-clockwise"></i>Actualiser</button>
+      </div>
+      <div class="kpis" id="serveur-kpis"><p class="empty">Chargement…</p></div>
+      <div class="serveur-grille">
+        <div class="panel"><div class="panel-head"><h3>Services</h3></div><div id="serveur-services"></div></div>
+        <div class="panel"><div class="panel-head"><h3>Tâches planifiées</h3></div><div id="serveur-taches"></div></div>
+        <div class="panel"><div class="panel-head"><h3>Espace disque utilisé</h3></div><div id="serveur-dossiers"></div></div>
+      </div>
     </section>
 
     <!-- Configurations recommandées -->

@@ -53,6 +53,7 @@ import featured_builds
 import notes
 import guides
 import erreurs
+import serveur_info
 from fastapi.exception_handlers import http_exception_handler
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import component_pages
@@ -6948,7 +6949,7 @@ REFUS_HORS_SUJET = (
     "Je ne peux pas {d} : je suis l'assistant de PC Radar, spécialisé dans les PC et leurs composants.",
     "{D} ne fait pas partie de ce que je traite : je réponds aux questions sur les PC, les composants et le site.",
     "Je ne suis pas en mesure de {d}. Je peux en revanche t'aider sur tout ce qui concerne ton PC.",
-    "Cette demande sort de mon domaine : je suis dédié aux configurations PC et aux composants.",
+    "{D} sort de mon domaine : je suis dédié aux configurations PC et aux composants.",
 )
 RELANCES_HORS_SUJET = (
     "Qu'est-ce que je peux faire d'autre pour t'aider ?",
@@ -7142,6 +7143,12 @@ def aide_ticket(body: TicketRequest, request: Request):
             "description": body.description.strip(), "page": body.page, "email": email,
         }, f"{SITE_URL}/admin#tickets")
     return {"status": "ok", "id": numero, "jeton": jeton}
+
+
+@app.get("/api/admin/serveur")
+def admin_serveur(_admin=Depends(require_admin)):
+    """État du serveur (processeur, mémoire, disque, services, sauvegardes, certificat) : page « Serveur » de l'admin."""
+    return {"status": "ok", **serveur_info.etat_du_serveur()}
 
 
 @app.get("/api/admin/tickets")

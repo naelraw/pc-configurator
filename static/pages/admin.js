@@ -197,6 +197,12 @@
     if(location.hash !== '#' + name) history.replaceState(null, '', '#' + name);
     window.scrollTo(0, 0);
     if(name === 'catalog') setTimeout(() => $('catalog-search').focus(), 0);
+    // Page Serveur : actualisée toutes les 10 s tant qu'elle est affichée.
+    clearInterval(minuterieServeur);
+    if(name === 'serveur'){
+      loadServeur();
+      minuterieServeur = setInterval(() => { if(!document.hidden) loadServeur(); }, 10000);
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -1096,6 +1102,75 @@
       toast('Note enregistrée.');
     }catch(err){ toast(err.message, true); }
   });
+
+  // ---------------------------------------------------------------------
+  // Serveur (processeur, mémoire, disque, services)
+  // ---------------------------------------------------------------------
+  let minuterieServeur = null;
+  const octets = n => {
+    if(n == null) return '—';
+    const u = ['o', 'Ko', 'Mo', 'Go', 'To']; let i = 0, v = n;
+    while(v >= 1024 && i < u.length - 1){ v /= 1024; i++; }
+    return v.toLocaleString('fr-FR', { maximumFractionDigits: v < 10 && i > 1 ? 1 : 0 }) + ' ' + u[i];
+  };
+  const duree = s => {
+    if(s == null) return '—';
+    const j = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+    return j ? `${j} j ${h} h` : h ? `${h} h ${m} min` : `${m} min`;
+  };
+  // Dates de systemctl (« Wed 2026-10-07 03:30:22 UTC ») -> « 7 oct., 05:30 » à l'heure locale.
+  const dateSysteme = t => {
+    if(!t) return '—';
+    const m = String(t).match(/(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})/);
+    const d = m ? new Date(`${m[1]}T${m[2]}Z`) : new Date(t + (String(t).endsWith('Z') ? '' : 'Z'));
+    return isNaN(d) ? escapeHtml(t) : d.toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  };
+  function jauge(label, valeur, pourcent, hint){
+    const niveau = pourcent == null ? '' : pourcent >= 90 ? 'is-alert' : pourcent >= 75 ? 'is-warn' : '';
+    return `<div class="kpi ${niveau}"><span class="label">${label}</span><span class="value">${valeur}</span>
+      ${pourcent == null ? '' : `<div class="meter"><span style="width:${Math.min(100, Math.max(2, pourcent))}%"></span></div>`}
+      ${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
+  }
+
+  async function loadServeur(){
+    let d;
+    try{ d = await api('/api/admin/serveur'); }
+    catch(e){ $('serveur-kpis').innerHTML = `<p class="empty">État du serveur indisponible : ${escapeHtml(e.message)}</p>`; return; }
+    const cpu = d.cpu || {}, mem = d.memoire, disque = d.disque, cert = d.certificat, sauv = d.sauvegarde;
+    const pctMem = mem ? mem.utilise / mem.total * 100 : null;
+    const pctDisque = disque ? disque.utilise / disque.total * 100 : null;
+    $('serveur-kpis').innerHTML = [
+      jauge('Processeur', cpu.utilisation == null ? '—' : `${nombre(cpu.utilisation)} %`, cpu.utilisation,
+        `${cpu.coeurs || '?'} cœurs${cpu.charge ? ` · charge ${cpu.charge.map(x => x.toLocaleString('fr-FR')).join(' / ')}` : ''}`),
+      jauge('Mémoire vive', mem ? octets(mem.utilise) : '—', pctMem,
+        mem ? `sur ${octets(mem.total)} · ${octets(mem.disponible)} disponibles${mem.swap_total ? ` · swap ${octets(mem.swap_utilise)} / ${octets(mem.swap_total)}` : ''}` : ''),
+      jauge('Disque', disque ? octets(disque.utilise) : '—', pctDisque,
+        disque ? `sur ${octets(disque.total)} · ${octets(disque.libre)} libres` : ''),
+      jauge('En ligne depuis', duree(d.demarre_depuis_s), null, escapeHtml([d.nom, d.systeme].filter(Boolean).join(' · '))),
+      jauge('Certificat HTTPS', cert ? `${cert.jours} j` : '—', null,
+        cert ? `expire le ${new Date(cert.expire + 'Z').toLocaleDateString('fr-FR')} · renouvelé automatiquement` : 'non vérifié'),
+      jauge('Dernière sauvegarde', sauv ? dateSysteme(sauv.date) : '—', null,
+        sauv ? `${octets(sauv.taille)} compressée · ${sauv.nombre} gardées` : 'aucune trouvée'),
+    ].join('');
+    if(cert && cert.jours < 15) $('serveur-kpis').children[4].classList.add('is-alert');
+
+    const services = d.services || [];
+    const enPanne = services.filter(s => s.etat !== 'active');
+    $('serveur-services').innerHTML = services.map(s => `<div class="item">
+      <div><div class="t">${escapeHtml(s.nom)} <span class="tag ${s.etat === 'active' ? 'ok' : 'danger'}">${s.etat === 'active' ? 'En marche' : escapeHtml(s.etat)}</span></div>
+        <div class="why">${s.memoire != null ? octets(s.memoire) + ' de mémoire · ' : ''}démarré le ${dateSysteme(s.depuis)}</div></div></div>`).join('')
+      || '<p class="empty">Services non disponibles.</p>';
+    $('serveur-taches').innerHTML = (d.taches || []).map(t => `<div class="item">
+      <div><div class="t">${escapeHtml(t.nom)}</div>
+        <div class="why">dernière fois ${dateSysteme(t.dernier)}${t.prochain ? ` · prochaine ${dateSysteme(t.prochain)}` : ' · toutes les 5 minutes'}</div></div></div>`).join('')
+      || '<p class="empty">Tâches non disponibles.</p>';
+    $('serveur-dossiers').innerHTML = disque ? disque.dossiers.map(x => `<div class="item">
+      <div><div class="t">${escapeHtml(x.nom)}</div></div><div class="actions"><span class="serveur-taille">${octets(x.taille)}</span></div></div>`).join('') : '';
+    $('serveur-resume').textContent = `Mis à jour à ${new Date(d.mesure_le + 'Z').toLocaleTimeString('fr-FR')} · actualisation toutes les 10 secondes.`;
+    const compteur = $('nav-serveur');
+    compteur.textContent = enPanne.length ? String(enPanne.length) : '';
+    compteur.classList.toggle('alert', enPanne.length > 0);
+  }
 
   // ---------------------------------------------------------------------
   // Configurations recommandées

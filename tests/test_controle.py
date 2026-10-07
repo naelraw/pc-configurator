@@ -143,3 +143,9 @@ def test_meme_annonce_amazon_pas_de_doublon(client, catalog):
     assert len(main.get_all_components()) == avant
     fiche = next(c for c in main.get_all_components() if c["id"] == avec_asin["id"])
     assert fiche["nom"] == avec_asin["nom"] and fiche["prix_indicatif"] == 99.9
+
+
+def test_page_serveur_reservee_a_l_admin(client):
+    assert client.get("/api/admin/serveur").status_code == 401
+    d = client.get("/api/admin/serveur", headers=ADMIN).json()
+    assert d["status"] == "ok" and {"cpu", "memoire", "disque", "services", "taches", "certificat"} <= set(d)
