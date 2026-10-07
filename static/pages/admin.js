@@ -35,9 +35,6 @@
   let components = [];          // catalogue complet (version admin : vraies URL d'image)
   let watchData = null;         // rapport du contrôle du catalogue
   let watchTab = 'prix';
-  let brokenLinks = [];
-  let corrections = [];
-  let lastLinkCheck = null;
   let editing = null;           // composant ouvert dans le tiroir (null = création)
   let currentAmazonDetails = [];
   let currentAmazonDescription = null;
@@ -175,7 +172,6 @@
     $('dash-date').textContent = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const catOptions = CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
     $('catalog-category').insertAdjacentHTML('beforeend', catOptions);
-    $('import-category').insertAdjacentHTML('beforeend', catOptions);
     $('f-categorie').innerHTML = catOptions;
     const initial = (location.hash || '').slice(1);
     showView(document.querySelector(`[data-section="${initial}"]`) ? initial : 'dashboard');
@@ -184,7 +180,7 @@
 
   // Tout ce qui alimente le tableau de bord, chargé en parallèle.
   async function refreshAll(){
-    await Promise.allSettled([loadComponents(), loadWatch(), loadLinks(), loadStats(), loadQuotas(), loadBuilds(), loadTickets()]);
+    await Promise.allSettled([loadComponents(), loadWatch(), loadStats(), loadQuotas(), loadBuilds(), loadTickets()]);
     renderDashboard();
   }
 
@@ -258,9 +254,6 @@
       kpi('Produits au catalogue', nombre(produits), `${nombre(components.length)} annonces, ${nombre(enStock)} en stock`, '', 'catalog'),
       kpi('Prix suspects', nombre(suspects), aRattacher ? `${aRattacher} annonce${aRattacher > 1 ? 's' : ''} à rattacher` : 'aucune annonce à rattacher',
           suspects ? 'is-alert' : 'is-ok', 'watch'),
-      kpi('Liens morts', nombre(brokenLinks.length), lastLinkCheck ? 'vérifiés le ' + new Date(lastLinkCheck).toLocaleDateString('fr-FR') : 'pas encore vérifiés',
-          brokenLinks.length ? 'is-alert' : '', 'links'),
-      kpi('Corrections de liens', nombre(corrections.length), 'proposées par les visiteurs', corrections.length ? 'is-alert' : '', 'links'),
       kpi('Fiches incomplètes', watchData ? nombre(watchData.fiches_incompletes.length) : '—', 'champs de compatibilité manquants', '', 'watch'),
       bd ? `<div class="kpi"><span class="label">Bright Data ce mois-ci</span><span class="value">${nombre(bd.utilise)}<span class="faint"> / ${nombre(bd.quota)}</span></span>
             <div class="meter"><span style="width:${Math.min(100, Math.round(bd.utilise / bd.quota * 100))}%"></span></div>
@@ -297,13 +290,10 @@
       watchData.prix_suspects.slice(0, 5).forEach(s => todo.push(priceItem(s)));
       watchData.annonces_isolees.slice(0, 3).forEach(p => todo.push(isolatedItem(p)));
     }
-    brokenLinks.slice(0, 3).forEach(b => todo.push(brokenItem(b)));
-    corrections.slice(0, 3).forEach(c => todo.push(correctionItem(c)));
     $('dash-todo').innerHTML = todo.join('') || '<p class="empty">Rien à traiter. Le catalogue est propre.</p>';
 
     const setCount = (id, n, alert) => { const el = $(id); el.textContent = n ? String(n) : ''; el.classList.toggle('alert', !!alert && n > 0); };
     setCount('nav-watch', suspects + aRattacher, true);
-    setCount('nav-links', brokenLinks.length + corrections.length, true);
     setCount('nav-tickets', ticketsOuverts().length, true);
     setCount('nav-catalog', components.length, false);
   }
@@ -746,172 +736,10 @@
     }
   }
 
-  // ---------------------------------------------------------------------
-  // Import (ASIN, liens Amazon ou noms, un par ligne)
-  // ---------------------------------------------------------------------
-  let importState = null;
-
-  async function importOne(entry, signal, forcedCategorie){
-    const d = await api('/api/admin/fetch-asin', { method: 'POST', signal, body: JSON.stringify(forcedCategorie ? { asin: entry, categorie: forcedCategorie } : { asin: entry }) });
-    const categorie = forcedCategorie || d.categorie;
-    if(!categorie) return { ok: false, text: `${entry} : catégorie non reconnue, choisis-la dans la liste et relance.` };
-    const payload = {
-      categorie, nom: d.nom || `${categorie} (ASIN ${d.asin})`, prix_indicatif: d.prix != null ? d.prix : 0,
-      specs: d.specs || {},
-      prix_marche: (d.prix != null && d.lien) ? [{ vendeur: 'Amazon', prix: d.prix, lien: d.lien, date_releve: new Date().toISOString().slice(0, 10) }] : [],
-      image_url: d.image_url || null, asin: d.asin,
-      caracteristiques_amazon: Array.isArray(d.caracteristiques_amazon) ? d.caracteristiques_amazon : [],
-      description: d.description || null,
-    };
-    await api('/api/admin/components', { method: 'POST', body: JSON.stringify({ components: [payload] }), signal });
-    return { ok: true, text: `${payload.nom} · ${categorie} · ${d.prix == null ? 'prix introuvable (mis à 0 €)' : euros(d.prix)}` };
-  }
-
-  async function startImport(){
-    const entries = $('import-input').value.split(/\r?\n|,/).map(s => s.trim()).filter(Boolean);
-    if(!entries.length){ toast('Colle au moins un ASIN, lien ou nom de produit.', true); return; }
-    const forced = $('import-category').value || null;
-    const log = $('import-log');
-    const bar = $('import-progress');
-    log.innerHTML = '';
-    bar.hidden = false;
-    bar.firstElementChild.style.transform = 'scaleX(0)';
-    $('import-btn').disabled = true;
-    $('import-pause').hidden = false;
-    $('import-cancel').hidden = false;
-    $('import-pause').textContent = 'Pause';
-    importState = { paused: false, cancelled: false, controller: new AbortController() };
-    let next = 0, done = 0, ok = 0;
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-    // 2 imports en parallèle : au-delà, le nettoyage des titres par IA et le détourage
-    // des images (ressources partagées modestes) deviennent le goulot.
-    async function worker(){
-      while(next < entries.length && !importState.cancelled){
-        if(importState.paused){ await sleep(300); continue; }
-        const entry = entries[next++];
-        let outcome;
-        try{ outcome = await importOne(entry, importState.controller.signal, forced); }
-        catch(e){ outcome = { ok: false, text: `${entry} : ${importState.cancelled ? 'annulé' : e.message}` }; }
-        done++;
-        if(outcome.ok) ok++;
-        log.insertAdjacentHTML('beforeend', `<li class="${outcome.ok ? 'ok' : 'ko'}"><i class="ph ph-${outcome.ok ? 'check-circle' : 'x-circle'}"></i><span>${escapeHtml(outcome.text)}</span></li>`);
-        bar.firstElementChild.style.transform = `scaleX(${done / entries.length})`;
-      }
-    }
-    await Promise.all([worker(), worker()]);
-    const cancelled = importState.cancelled;
-    importState = null;
-    $('import-btn').disabled = false;
-    $('import-pause').hidden = true;
-    $('import-cancel').hidden = true;
-    toast(cancelled ? `Import annulé (${ok} ajouté${ok > 1 ? 's' : ''}).` : `${ok} produit${ok > 1 ? 's' : ''} sur ${entries.length} ajouté${ok > 1 ? 's' : ''}.`, ok < done);
-    if(!cancelled && ok === entries.length) $('import-input').value = '';
-    refreshAll();
-  }
-
-  function pauseImport(){
-    if(!importState) return;
-    importState.paused = !importState.paused;
-    $('import-pause').textContent = importState.paused ? 'Reprendre' : 'Pause';
-  }
-
-  function cancelImport(){
-    if(!importState) return;
-    importState.cancelled = true;
-    importState.controller.abort();
-  }
-
   async function loadQuotas(){
     try{
       quotas = await api('/api/admin/quotas');
-      const q = quotas.brightdata;
-      $('quota-info').textContent = `Bright Data : ${nombre(q.ajouts_restants)} ajouts encore possibles ce mois-ci.`;
     }catch(e){ quotas = null; }
-  }
-
-  // ---------------------------------------------------------------------
-  // Liens morts et corrections proposées
-  // ---------------------------------------------------------------------
-  function brokenItem(b){
-    return `<div class="item">
-      <div><div class="t">${escapeHtml(b.nom)} <span class="faint">· ${escapeHtml(b.vendeur)}</span></div>
-        <div class="why"><a href="${escapeHtml(b.lien)}" target="_blank" rel="noopener noreferrer">${escapeHtml(b.lien)}</a></div></div>
-      <div class="actions">
-        <button class="btn btn-secondary btn-sm" data-onclick="fixBrokenLink(${b.component_id}, '${jsArg(b.vendeur)}', '${jsArg(b.lien)}')">Remplacer le lien</button>
-        <button class="btn btn-ghost btn-sm" data-onclick="openComponent(${b.component_id})">Ouvrir</button>
-      </div></div>`;
-  }
-
-  function correctionItem(c){
-    return `<div class="item">
-      <div><div class="t">${escapeHtml(c.component_nom)} <span class="faint">· ${escapeHtml(c.vendeur)} · ${escapeHtml(c.user_email)}, le ${new Date(c.date).toLocaleDateString('fr-FR')}</span></div>
-        ${c.ancien_lien ? `<div class="link-old">${escapeHtml(c.ancien_lien)}</div>` : ''}
-        <div class="link-new">${escapeHtml(c.nouveau_lien)}</div></div>
-      <div class="actions">
-        <button class="btn btn-primary btn-sm" data-onclick="reviewCorrection(${c.id}, 'approve')">Approuver</button>
-        <button class="btn btn-danger btn-sm" data-onclick="reviewCorrection(${c.id}, 'reject')">Rejeter</button>
-      </div></div>`;
-  }
-
-  async function loadLinks(){
-    try{
-      const d = await api('/api/admin/broken-links');
-      brokenLinks = d.broken_links || [];
-      const s = d.check_status;
-      lastLinkCheck = s && s.dernier_lancement;
-      $('links-status').textContent = lastLinkCheck
-        ? `Dernière vérification le ${new Date(lastLinkCheck).toLocaleString('fr-FR')} : ${nombre(s.liens_testes)} liens testés, ${nombre(s.liens_non_verifiables)} non vérifiables (protection anti-robot d'Amazon)`
-          + (s.liens_corriges_auto ? `, ${nombre(s.liens_corriges_auto)} corrigés automatiquement` : '') + '.'
-        : 'Vérifiés automatiquement une fois par jour.';
-      $('broken-links').innerHTML = brokenLinks.map(brokenItem).join('') || '<p class="empty">Aucun lien confirmé mort.</p>';
-    }catch(e){
-      $('broken-links').innerHTML = '<p class="empty">Liste indisponible.</p>';
-    }
-    try{
-      const d = await api('/api/admin/link-corrections');
-      corrections = d.corrections || [];
-      $('link-corrections').innerHTML = corrections.map(correctionItem).join('') || '<p class="empty">Aucune correction en attente.</p>';
-    }catch(e){
-      $('link-corrections').innerHTML = '<p class="empty">Liste indisponible.</p>';
-    }
-  }
-
-  async function fixBrokenLink(componentId, vendeur, ancienLien){
-    const nouveau = await uiPrompt(`Nouveau lien ${vendeur}`, ancienLien, { confirmLabel: 'Remplacer' });
-    if(!nouveau || nouveau === ancienLien) return;
-    try{
-      await post('/api/admin/fix-link', { component_id: componentId, vendeur, nouveau_lien: nouveau });
-      toast('Lien remplacé.');
-      await refreshAll();
-    }catch(e){ toast(e.message, true); }
-  }
-
-  async function reviewCorrection(id, action){
-    try{
-      await post(`/api/admin/link-corrections/${id}/${action}`);
-      toast(action === 'approve' ? 'Correction appliquée.' : 'Correction rejetée.');
-      await refreshAll();
-    }catch(e){ toast(e.message, true); }
-  }
-
-  // Lancée en arrière-plan côté serveur ; on sonde jusqu'à ce que la date de
-  // dernière vérification change (un gros catalogue dépasse le délai d'une requête).
-  async function checkLinksNow(){
-    const btn = $('check-links-btn');
-    btn.disabled = true;
-    const before = lastLinkCheck;
-    $('links-status').textContent = 'Vérification en cours, ça peut prendre plusieurs minutes…';
-    try{
-      await post('/api/admin/check-links');
-      for(let i = 0; i < 72; i++){
-        await new Promise(r => setTimeout(r, 5000));
-        await loadLinks();
-        if(lastLinkCheck && lastLinkCheck !== before) break;
-      }
-      renderDashboard();
-    }catch(e){ toast(e.message, true); }
-    finally{ btn.disabled = false; }
   }
 
   // ---------------------------------------------------------------------

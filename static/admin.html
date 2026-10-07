@@ -46,8 +46,6 @@
       <button data-view="tickets" data-onclick="showView('tickets')"><i class="ph ph-lifebuoy"></i><span class="lbl">Tickets</span><span class="court">Tickets</span><span class="count" id="nav-tickets"></span></button>
       <button data-view="watch" data-onclick="showView('watch')"><i class="ph ph-warning-circle"></i><span class="lbl">À surveiller</span><span class="court">Surveiller</span><span class="count" id="nav-watch"></span></button>
       <button data-view="catalog" data-onclick="showView('catalog')"><i class="ph ph-cpu"></i><span class="lbl">Catalogue</span><span class="court">Catalogue</span><span class="count" id="nav-catalog"></span></button>
-      <button data-view="add" data-onclick="showView('add')"><i class="ph ph-plus-circle"></i><span class="lbl">Ajouter</span><span class="court">Ajouter</span></button>
-      <button data-view="links" data-onclick="showView('links')"><i class="ph ph-link"></i><span class="lbl">Liens</span><span class="court">Liens</span><span class="count" id="nav-links"></span></button>
       <button data-view="stats" data-onclick="showView('stats')"><i class="ph ph-chart-bar"></i><span class="lbl">Statistiques</span><span class="court">Stats</span></button>
       <button data-view="serveur" data-onclick="showView('serveur')"><i class="ph ph-hard-drives"></i><span class="lbl">Serveur</span><span class="court">Serveur</span><span class="count" id="nav-serveur"></span></button>
       <button data-view="builds" data-onclick="showView('builds')"><i class="ph ph-star"></i><span class="lbl">Configurations</span><span class="court">Configs</span></button>
@@ -77,7 +75,6 @@
     <section data-section="dashboard">
       <div class="view-head">
         <div><h2>Tableau de bord</h2><p id="dash-date"></p></div>
-        <button class="btn btn-primary" data-onclick="showView('add')"><i class="ph ph-plus"></i>Ajouter des produits</button>
       </div>
       <div class="kpis" id="dash-kpis"></div>
       <div class="panel">
@@ -141,43 +138,6 @@
           <tbody id="catalog-rows"></tbody>
         </table>
         <div class="more-row" id="catalog-more" hidden><button class="btn btn-ghost btn-sm" data-onclick="showMoreRows()">Afficher plus</button></div>
-      </div>
-    </section>
-
-    <!-- Ajouter -->
-    <section data-section="add" hidden>
-      <div class="view-head">
-        <div><h2>Ajouter des produits</h2><p>Colle des ASIN, des liens Amazon ou des noms de produits, un par ligne. Nom, prix, image, caractéristiques et catégorie sont récupérés automatiquement.</p></div>
-      </div>
-      <div class="panel">
-        <label class="field"><span>Produits à importer</span>
-          <textarea id="import-input" rows="7" placeholder="B0FG33PH79&#10;https://www.amazon.fr/dp/B0DTQR695X&#10;Corsair Vengeance RGB 32 Go DDR5 6000"></textarea>
-        </label>
-        <div class="toolbar" style="margin:12px 0 0;">
-          <select id="import-category" aria-label="Catégorie du lot"><option value="">Catégorie détectée automatiquement</option></select>
-          <button class="btn btn-primary" id="import-btn" data-onclick="startImport()"><i class="ph ph-download-simple"></i>Importer</button>
-          <button class="btn btn-secondary" id="import-pause" data-onclick="pauseImport()" hidden>Pause</button>
-          <button class="btn btn-danger" id="import-cancel" data-onclick="cancelImport()" hidden>Annuler</button>
-          <span class="faint" id="quota-info"></span>
-        </div>
-        <div class="progress" id="import-progress" hidden><span></span></div>
-        <ul class="import-log" id="import-log"></ul>
-      </div>
-    </section>
-
-    <!-- Liens -->
-    <section data-section="links" hidden>
-      <div class="view-head">
-        <div><h2>Liens des marchands</h2><p id="links-status">Vérifiés automatiquement une fois par jour.</p></div>
-        <button class="btn btn-secondary" id="check-links-btn" data-onclick="checkLinksNow()"><i class="ph ph-arrows-clockwise"></i>Vérifier maintenant</button>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h3>Liens morts</h3></div>
-        <div id="broken-links"><p class="empty">Chargement…</p></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head"><h3>Corrections proposées par les visiteurs</h3></div>
-        <div id="link-corrections"><p class="empty">Chargement…</p></div>
       </div>
     </section>
 
