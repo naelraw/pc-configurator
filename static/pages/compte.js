@@ -201,7 +201,7 @@
       await refreshView();
       uiAlert('Ton compte et toutes tes données ont été supprimés.', { title: 'Compte supprimé', tone: 'ok' });
     }catch(e){
-      errorEl.textContent = 'La suppression a échoué. Réessaie, ou écris à contact.pcradar@gmail.com.';
+      errorEl.textContent = 'La suppression a échoué. Réessaie, ou écris à contact@pcradar.tech.';
       btn.disabled = false;
     }
   }

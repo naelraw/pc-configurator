@@ -6834,7 +6834,7 @@ Prix : relevés automatiquement chaque nuit sur Amazon (les produits les plus de
 autres tous les quelques jours). Un prix peut donc avoir changé depuis : le prix final est toujours celui
 affiché sur Amazon. « Épuisé » = plus d'offre vendue par Amazon. Les achats et livraisons se font chez
 Amazon, pas sur PC Radar (pas de commande, pas de paiement, pas de SAV sur le site).
-Contact : contact.pcradar@gmail.com. Données hébergées en France."""
+Contact : contact@pcradar.tech. Données hébergées en France."""
 
 
 class AideRequest(BaseModel):
@@ -7042,7 +7042,7 @@ def _fiches_courtes(ids, components_by_id):
 def aide_chat(body: AideRequest, request: Request):
     _limiter_ip(_aide_par_ip, request, AIDE_MIN_INTERVAL, AIDE_MAX_PER_HOUR,
                 "Doucement, attends quelques secondes avant d'envoyer un autre message.",
-                "Tu as envoyé beaucoup de messages : réessaie dans un moment, ou écris à contact.pcradar@gmail.com.")
+                "Tu as envoyé beaucoup de messages : réessaie dans un moment, ou écris à contact@pcradar.tech.")
     messages = [m for m in body.messages if m.content.strip()][-CHAT_MAX_MESSAGES:]
     if not messages or messages[-1].role != "user":
         raise HTTPException(status_code=400, detail="Le dernier message doit venir de l'utilisateur.")
@@ -7131,7 +7131,7 @@ ou, pour proposer un ticket :
 @app.post("/api/aide/ticket")
 def aide_ticket(body: TicketRequest, request: Request):
     _limiter_ip(_tickets_par_ip, request, 0, TICKETS_MAX_PER_HOUR, "",
-                "Tu as déjà envoyé plusieurs signalements : merci ! Réessaie plus tard ou écris à contact.pcradar@gmail.com.")
+                "Tu as déjà envoyé plusieurs signalements : merci ! Réessaie plus tard ou écris à contact@pcradar.tech.")
     user = get_current_user(request) or {}
     email = (body.email or "").strip() or user.get("email") or None
     if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
