@@ -1610,6 +1610,9 @@ def export_my_data(user=Depends(require_login)):
             "signalements_de_liens": rows(
                 "SELECT component_id, vendeur, nouveau_lien, statut, date FROM link_corrections WHERE user_id = ?", [user["id"]]
             ) if _table_exists(client, "link_corrections") else [],
+            "demandes_d_aide": rows(
+                "SELECT id, date, statut, categorie, titre, description, page, discussion_json FROM tickets WHERE user_id = ?", [user["id"]]
+            ) if _table_exists(client, "tickets") else [],
         }
     finally:
         client.close()
@@ -1624,8 +1627,8 @@ def export_my_data(user=Depends(require_login)):
 def delete_my_account(request: Request, user=Depends(require_login)):
     """
     Droit à l'effacement (RGPD) : supprime le compte et tout ce qui lui est
-    rattaché. Les signalements de liens déjà envoyés sont gardés pour
-    l'historique de modération, mais anonymisés.
+    rattaché. Les signalements de liens et demandes d'aide déjà envoyés sont
+    gardés pour l'historique, mais anonymisés.
     """
     where, args = _user_build_filter(user["id"])
     client = get_client()
@@ -1641,6 +1644,11 @@ def delete_my_account(request: Request, user=Depends(require_login)):
         if _table_exists(client, "link_corrections"):
             statements.append(
                 ("UPDATE link_corrections SET user_id = 0, user_email = 'compte supprimé' WHERE user_id = ?", [user["id"]])
+            )
+        if _table_exists(client, "tickets"):
+            # Gardés pour le suivi des problèmes du site, sans l'adresse ni la conversation.
+            statements.append(
+                ("UPDATE tickets SET user_id = NULL, email = NULL, jeton = NULL, discussion_json = NULL WHERE user_id = ?", [user["id"]])
             )
         client.batch(statements)
     finally:
@@ -6859,6 +6867,9 @@ def _limiter_ip(registre, request, intervalle, par_heure, message_trop_vite, mes
             registre.pop(vieille, None)
 
 
+TICKET_CONSERVATION_JOURS = 365
+
+
 def _preparer_tickets():
     client = get_client()
     try:
@@ -6880,6 +6891,9 @@ def _preparer_tickets():
         colonnes = [r[1] for r in client.execute("PRAGMA table_info(tickets)").rows]
         if "jeton" not in colonnes:
             client.execute("ALTER TABLE tickets ADD COLUMN jeton TEXT")
+        # Conservation limitée à 12 mois (annoncée dans la politique de confidentialité).
+        client.execute("DELETE FROM tickets WHERE date < ?",
+                       [(datetime.utcnow() - timedelta(days=TICKET_CONSERVATION_JOURS)).isoformat(timespec="seconds")])
     finally:
         client.close()
 

@@ -137,3 +137,20 @@ def test_reponse_ia_avec_echappement_casse_reste_lisible():
     casse = '{"type": "advice", "message": "son cache qui am' + chr(92) + 'u00eilore les perfs", "composants": []}'
     data = main.parse_ai_json(casse)
     assert data and data["type"] == "advice" and "les perfs" in data["message"]
+
+
+def test_tickets_exportes_puis_anonymises_a_la_suppression_du_compte(new_client):
+    from conftest import inscrire
+    main._tickets_par_ip.clear()
+    membre = new_client("203.0.113.91")
+    assert inscrire(membre, "rgpd-ticket@test.fr").status_code == 200
+    r = membre.post("/api/aide/ticket", json={"categorie": "bug", "titre": "Prix faux sur une carte",
+                                              "description": "Le prix affiché ne correspond pas.",
+                                              "discussion": [{"role": "user", "content": "le prix est faux"}]})
+    numero = r.json()["id"]
+    export = membre.get("/api/auth/export").json()
+    assert [t["id"] for t in export["demandes_d_aide"]] == [numero]
+    assert membre.delete("/api/auth/account").status_code == 200
+    t = next(t for t in membre.get("/api/admin/tickets", headers=ADMIN).json()["tickets"] if t["id"] == numero)
+    assert t["email"] is None and not t["discussion"] and t["titre"] == "Prix faux sur une carte"
+    membre.delete(f"/api/admin/tickets/{numero}", headers=ADMIN)
