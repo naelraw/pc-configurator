@@ -74,7 +74,7 @@ def test_avec_un_compte_la_bulle_propose_des_composants(new_client, catalog, mon
     assert r.status_code == 200 and data["composants"] == [gpu["id"]] and data["ticket"] is None
     # La bulle reçoit de quoi afficher et ajouter le composant sans charger tout le catalogue.
     assert data["fiches"][str(gpu["id"])]["categorie"] == "GPU" and data["fiches"][str(gpu["id"])]["nom"] == gpu["nom"]
-    assert "bulle d'aide du site" in vus[-1] and "/configurateur" in vus[-1]
+    assert "# Dans la bulle d'aide" in vus[-1] and "/configurateur" in vus[-1]
 
 
 def test_suivi_des_tickets_et_demande_explicite(client, monkeypatch):
@@ -122,3 +122,12 @@ def test_refus_hors_sujet_construit_par_le_serveur(client, monkeypatch):
         {"role": "assistant", "content": "Je ne vais pas pouvoir te donner un synonyme de maison."},
         {"role": "user", "content": "qui est amixem"}]}).json()
     assert data["hors_sujet"] is True and "Amixem" in data["message"] and "maison" not in data["message"]
+
+
+def test_composant_cite_fidele_a_la_demande():
+    q = "c'est quoi la différence entre la rtx 5060 ti 8 go et 16 go ?"
+    assert main._fidelite_a_la_demande("ASUS Dual GeForce RTX 5060 Ti 16GB", q) > main._fidelite_a_la_demande("PNY GeForce RTX 5060 8Go", q)
+    assert main._fidelite_a_la_demande("PNY GeForce RTX 5060 8Go", "la 5060 elle vaut quoi") > main._fidelite_a_la_demande("ASUS RTX 5060 Ti 8GB", "la 5060 elle vaut quoi")
+    # Aucun caractère de contrôle glissé dans le code (vu : \x08 à la place de \b dans une regex).
+    import re, pathlib
+    assert not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", pathlib.Path(main.__file__).read_text(encoding="utf-8"))
