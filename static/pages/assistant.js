@@ -326,7 +326,7 @@
           m.erreur ? 'msg-erreur' : '');
       }
     });
-    if(enCours || ecritGuide) html += bulleAssistant(`<span class="chat-ecrit" aria-label="L’assistant écrit"><i></i><i></i><i></i></span><span class="chat-attente">${enCours ? escapeHtml(texteAttente()) : ''}</span>`);
+    if(enCours || ecritGuide) html += bulleAssistant(`<span class="radar-attente" aria-hidden="true"></span><span class="chat-attente" role="status">${enCours ? escapeHtml(texteAttente()) : 'L’assistant écrit…'}</span>`);
     // La discussion défile dans sa propre zone (pas la page) : on garde la
     // position quand on réaffiche sans nouveau message (bouton « Mettre dans
     // ma config »...), et on amène le début du dernier message en vue sinon.
@@ -345,8 +345,8 @@
   // prendre plusieurs secondes : IA, puis vérification par le site).
   let debutAttente = 0;
   const ETAPES_ATTENTE = [
-    [2, 'Je réfléchis…'], [6, 'Je parcours le catalogue…'],
-    [12, 'Je vérifie la compatibilité et le budget…'], [22, 'Presque fini…'],
+    [0, 'Lecture de ta demande…'], [2, 'Recherche dans le catalogue…'],
+    [5, 'Vérification de la compatibilité et des prix…'], [10, 'Préparation de la réponse…'], [20, 'Presque terminé…'],
   ];
   function texteAttente(){
     const ecoule = (Date.now() - debutAttente) / 1000;

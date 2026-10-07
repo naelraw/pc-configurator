@@ -5726,11 +5726,17 @@ def parse_ai_json(suggestion_text):
     start = suggestion_text.find("{")
     if start == -1:
         return None
-    try:
-        parsed, _ = json.JSONDecoder().raw_decode(suggestion_text[start:])
-        return parsed
-    except json.JSONDecodeError:
-        return None
+    texte = suggestion_text[start:]
+    for tentative in range(2):
+        try:
+            parsed, _ = json.JSONDecoder().raw_decode(texte)
+            return parsed
+        except json.JSONDecodeError:
+            # L'IA écrit parfois un accent en échappement cassé (« am\u00eilore ») :
+            # on neutralise les \u et \x invalides, puis on réessaie une fois.
+            texte = re.sub(r"\\u(?![0-9a-fA-F]{4})", "", texte)
+            texte = re.sub(r"\\(?![\"\\/bfnrtu])", "", texte)
+    return None
 
 
 def compute_real_total(suggestion_json, components_by_id):
@@ -6234,6 +6240,26 @@ def _repair_compatibility(suggestion, components_by_id):
     return None
 
 
+_BUDGET_MINIMUM_CACHE = {"at": 0.0, "cle": None, "valeur": None}
+
+
+def _budget_minimum(components_by_id, contraintes=None):
+    """Plus petit budget (par pas de 25 €) pour lequel le serveur trouve une config
+    complète et compatible. Gardé 10 minutes (calcul de quelques secondes)."""
+    cle = json.dumps(contraintes or {}, sort_keys=True)
+    if _BUDGET_MINIMUM_CACHE["cle"] == cle and time.time() - _BUDGET_MINIMUM_CACHE["at"] < 600:
+        return _BUDGET_MINIMUM_CACHE["valeur"]
+    budget = max(300, int(_cheapest_possible_total(components_by_id) // 25 * 25))
+    valeur = None
+    while budget <= 1500:
+        if _optimiser_config(budget, components_by_id, contraintes):
+            valeur = budget
+            break
+        budget += 25
+    _BUDGET_MINIMUM_CACHE.update(at=time.time(), cle=cle, valeur=valeur)
+    return valeur
+
+
 def _cheapest_possible_total(components_by_id):
     """Somme des composants en stock les moins chers de chaque catégorie de
     config : en dessous, aucun budget ne peut suffire."""
@@ -6370,6 +6396,16 @@ Réponds UNIQUEMENT avec le JSON demandé."""
             if couleur and not contraintes.get("couleur"):
                 contraintes["couleur"] = couleur
             optimale = _optimiser_config(budget_max, components_by_id, contraintes, fixes)
+            if not optimale and not fixes:
+                # Budget sous le prix de la config complète la moins chère : on propose
+                # celle-là en le disant, plutôt qu'un échec.
+                minimum = _budget_minimum(components_by_id, contraintes)
+                if minimum and minimum > budget_max:
+                    optimale = _optimiser_config(minimum, components_by_id, contraintes, fixes)
+                    if optimale:
+                        return {"status": "ok", "ajustee": True, "suggestion": _ajouter_ventirad(
+                            {**{k: v for k, v in parsed.items() if k != CHAMP_VENTIRAD}, **optimale,
+                             "budget_trop_bas": budget_max, "budget_max": minimum, "budget_auto": False}, components_by_id)}
             if optimale:
                 usage = (parsed.get("contraintes") or {}).get("usage") if isinstance(parsed.get("contraintes"), dict) else None
                 score_ia = _score_config(components_by_id.get(parsed.get("cpu_id")), components_by_id.get(parsed.get("gpu_id")), usage or "jeu")
@@ -6414,7 +6450,7 @@ Corrige ta réponse en tenant compte de ces erreurs. Réponds UNIQUEMENT avec le
     print(f"[assistant-ia] échec après {MAX_AI_ATTEMPTS} tentatives : {last_errors}")
     return {
         "status": "error",
-        "message": "Je n'ai pas trouvé de configuration compatible qui respecte votre budget. Essayez d'augmenter le budget ou de préciser votre besoin.",
+        "message": "Je n'ai pas trouvé de configuration compatible dans ce budget. Tu peux augmenter un peu le budget ou me préciser ton besoin ?",
     }
 
 
@@ -7020,6 +7056,12 @@ Page où se trouve le visiteur : {page}
 Visiteur connecté à un compte : {"oui" if connecte else "non"}
 
 Règles :
+- Comprends d'abord ce que la personne veut vraiment (fautes et langage oral compris) et réponds à CETTE
+  demande. Si le message parle de toi (« ça va ? », « tu as besoin d'aide ? »), réponds simplement à la
+  question posée puis demande ce dont elle a besoin (« Non merci, c'est moi qui suis là pour t'aider. Tu
+  cherches quelque chose ? »). Message vague (« ok », « ? », « aide ») : une phrase et UNE question simple.
+  Petite question, petite réponse ; ne récite jamais ce que tu sais faire et ne commence jamais par « Je
+  suis l'aide… » sauf si on te demande qui tu es. Tutoie toujours, jamais « vous ».
 - Questions sur le site (comment faire, où trouver, comment ça marche) : réponds et indique la page
   utile (son adresse entre parenthèses, ex : « (/configurateur) »).
 - Questions de conseil PC (quelle carte graphique, une config pour 1000 €, des composants précis) :
@@ -7539,24 +7581,38 @@ Concrètement, tu sais :
 - donner les liens utiles (panier Amazon de la config, fiche ou page Amazon d'un composant, partage) ;
 - expliquer comment utiliser PC Radar.
 
+# Comprendre avant de répondre (le plus important)
+- Lis le message tel qu'il est écrit, avec ses fautes, son langage oral ou ses abréviations, et cherche
+  ce que la personne veut vraiment. Réponds à CETTE demande, pas à une autre.
+- Si le message parle de toi (« ça va ? », « tu as besoin d'aide ? », « t'es un robot ? », « tu
+  t'appelles comment ? »), réponds simplement à la question posée, comme dans une conversation normale,
+  puis demande en quelques mots ce dont la personne a besoin. Exemples : « tu as besoin d'aide ? » ->
+  « Non merci, c'est moi qui suis là pour t'aider. Tu cherches quelque chose ? » ; « t'es un robot ? » ->
+  « Oui, je suis une IA. Tu as une question sur ton PC ? »
+- Message court, vague ou incompréhensible (« ok », « ? », « aide », « jsp », « hmm », une lettre) :
+  réponds en une phrase et pose UNE question simple pour savoir ce qu'il veut.
+- Salutation ou merci : une phrase très courte (« Bonjour, tu as besoin d'aide ? », « De rien. »). Ne dis
+  « Bonjour » que si la personne t'a salué ; sinon, réponds directement.
+- La longueur suit la question : petite question, petite réponse. Jamais de liste de ce que tu sais faire
+  et jamais « Je suis l'agent / l'assistant… » en ouverture, sauf si on te demande qui tu es ou ce que tu
+  sais faire (une phrase alors).
+- Plusieurs demandes dans un message : traite-les toutes, brièvement.
+- Personne énervée ou impolie : reste calme et poli, sans te justifier longuement, et propose ton aide.
+- Si tu ne sais pas ou si l'info n'est pas dans tes données, dis-le simplement au lieu d'inventer.
+
 # Ta façon de parler
 - Ton sérieux et professionnel, comme un conseiller technique compétent : précis, factuel, poli, sans
   familiarité. En français, et TOUJOURS en tutoyant, comme le reste du site : « tu », « ton », « ta »,
-  jamais « vous » ni « votre », même pour saluer ou remercier.
+  jamais « vous » ni « votre ».
 - Pas de formules de remplissage ni de ton commercial : jamais « sans prise de tête », « idéal »,
   « parfait », « de rêve », « à fond », « avec plaisir », « Excellente question », « N'hésite pas », ni
   d'exclamations enthousiastes. Pas d'emojis.
-- Salutation, « ça va ? », merci : réponds en UNE phrase très courte et simple, sans te présenter ni
-  lister ce que tu sais faire. Exemples : « salut » -> « Bonjour, tu as besoin d'aide ? » ;
-  « salut ça va ? » -> « Oui, ça va. Tu as besoin d'aide ? » ; « merci » -> « De rien. »
-- Présente-toi seulement si on te le demande (« t'es qui ? ») : une phrase courte sur ce que tu fais.
-- Court et utile : 1 à 3 phrases en général, plus seulement pour une explication ou une comparaison
-  demandée. Réponds à ce qui est demandé, sans informations superflues.
+- 1 à 3 phrases en général, plus seulement pour une explication ou une comparaison demandée. Pas
+  d'informations superflues.
 - Justifie tes choix par des faits (gamme, mémoire vidéo, performances attendues, prix). Avec un
   débutant, explique les termes techniques en quelques mots ; avec quelqu'un de calé, va droit au but.
-- Termine quand c'est utile par une proposition concrète pour la suite (ajuster le budget, changer une
-  pièce, estimer un jeu, comparer, le panier), formulée comme une question.
-- S'il manque une info indispensable, pose UNE seule question courte.
+- Après une config ou un conseil, propose si c'est utile une suite concrète (ajuster le budget, changer
+  une pièce, estimer un jeu, comparer, le panier), sous forme de question.
 - Pas de titres ni de tableaux ; une courte liste à tirets seulement si elle aide. **Gras** pour
   l'essentiel.
 - Tu es une IA : ne prétends jamais être humain ni avoir vécu quelque chose.
@@ -7576,7 +7632,6 @@ Concrètement, tu sais :
 - Les performances dans un jeu : forme (1) avec le jeu dans "jeux" (le site ajoute l'estimation de FPS).
 - Un lien ou l'envie d'acheter (« le lien Amazon », « le panier », « partage ma config ») : forme (1) avec
   "liens" ; ne lui dis jamais d'aller le chercher lui-même.
-- Une salutation, un « ça va ? », un merci : une phrase très courte (voir « Ta façon de parler »).
 - Une question sans rapport avec le PC, le matériel informatique, les jeux vidéo (côté matériel et
   performances) ou PC Radar (culture générale, maths, une personne, l'actualité...) : n'y réponds pas
   toi-même. Forme (1) avec "hors_sujet": true et "demande" = ce que le DERNIER message demande, reformulé
@@ -7620,7 +7675,8 @@ Utilise EXACTEMENT ces "id", n'en invente jamais. Specs de compatibilité entre 
 {question}
 
 # Format de ta réponse
-Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans markdown autour.
+Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans markdown autour. Écris les
+accents et caractères spéciaux directement (é, è, à, €), jamais sous forme d'échappement comme \\u00e9.
 
 (1) Réponse de discussion :
 {{"type": "advice", "message": "<ta réponse>", "jeux": [<jeux précis cités, sinon []>], "composants": [<id des composants du site dont tu parles, 6 maximum, dans l'ordre>], "liens": [<voir plus bas, sinon []>], "hors_sujet": <true ou false>, "demande": <si hors_sujet : la dernière demande à l'infinitif, sinon null>{champ_ticket}}}
@@ -7745,6 +7801,11 @@ def _message_config(suggestion, components_by_id, fps_estimation):
     else:
         phrases[0] += "."
     budget = suggestion.get("budget_max")
+    if suggestion.get("budget_trop_bas"):
+        return (f"Avec {float(suggestion['budget_trop_bas']):.0f} €, il n'est pas possible de monter un PC complet neuf avec "
+                f"les prix actuels. La config complète la moins chère que je peux te proposer coûte {total:.0f} € : "
+                + phrases[0][0].lower() + phrases[0][1:]
+                + " Veux-tu que je regarde ce qu'on peut garder de ton ancien PC pour réduire le prix ?")
     if suggestion.get("budget_auto"):
         phrases.append(f"Total : {total:.0f} €. Sans budget précisé, je me suis basé sur environ {float(budget):.0f} € ; "
                        "indique-moi ton budget pour que j'ajuste la config.")

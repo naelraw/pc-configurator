@@ -1949,9 +1949,6 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 }
 .aide-erreur .aide-texte{ color:var(--danger); }
 .aide-attente{ display:flex; gap:5px; padding:6px 0; }
-.aide-attente span{ width:7px; height:7px; border-radius:50%; background:var(--text-3); animation:chat-ecrit 1.1s infinite; }
-.aide-attente span:nth-child(2){ animation-delay:.15s; }
-.aide-attente span:nth-child(3){ animation-delay:.3s; }
 
 .aide-suggestions{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
 .aide-suggestions button{
@@ -2116,3 +2113,23 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .auth-error.show.ok{ background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent); }
 .auth-lien{ font:inherit; color:var(--accent); background:none; border:none; padding:0; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
 .auth-lien:disabled{ color:var(--text-3); cursor:default; }
+
+/* Attente de la réponse de l'IA : mini radar (balayage + point détecté), bulle et page assistant */
+.radar-attente{
+  position:relative; display:inline-block; flex-shrink:0; width:22px; height:22px; border-radius:50%;
+  vertical-align:middle; border:1px solid var(--accent-line);
+  background:
+    radial-gradient(circle, transparent 0 34%, var(--accent-line) 35% 38%, transparent 39%),
+    conic-gradient(from 0deg, transparent 0 70%, rgba(62,207,142,0.08) 78%, rgba(62,207,142,0.65) 100%);
+  animation:radar-tour 1.4s linear infinite;
+}
+.radar-attente::after{
+  content:''; position:absolute; top:4px; right:5px; width:4px; height:4px; border-radius:50%;
+  background:var(--accent); animation:radar-point 1.4s ease-in-out infinite;
+}
+@keyframes radar-tour{ to{ transform:rotate(360deg); } }
+@keyframes radar-point{ 0%, 55%{ opacity:0; } 70%{ opacity:1; } 100%{ opacity:0.2; } }
+@media (prefers-reduced-motion:reduce){ .radar-attente, .radar-attente::after{ animation:none; } }
+.aide-attente{ align-items:center; gap:10px; }
+.attente-texte{ font-size:0.84rem; color:var(--text-3); }
+.chat-attente{ margin-left:10px; vertical-align:middle; }

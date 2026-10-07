@@ -131,3 +131,9 @@ def test_composant_cite_fidele_a_la_demande():
     # Aucun caractère de contrôle glissé dans le code (vu : \x08 à la place de \b dans une regex).
     import re, pathlib
     assert not re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", pathlib.Path(main.__file__).read_text(encoding="utf-8"))
+
+
+def test_reponse_ia_avec_echappement_casse_reste_lisible():
+    casse = '{"type": "advice", "message": "son cache qui am' + chr(92) + 'u00eilore les perfs", "composants": []}'
+    data = main.parse_ai_json(casse)
+    assert data and data["type"] == "advice" and "les perfs" in data["message"]
