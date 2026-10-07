@@ -2115,16 +2115,19 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   border-radius:15px 15px 15px 4px; background:var(--surface-2); border:1px solid var(--line);
 }
 .ia-ecrit i{
-  width:6px; height:6px; border-radius:50%; background:var(--accent);
-  opacity:.3; transform:scale(.75); animation:ia-ecrit 1.3s cubic-bezier(.45,0,.55,1) infinite;
+  width:6px; height:6px; border-radius:50%; background:var(--accent); opacity:.35;
+  animation:ia-ecrit 1.2s ease-in-out infinite;
 }
-.ia-ecrit i:nth-child(2){ animation-delay:.18s; }
-.ia-ecrit i:nth-child(3){ animation-delay:.36s; }
+.ia-ecrit i:nth-child(2){ animation-delay:.15s; }
+.ia-ecrit i:nth-child(3){ animation-delay:.3s; }
+/* Petit saut de 4 px à tour de rôle : visible mais minuscule, gardé aussi quand
+   les animations sont réduites (aucun mouvement de la page). */
 @keyframes ia-ecrit{
-  0%, 70%, 100%{ opacity:.3; transform:scale(.75); }
-  35%{ opacity:1; transform:scale(1.15); box-shadow:0 0 8px rgba(62,207,142,.45); }
+  0%, 60%, 100%{ transform:translateY(0); opacity:.35; }
+  30%{ transform:translateY(-4px); opacity:1; }
 }
+/* La règle générale « animations réduites » du site coupe toutes les animations :
+   ces trois points en sont exclus, c'est le seul signe que l'IA travaille. */
 @media (prefers-reduced-motion:reduce){
-  .ia-ecrit i{ animation:ia-ecrit-doux 2s ease-in-out infinite; transform:none; }
-  @keyframes ia-ecrit-doux{ 0%, 100%{ opacity:.35; } 50%{ opacity:.9; } }
+  .ia-ecrit i{ animation-duration:1.2s !important; animation-iteration-count:infinite !important; }
 }
