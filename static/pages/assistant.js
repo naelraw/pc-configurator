@@ -300,8 +300,8 @@
 
   function accueil(){
     const maConfig = Object.keys(lireMaConfig()).length;
-    return bulleAssistant(`<p>Salut ! Je peux te conseiller sur les composants, la compatibilité et les performances en jeu,
-      ou te proposer une config complète selon ton budget.${maConfig ? ' Je vois aussi ta config en cours dans le configurateur : demande-moi ce que tu en penses.' : ''}</p>
+    return bulleAssistant(`<p>Bonjour. Je peux te conseiller sur les composants, la compatibilité et les performances en jeu,
+      ou composer une config complète selon ton budget.${maConfig ? ' J’ai aussi accès à ta config en cours dans le configurateur si tu veux mon avis dessus.' : ''}</p>
       <div class="chat-exemples">
         <button type="button" class="chat-exemple chat-exemple-guide" data-action="guide-demarrer"><i class="ph ph-list-checks" aria-hidden="true"></i> Je débute : pose-moi les questions</button>
         ${EXEMPLES.map((e, i) => `<button type="button" class="chat-exemple" data-action="exemple" data-i="${i}">${escapeHtml(e)}</button>`).join('')}</div>`);

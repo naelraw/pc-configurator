@@ -177,8 +177,8 @@
   // ------------------------------------------------------------------ Affichage
   function accueil(){
     return connecte
-      ? 'Salut ! Je peux te proposer des composants ou une config complète à mettre dans ta config en un clic, répondre à tes questions sur PC Radar, ou transmettre un problème à l’équipe.'
-      : 'Salut ! Je peux t’aider à utiliser PC Radar, ou transmettre un problème à l’équipe. Pose ta question.'
+      ? 'Bonjour. Je peux composer une config, te renseigner sur un composant, répondre à tes questions sur PC Radar ou transmettre un problème à l’équipe.'
+      : 'Bonjour. Je peux t’aider à utiliser PC Radar ou transmettre un problème à l’équipe.'
         + (connecte === false ? '\n\nAvec un compte gratuit (/compte), je peux aussi te proposer des composants et des configs complètes.' : '');
   }
 

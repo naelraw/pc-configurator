@@ -6909,10 +6909,10 @@ def _ticket_par_defaut(question, messages):
 # même et finissait par recopier un refus précédent (« qui est Amixem » ->
 # réponse sur les synonymes de maison).
 REFUS_HORS_SUJET = (
-    "Ah, {d}, ça sort un peu de mon domaine ! Moi, je suis là pour tout ce qui touche à ton PC.",
-    "Bonne curiosité, mais {d}, ce n'est pas ma spécialité : mon truc, c'est les PC et le matériel.",
-    "Je préfère te laisser chercher ailleurs pour {d} : je suis plutôt le spécialiste des PC.",
-    "{D}, je ne suis pas le mieux placé ! En revanche, côté PC, je suis à fond.",
+    "Je ne peux pas {d} : je suis l'assistant de PC Radar, spécialisé dans les PC et leurs composants.",
+    "{D} ne fait pas partie de ce que je traite : je réponds aux questions sur les PC, les composants et le site.",
+    "Je ne suis pas en mesure de {d}. Je peux en revanche t'aider sur tout ce qui concerne ton PC.",
+    "Cette demande sort de mon domaine : je suis dédié aux configurations PC et aux composants.",
 )
 RELANCES_HORS_SUJET = (
     "Tu as un projet de PC en tête ?",
@@ -7008,9 +7008,9 @@ def aide_chat(body: AideRequest, request: Request):
 
     prompt = f"""Tu es l'agent IA de PC Radar, dans la petite bulle d'aide en bas à droite du site. Ta mission :
 aider chaque visiteur à utiliser le site et à avancer dans son projet de PC, et transmettre à l'équipe les
-problèmes qu'il rencontre. Ton : chaleureux, positif, simple, en français, en tutoyant, comme un ami calé
-en PC. Réponses courtes (1 à 3 phrases) qui finissent si possible par une proposition pour la suite. Pas
-d'emojis, pas de formules toutes faites.
+problèmes qu'il rencontre. Ton : sérieux et professionnel, précis et poli, en français, en tutoyant, sans familiarité ni formules de
+remplissage (« sans prise de tête », « idéal », « parfait »...). Réponses courtes (1 à 3 phrases) qui
+finissent si possible par une proposition pour la suite. Pas d'emojis.
 
 Ce que tu sais du site (ne dis rien qui n'y est pas ; si tu ne sais pas, dis-le et propose d'envoyer la
 question à l'équipe) :
@@ -7528,7 +7528,7 @@ Sois encore plus bref. Tu aides aussi à utiliser PC Radar, avec ces infos (n'in
 
         prompt = f"""# Qui tu es
 Tu es l'agent IA de PC Radar (pcradar.tech), un site français gratuit pour choisir et monter son PC.
-Ta mission : aider chaque personne à avoir le PC qui lui va, au meilleur prix, sans prise de tête.
+Ta mission : aider chaque personne à choisir un PC adapté à son usage et à son budget.
 Concrètement, tu sais :
 - créer une config complète pour un budget, des jeux ou un usage, et la modifier pièce par pièce ;
 - donner les infos d'un composant (caractéristiques, prix du jour, stock, à quoi il sert, pour qui il
@@ -7539,18 +7539,24 @@ Concrètement, tu sais :
 - expliquer comment utiliser PC Radar.
 
 # Ta façon de parler
-- En français, en tutoyant, comme un ami calé en PC qui aide avec plaisir : chaleureux, positif, patient,
-  jamais condescendant. Tu montres que tu t'intéresses à son projet.
+- Ton sérieux et professionnel, comme un conseiller technique compétent : précis, factuel, poli, sans
+  familiarité. En français, et TOUJOURS en tutoyant, comme le reste du site : « tu », « ton », « ta »,
+  jamais « vous » ni « votre », même pour saluer ou remercier.
+- Pas de formules de remplissage ni de ton commercial : jamais « sans prise de tête », « idéal »,
+  « parfait », « de rêve », « à fond », « avec plaisir », « Excellente question », « N'hésite pas », ni
+  d'exclamations enthousiastes. Pas d'emojis.
+- Pour te présenter (salutation, « t'es qui ? ») : une phrase sobre sur ce que tu fais, par exemple que tu
+  aides à composer une config, à choisir et comparer des composants et à estimer les performances, puis
+  une question pour savoir ce dont il a besoin.
 - Court et utile : 1 à 3 phrases en général, plus seulement pour une explication ou une comparaison
-  demandée. Réponds à ce qui est demandé, sans infos en bonus inutiles.
-- Explique tes choix simplement (pourquoi cette carte, ce que ça change en jeu). Pas de jargon avec un
-  débutant, ou explique-le en quelques mots ; va droit au but avec quelqu'un de calé.
+  demandée. Réponds à ce qui est demandé, sans informations superflues.
+- Justifie tes choix par des faits (gamme, mémoire vidéo, performances attendues, prix). Avec un
+  débutant, explique les termes techniques en quelques mots ; avec quelqu'un de calé, va droit au but.
 - Termine quand c'est utile par une proposition concrète pour la suite (ajuster le budget, changer une
   pièce, estimer un jeu, comparer, le panier), formulée comme une question.
-- S'il hésite, a un petit budget ou s'est trompé : rassure-le, sans le juger.
-- S'il manque une info vraiment indispensable, pose UNE seule question courte.
-- Pas de formules toutes faites (« Excellente question ! », « N'hésite pas »), pas d'emojis, pas de
-  titres ni de tableaux. Une courte liste à tirets seulement si elle aide. **Gras** pour l'essentiel.
+- S'il manque une info indispensable, pose UNE seule question courte.
+- Pas de titres ni de tableaux ; une courte liste à tirets seulement si elle aide. **Gras** pour
+  l'essentiel.
 - Tu es une IA : ne prétends jamais être humain ni avoir vécu quelque chose.
 - Ne donne jamais de chiffres de FPS toi-même (le site les calcule), n'invente jamais un prix, une
   caractéristique ou un composant : tout vient des données ci-dessous.
@@ -7568,7 +7574,7 @@ Concrètement, tu sais :
 - Les performances dans un jeu : forme (1) avec le jeu dans "jeux" (le site ajoute l'estimation de FPS).
 - Un lien ou l'envie d'acheter (« le lien Amazon », « le panier », « partage ma config ») : forme (1) avec
   "liens" ; ne lui dis jamais d'aller le chercher lui-même.
-- Une salutation, un merci : réponds gentiment en une phrase et propose ton aide.
+- Une salutation, un merci : réponds poliment en une phrase et demande ce dont il a besoin.
 - Une question sans rapport avec le PC, le matériel informatique, les jeux vidéo (côté matériel et
   performances) ou PC Radar (culture générale, maths, une personne, l'actualité...) : n'y réponds pas
   toi-même. Forme (1) avec "hors_sujet": true et "demande" = ce que le DERNIER message demande, reformulé
@@ -7686,7 +7692,7 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             details = " et ".join(
                 f"{FIELD_TO_CATEGORY_BACKEND[f].lower()} : **{components_by_id[suggestion[f]]['nom']}** "
                 f"({float(components_by_id[suggestion[f]]['prix_indicatif']):.2f} €)".replace(".", ",") for f in changes)
-            message = f"C'est fait, nouveau {details}. Le reste ne bouge pas, total {total:.0f} €."
+            message = f"C'est fait : nouveau {details}. Les autres pièces ne changent pas, total {total:.0f} €."
         jeux = suggestion.get("jeux") if isinstance(suggestion.get("jeux"), list) else []
         fps_estimation = estimation(suggestion, jeux)
         if result.get("ajustee") and not (suggestion.get("modification") is True and precedente and 0 < len(changes) <= 2):
@@ -7694,8 +7700,8 @@ Réponds UNIQUEMENT avec un objet JSON valide d'une de ces deux formes, sans mar
             # texte de l'IA peut citer des pièces qui ne sont plus dans la config.
             message = _message_config(suggestion, components_by_id, fps_estimation)
         elif suggestion.get("budget_auto"):
-            message += (f" Tu ne m'as pas donné de budget, alors je suis parti sur environ "
-                        f"{float(suggestion['budget_max']):.0f} € : dis-moi le tien et j'ajuste.")
+            message += (f" Sans budget précisé, je me suis basé sur environ {float(suggestion['budget_max']):.0f} € ; "
+                        "indique-moi ton budget pour que j'ajuste la config.")
         _compter_assistant("config")
         reponse = {"status": "ok", "message": message, "suggestion": suggestion,
                    "fps_estimation": fps_estimation,
@@ -7723,7 +7729,7 @@ def _message_config(suggestion, components_by_id, fps_estimation):
     usage = ((suggestion.get("contraintes") or {}) if isinstance(suggestion.get("contraintes"), dict) else {}).get("usage")
     pour = (f"Pour {' et '.join(jeux)}" if jeux else "Pour le travail" if usage == "travail"
             else "Pour la création et le montage" if usage == "creation" else "Pour jouer")
-    phrases = [f"{pour}, je t'ai monté un PC autour de la **{gpu['nom']}** avec le **{cpu['nom']}**" if cpu and gpu
+    phrases = [f"{pour}, voici une config construite autour de la **{gpu['nom']}** et du **{cpu['nom']}**" if cpu and gpu
                else f"{pour}, voici une config complète"]
     fps = None
     for r in (fps_estimation or {}).get("resultats") or []:
@@ -7731,25 +7737,25 @@ def _message_config(suggestion, components_by_id, fps_estimation):
             fps = ((r.get("resolutions") or {}).get("1080p") or {}).get("fps")
             break
     if fps:
-        niveau = ("de quoi profiter d'un écran 144 Hz" if fps >= 144 else "c'est largement fluide" if fps >= 90
-                  else "c'est fluide" if fps >= 60 else "c'est jouable, sans plus")
+        niveau = ("adapté à un écran 144 Hz" if fps >= 144 else "très fluide" if fps >= 90
+                  else "fluide" if fps >= 60 else "jouable, mais en dessous de 60 FPS")
         phrases[0] += f" : environ {fps:.0f} FPS en 1080p sur {jeux[0] if jeux else 'ce jeu'}, {niveau}."
     else:
         phrases[0] += "."
     budget = suggestion.get("budget_max")
     if suggestion.get("budget_auto"):
-        phrases.append(f"Le tout fait {total:.0f} €. Tu ne m'as pas donné de budget, alors je suis parti sur environ "
-                       f"{float(budget):.0f} €, un bon équilibre pour cet usage : dis-moi le tien et j'ajuste.")
+        phrases.append(f"Total : {total:.0f} €. Sans budget précisé, je me suis basé sur environ {float(budget):.0f} € ; "
+                       "indique-moi ton budget pour que j'ajuste la config.")
     elif isinstance(budget, (int, float)) and budget > 0:
-        phrases.append(f"Le tout fait {total:.0f} € pour ton budget de {budget:.0f} €, en mettant l'argent là où ça compte "
-                       f"pour {'tes performances en jeu' if usage in (None, 'jeu', 'mixte') else 'ton usage'}.")
+        phrases.append(f"Total : {total:.0f} € pour un budget de {budget:.0f} €, avec la priorité donnée "
+                       f"{'à la carte graphique pour les performances en jeu' if usage in (None, 'jeu', 'mixte') else 'aux pièces utiles à ton usage'}.")
     else:
-        phrases.append(f"Le tout fait {total:.0f} €, et tout est compatible.")
+        phrases.append(f"Total : {total:.0f} €, toutes les pièces sont compatibles.")
     phrases.append(random.choice((
-        "Une pièce ne te plaît pas ? Dis-moi laquelle et je la change.",
-        "Tu veux que je regarde ce que donnerait une version un peu plus puissante ?",
-        "Si tu veux, je peux aussi estimer les FPS sur un autre jeu.",
-        "Tu veux que je te mette tout dans le panier Amazon ?",
+        "Souhaites-tu changer une pièce en particulier ?",
+        "Veux-tu que je compare avec une version plus puissante ?",
+        "Veux-tu une estimation des FPS sur un autre jeu ?",
+        "Veux-tu le lien pour ajouter toute la config au panier Amazon ?",
     )))
     return " ".join(phrases)
 
