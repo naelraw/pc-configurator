@@ -19,11 +19,12 @@ RACINE = os.path.dirname(os.path.abspath(__file__))
 SERVICES = (
     ("pc-configurator.service", "Site PC Radar"),
     ("nginx.service", "Serveur web (nginx)"),
-    ("rembg-service.service", "Détourage des images (rembg)"),
     ("gymsquad.service", "GymSquad"),
 )
-# PostgreSQL a été arrêté le 7 octobre 2026 : rien ne l'utilisait (GymSquad
-# stocke ses données en SQLite). Pour le relancer : sudo systemctl enable --now postgresql
+# Arrêtés le 7 octobre 2026 car inutilisés (relançables à tout moment) :
+# - PostgreSQL : GymSquad stocke ses données en SQLite ; sudo systemctl enable --now postgresql
+# - rembg (détourage des images) : aucun bouton de l'admin ne l'appelait, aucune image du
+#   catalogue n'était détourée ; sudo systemctl enable --now rembg-service
 TACHES = (
     ("pcradar-backup.timer", "Sauvegarde de la base"),
     ("pcradar-healthcheck.timer", "Surveillance du site"),
