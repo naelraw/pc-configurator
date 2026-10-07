@@ -60,8 +60,8 @@
   </div>
 
   <!-- Vue "non connecté" -->
-  <div id="guest-view" style="display:none;">
-    <div class="section-title">
+  <div id="guest-view" class="compte-invite" style="display:none;">
+    <div class="section-title compte-presentation">
       <h1>Connexion / Inscription</h1>
       <p>Crée ton compte gratuit pour profiter de :</p>
       <ul class="compte-avantages">
@@ -71,6 +71,8 @@
       </ul>
     </div>
 
+    <!-- Formulaires : à droite des avantages sur ordinateur, pour tout voir sans faire défiler -->
+    <div class="compte-connexion">
     <div class="auth-notice" id="google-notice" role="alert" hidden></div>
 
     <div class="oauth-block" id="google-block" hidden>
@@ -115,6 +117,7 @@
         <button type="button" class="auth-lien" id="verify-renvoyer" data-onclick="renvoyerCode()">renvoie un code</button>.
         <button type="button" class="auth-lien" data-onclick="changerAdresse()">Changer d'adresse</button></p>
     </form>
+    </div>
   </div>
 
   <!-- Vue "connecté" -->

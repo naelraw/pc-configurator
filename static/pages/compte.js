@@ -560,7 +560,7 @@
         else showComponentDetail(id);
       });
     }else{
-      document.getElementById('guest-view').style.display = 'block';
+      document.getElementById('guest-view').style.display = '';   // grille sur ordinateur (style.css)
       document.getElementById('user-view').style.display = 'none';
     }
   }

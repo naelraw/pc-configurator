@@ -2137,3 +2137,17 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .compte-avantages li{ position:relative; padding-left:22px; color:var(--text-2); font-size:0.95rem; line-height:1.5; }
 .compte-avantages li::before{ content:''; position:absolute; left:2px; top:0.55em; width:8px; height:8px; border-radius:50%; background:var(--accent); }
 .compte-avantages strong{ color:var(--text); font-weight:600; }
+
+/* Page Mon compte, non connecté : avantages à gauche, connexion à droite sur ordinateur,
+   pour que tout le formulaire (bouton compris) tienne dans l'écran. */
+@media (min-width:900px){
+  .compte-invite{
+    display:grid; grid-template-columns:minmax(0, 1fr) minmax(360px, 420px); gap:24px 56px; align-items:start;
+  }
+  .compte-presentation{ margin-bottom:0; padding-top:8px; }
+  .compte-connexion{
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-lg); padding:22px 22px 24px;
+  }
+  .compte-connexion .oauth-block, .compte-connexion .auth-form{ max-width:none; }
+  .compte-connexion .auth-form label:first-of-type{ margin-top:12px; }
+}
