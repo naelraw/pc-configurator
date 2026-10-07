@@ -6993,6 +6993,36 @@ def _refus_hors_sujet(demande, messages, aide_du_site=False, refus_precedents=No
     return f"{phrase} {random.choice(relances)}"
 
 
+# Fin de conversation (« ok merci », « super ») : on ne s'arrête jamais sur un
+# simple « De rien. », on laisse la porte ouverte à une autre demande.
+MOTS_DE_FIN = {"ok", "okay", "oki", "okk", "merci", "mrc", "mci", "beaucoup", "bien", "bcp", "super", "parfait", "cool",
+               "top", "nickel", "genial", "impec", "impeccable", "daccord", "dacc", "dac", "accord", "d", "ca", "marche",
+               "cest", "c", "est", "bon", "thanks", "thx", "trop", "tres", "ah", "ben", "bah", "alors", "encore", "a", "toi"}
+MOTS_DE_REMERCIEMENT = {"merci", "mrc", "mci", "thanks", "thx", "super", "parfait", "nickel", "genial", "top", "impec", "impeccable", "cool"}
+RELANCES_FIN = (
+    "Tu as besoin d'autre chose ?",
+    "Je peux t'aider sur autre chose ?",
+    "Il y a autre chose que je peux faire pour toi ?",
+    "Autre chose ?",
+)
+
+
+def _relancer_apres_fin(question, message, messages):
+    """Ajoute une courte relance quand la personne clôt l'échange (merci, ok...)
+    et que la réponse ne pose déjà aucune question."""
+    texte = unicodedata.normalize("NFKD", (question or "").lower()).encode("ascii", "ignore").decode()
+    mots = re.findall(r"[a-z]+", texte.replace("'", ""))
+    if not mots or len(mots) > 6 or not set(mots) <= MOTS_DE_FIN or "?" in (message or ""):
+        return message
+    precedent = next((m.content for m in reversed(messages[:-1]) if m.role == "assistant"), "")
+    if not set(mots) & MOTS_DE_REMERCIEMENT and precedent.rstrip().endswith("?"):
+        return message   # « ok » en réponse à une question : c'est un accord, pas une fin
+    deja_dit = " ".join(m.content for m in messages if m.role == "assistant")[-2000:]
+    relances = [r for r in RELANCES_FIN if r not in deja_dit] or list(RELANCES_FIN)
+    message = (message or "").strip() or "De rien."
+    return f"{message} {random.choice(relances)}"
+
+
 def _ids_cites_dans(texte, components):
     """Composants nommés précisément dans la demande (numéro de modèle), pour leur fiche complète."""
     return [c["id"] for c in _composants_cites(texte, components, limite=6)]
@@ -7092,8 +7122,11 @@ Règles :
 - Hors sujet (culture générale, maths, devoirs, une personne, l'actualité...) : n'écris PAS de réponse
   toi-même : mets "hors_sujet": true et "demande" = ce que la DERNIÈRE question demande, reformulé en
   quelques mots à l'infinitif (« te dire qui est Amixem »), le site écrit la réponse.
-- Salutation, « ça va ? », merci : UNE phrase très courte, sans te présenter (« Oui, ça va. Tu as besoin
-  d'aide ? », « De rien. »).
+- Salutation, « ça va ? » : UNE phrase très courte, sans te présenter (« Oui, ça va. Tu as besoin
+  d'aide ? »).
+- Merci, « ok », « super », fin de conversation : réponds brièvement ET relance toujours par une question
+  ouverte (« De rien. Tu as besoin d'autre chose ? », « Avec plaisir. Je peux t'aider sur autre chose ? »).
+  Ne termine jamais sur un simple « De rien. ».
 - Tu ne peux rien modifier toi-même (compte, prix, commandes) et PC Radar ne vend rien : les achats,
   livraisons et retours se font chez Amazon.
 
@@ -7122,6 +7155,7 @@ ou, pour proposer un ticket :
         return {"status": "ok", "message": _refus_hors_sujet(data.get("demande"), messages, True, body.refus_precedents), "ticket": None,
                 "hors_sujet": True}
     message = str(data.get("message") or "").strip() or "Je n'ai pas compris, tu peux reformuler ?"
+    message = _relancer_apres_fin(question, message, messages)
     ticket = _ticket_propose(data.get("ticket"), question)
     if not ticket and _demande_un_ticket(question):
         ticket = _ticket_par_defaut(question, messages)
@@ -7637,8 +7671,9 @@ Concrètement, tu sais :
   (« … pour ton PC ? ») : parle de PC, de config ou de composants seulement quand la conversation y est.
 - Message court, vague ou incompréhensible (« ok », « ? », « aide », « jsp », « hmm », une lettre) :
   réponds en une phrase et pose UNE question simple pour savoir ce qu'il veut.
-- Salutation ou merci : une phrase très courte (« Bonjour, qu'est-ce que je peux faire pour t'aider ? »,
-  « De rien. »). Ne dis
+- Salutation : une phrase très courte (« Bonjour, qu'est-ce que je peux faire pour t'aider ? »). Merci,
+  « ok », fin de conversation : réponds brièvement et relance toujours par une question ouverte (« De rien.
+  Tu as besoin d'autre chose ? ») ; ne termine jamais sur un simple « De rien. ». Ne dis
   « Bonjour » que si la personne t'a salué ; sinon, réponds directement.
 - La longueur suit la question : petite question, petite réponse. Jamais de liste de ce que tu sais faire
   et jamais « Je suis l'agent / l'assistant… » en ouverture, sauf si on te demande qui tu es ou ce que tu
@@ -7767,7 +7802,8 @@ accents et caractères spéciaux directement (é, è, à, €), jamais sous form
             texte = re.sub(r"\(\s*id\s*\d+\s*[,;]\s*", "(", result["message"] or "")
             texte = re.sub(r"\s*[\(\[]\s*id\s*\d+\s*[\)\]]|,?\s*\bid\s*\d+\b", "", texte)
             config_parlee = derniere or ma_config
-            reponse = {"status": "ok", "message": texte.strip() or "Je n'ai pas compris, tu peux reformuler ?",
+            reponse = {"status": "ok", "message": _relancer_apres_fin(question, texte.strip(), messages)
+                       if texte.strip() else "Je n'ai pas compris, tu peux reformuler ?",
                        "composants": ids_cites[:6],
                        "fps_estimation": estimation(base, [str(j)[:80] for j in jeux[:3]]),
                        "liens": _resoudre_liens(result.get("liens"), question,

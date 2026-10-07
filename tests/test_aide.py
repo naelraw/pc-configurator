@@ -154,3 +154,16 @@ def test_tickets_exportes_puis_anonymises_a_la_suppression_du_compte(new_client)
     t = next(t for t in membre.get("/api/admin/tickets", headers=ADMIN).json()["tickets"] if t["id"] == numero)
     assert t["email"] is None and not t["discussion"] and t["titre"] == "Prix faux sur une carte"
     membre.delete(f"/api/admin/tickets/{numero}", headers=ADMIN)
+
+
+def test_relance_apres_un_merci():
+    from types import SimpleNamespace as M
+    disc = [M(role="user", content="c'est quoi le mail de pc radar"),
+            M(role="assistant", content="Tu peux écrire à contact@pcradar.tech."), M(role="user", content="ok merci")]
+    r = main._relancer_apres_fin("ok merci", "De rien.", disc)
+    assert r.startswith("De rien. ") and r.split("De rien. ", 1)[1] in main.RELANCES_FIN
+    assert main._relancer_apres_fin("Super, merci beaucoup !", "Avec plaisir. Autre chose ?", disc) == "Avec plaisir. Autre chose ?"
+    # « ok » qui répond à une question : c'est un accord, pas une fin de conversation.
+    accord = [M(role="assistant", content="Tu veux que je change la carte graphique ?"), M(role="user", content="ok")]
+    assert main._relancer_apres_fin("ok", "C'est fait.", accord) == "C'est fait."
+    assert main._relancer_apres_fin("merci, et pour le 1440p ?", "Pour le 1440p...", disc) == "Pour le 1440p..."
