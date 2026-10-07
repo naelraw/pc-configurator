@@ -203,7 +203,7 @@
       html += blocFps(m.fps);
       html += boutonsLiens(m.liens);
     });
-    if(enCours) html += '<div class="aide-msg aide-ia"><div class="aide-texte aide-attente"><span class="radar-attente" aria-hidden="true"></span><span class="attente-texte" role="status">' + texteAttente() + '</span></div></div>';
+    if(enCours) html += '<div class="aide-msg aide-ia"><span class="ia-ecrit" role="status" aria-label="L’assistant écrit"><i></i><i></i><i></i></span></div>';
     if(etat.ticket && !enCours) html += carteTicket(etat.ticket);
     if(etat.ticketEnvoye) html += '<div class="aide-ticket aide-ticket-ok"><strong>Signalement n° ' + echapper(etat.ticketEnvoye) + ' envoyé.</strong> Merci, l’équipe va le regarder.</div>';
     var position = fil.scrollTop;
@@ -234,17 +234,6 @@
     return '<div class="aide-fps"><b>Estimation FPS' + qualite + '</b><p>' + echapper(String(fps.estimation)).trim().replace(/\n/g, '<br>') + '</p>' + conseil + '</div>';
   }
 
-  // Pendant que l'IA réfléchit : radar animé et étape en cours.
-  var ETAPES_ATTENTE = [
-    [0, 'Lecture de ta demande…'], [2, 'Recherche dans le catalogue…'],
-    [5, 'Vérification de la compatibilité et des prix…'], [10, 'Préparation de la réponse…'], [20, 'Presque terminé…'],
-  ];
-  var debutAttente = 0, minuterieAttente = null;
-  function texteAttente(){
-    var ecoule = (Date.now() - debutAttente) / 1000, texte = ETAPES_ATTENTE[0][1];
-    ETAPES_ATTENTE.forEach(function(e){ if(ecoule >= e[0]) texte = e[1]; });
-    return texte;
-  }
 
   function etatAjout(f, config){
     if(config[f.categorie] === f.id) return '<span class="aide-dedans">✓ Dans ma config</span>';
@@ -447,12 +436,6 @@
     etat.ticket = null;
     etat.ticketEnvoye = null;
     enCours = true;
-    debutAttente = Date.now();
-    clearInterval(minuterieAttente);
-    minuterieAttente = setInterval(function(){
-      var el = fil.querySelector('.attente-texte');
-      if(el) el.textContent = texteAttente();
-    }, 500);
     sauver();
     afficher();
     (connecte === null ? verifierCompte() : Promise.resolve()).then(function(){
@@ -474,7 +457,6 @@
       etat.messages.push({ role: 'assistant', content: err.message, erreur: true });
     }).then(function(){
       enCours = false;
-      clearInterval(minuterieAttente);
       sauver();
       afficher();
       // Une config ou des composants : on montre le début de la réponse, pas le bas de la liste.

@@ -1015,13 +1015,6 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .guide-boutons{ display:flex; gap:6px; margin-top:0; }
 .msg-corps > .guide-boutons{ margin-top:10px; }
 .cfg-btn:disabled{ opacity:0.45; cursor:not-allowed; }
-.chat-ecrit{ display:inline-flex; gap:4px; padding:8px 0; }
-.chat-ecrit i{ width:7px; height:7px; border-radius:50%; background:var(--text-3); animation:chat-ecrit 1.2s infinite ease-in-out; }
-.chat-ecrit i:nth-child(2){ animation-delay:.15s; }
-.chat-ecrit i:nth-child(3){ animation-delay:.3s; }
-@keyframes chat-ecrit{ 0%, 60%, 100%{ opacity:.35; transform:none; } 30%{ opacity:1; transform:translateY(-3px); } }
-@media (prefers-reduced-motion:reduce){ .chat-ecrit i{ animation:none; } }
-.chat-attente{ margin-left:10px; font-size:0.85rem; color:var(--text-3); }
 .mot-cache{ opacity:0; }
 .msg-ia .msg-corps span{ transition:opacity .18s var(--ease); }
 .apparait-ensuite{ opacity:0; transform:translateY(6px); }
@@ -1948,7 +1941,6 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
   background:var(--accent-soft); border:1px solid var(--accent-line);
 }
 .aide-erreur .aide-texte{ color:var(--danger); }
-.aide-attente{ display:flex; gap:5px; padding:6px 0; }
 
 .aide-suggestions{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
 .aide-suggestions button{
@@ -2114,22 +2106,25 @@ a.fps-source:hover{ text-decoration:underline; text-underline-offset:2px; }
 .auth-lien{ font:inherit; color:var(--accent); background:none; border:none; padding:0; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
 .auth-lien:disabled{ color:var(--text-3); cursor:default; }
 
-/* Attente de la réponse de l'IA : mini radar (balayage + point détecté), bulle et page assistant */
-.radar-attente{
-  position:relative; display:inline-block; flex-shrink:0; width:22px; height:22px; border-radius:50%;
-  vertical-align:middle; border:1px solid var(--accent-line);
-  background:
-    radial-gradient(circle, transparent 0 34%, var(--accent-line) 35% 38%, transparent 39%),
-    conic-gradient(from 0deg, transparent 0 70%, rgba(62,207,142,0.08) 78%, rgba(62,207,142,0.65) 100%);
-  animation:radar-tour 1.4s linear infinite;
+/* L'IA réfléchit : trois points verts en vague, dans une pastille comme les bulles
+   de discussion (bulle d'aide et page assistant). Seul transform/opacity bougent :
+   pas de saut de mise en page, et l'animation ne repart pas à zéro à chaque rendu
+   puisque la pastille garde la même taille. */
+.ia-ecrit{
+  display:inline-flex; align-items:center; gap:5px; height:30px; padding:0 13px;
+  border-radius:15px 15px 15px 4px; background:var(--surface-2); border:1px solid var(--line);
 }
-.radar-attente::after{
-  content:''; position:absolute; top:4px; right:5px; width:4px; height:4px; border-radius:50%;
-  background:var(--accent); animation:radar-point 1.4s ease-in-out infinite;
+.ia-ecrit i{
+  width:6px; height:6px; border-radius:50%; background:var(--accent);
+  opacity:.3; transform:scale(.75); animation:ia-ecrit 1.3s cubic-bezier(.45,0,.55,1) infinite;
 }
-@keyframes radar-tour{ to{ transform:rotate(360deg); } }
-@keyframes radar-point{ 0%, 55%{ opacity:0; } 70%{ opacity:1; } 100%{ opacity:0.2; } }
-@media (prefers-reduced-motion:reduce){ .radar-attente, .radar-attente::after{ animation:none; } }
-.aide-attente{ align-items:center; gap:10px; }
-.attente-texte{ font-size:0.84rem; color:var(--text-3); }
-.chat-attente{ margin-left:10px; vertical-align:middle; }
+.ia-ecrit i:nth-child(2){ animation-delay:.18s; }
+.ia-ecrit i:nth-child(3){ animation-delay:.36s; }
+@keyframes ia-ecrit{
+  0%, 70%, 100%{ opacity:.3; transform:scale(.75); }
+  35%{ opacity:1; transform:scale(1.15); box-shadow:0 0 8px rgba(62,207,142,.45); }
+}
+@media (prefers-reduced-motion:reduce){
+  .ia-ecrit i{ animation:ia-ecrit-doux 2s ease-in-out infinite; transform:none; }
+  @keyframes ia-ecrit-doux{ 0%, 100%{ opacity:.35; } 50%{ opacity:.9; } }
+}

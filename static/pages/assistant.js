@@ -326,7 +326,7 @@
           m.erreur ? 'msg-erreur' : '');
       }
     });
-    if(enCours || ecritGuide) html += bulleAssistant(`<span class="radar-attente" aria-hidden="true"></span><span class="chat-attente" role="status">${enCours ? escapeHtml(texteAttente()) : 'L’assistant écrit…'}</span>`);
+    if(enCours || ecritGuide) html += bulleAssistant(POINTS_ATTENTE);
     // La discussion défile dans sa propre zone (pas la page) : on garde la
     // position quand on réaffiche sans nouveau message (bouton « Mettre dans
     // ma config »...), et on amène le début du dernier message en vue sinon.
@@ -343,17 +343,8 @@
 
   // Pendant l'attente : ce que fait l'assistant (une demande de config peut
   // prendre plusieurs secondes : IA, puis vérification par le site).
-  let debutAttente = 0;
-  const ETAPES_ATTENTE = [
-    [0, 'Lecture de ta demande…'], [2, 'Recherche dans le catalogue…'],
-    [5, 'Vérification de la compatibilité et des prix…'], [10, 'Préparation de la réponse…'], [20, 'Presque terminé…'],
-  ];
-  function texteAttente(){
-    const ecoule = (Date.now() - debutAttente) / 1000;
-    let texte = '';
-    ETAPES_ATTENTE.forEach(([seconde, t]) => { if(ecoule >= seconde) texte = t; });
-    return texte;
-  }
+  // L'IA réfléchit : trois points animés (même rendu que la bulle d'aide).
+  const POINTS_ATTENTE = '<span class="ia-ecrit" role="status" aria-label="L’assistant écrit"><i></i><i></i><i></i></span>';
 
   // La réponse apparaît mot par mot (environ une seconde), puis la carte de
   // config ou le panneau des composants.
@@ -544,7 +535,6 @@
     texte = (texte || '').trim();
     if(!texte || enCours) return;
     discussion = discussion.filter(m => !m.erreur);
-    debutAttente = Date.now();
     discussion.push({ role: 'user', content: texte, ...(options.cache ? { cache: true } : {}), ...(options.envoi ? { envoi: options.envoi } : {}) });
     enCours = true;
     $('ai-input').value = '';
@@ -563,10 +553,6 @@
         + ((m.composants || []).length ? `\n(Composants montrés : ${m.composants.map(id => composantsParId.get(id)).filter(Boolean).map(c => `${c.nom} [id ${c.id}]`).join(', ')})` : ''),
     }));
 
-    const minuterie = setInterval(() => {
-      const el = document.querySelector('.chat-attente');
-      if(el) el.textContent = texteAttente();
-    }, 1000);
     let reponse;
     try{
       const res = await fetch(API_BASE + '/api/assistant/chat', {
@@ -579,7 +565,6 @@
       if(res.status === 401){
         afficherAccesReserve();
         enCours = false;
-        clearInterval(minuterie);
         return;
       }
       if(res.ok && data.status === 'ok'){
@@ -592,7 +577,6 @@
     }catch(e){
       reponse = { role: 'assistant', content: 'Connexion impossible avec l’assistant. Vérifie ta connexion et réessaie.', erreur: true };
     }
-    clearInterval(minuterie);
     enCours = false;
     if(reponse.erreur){
       // Le message non traité revient dans la zone de saisie pour être renvoyé.
