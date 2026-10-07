@@ -21,8 +21,9 @@ SERVICES = (
     ("nginx.service", "Serveur web (nginx)"),
     ("rembg-service.service", "Détourage des images (rembg)"),
     ("gymsquad.service", "GymSquad"),
-    ("postgresql@16-main.service", "PostgreSQL (GymSquad)"),
 )
+# PostgreSQL a été arrêté le 7 octobre 2026 : rien ne l'utilisait (GymSquad
+# stocke ses données en SQLite). Pour le relancer : sudo systemctl enable --now postgresql
 TACHES = (
     ("pcradar-backup.timer", "Sauvegarde de la base"),
     ("pcradar-healthcheck.timer", "Surveillance du site"),
