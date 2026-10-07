@@ -1049,6 +1049,17 @@ a.bento-cell:hover .more{ color:var(--accent); }
 .assistant-acces-boutons{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
 .assistant-acces-note{ margin-top:16px; font-size:0.82rem; color:var(--text-3); }
 .assistant-acces-note a{ color:var(--text-2); text-decoration:underline; text-underline-offset:2px; }
+/* Accès réservé : version compacte pour tenir dans l'écran (page sans la phrase
+   d'introduction, déjà redite dans l'encadré). */
+.assistant-page:has(.assistant-acces){ padding-top:32px; }
+.assistant-page:has(.assistant-acces) .assistant-tete{ margin-bottom:16px; }
+.assistant-page:has(.assistant-acces) .assistant-tete p{ display:none; }
+.chat:has(.assistant-acces){ padding:14px 20px; }
+.assistant-acces{ padding:14px 12px 6px; }
+.assistant-acces-icone{ width:42px !important; height:42px !important; font-size:1.2rem; margin-bottom:10px !important; }
+.assistant-acces h2{ margin-bottom:6px; }
+.assistant-acces-liste{ margin:12px 0 16px; gap:5px; }
+.assistant-acces-note{ margin-top:12px; }
 
 .cfg-carte{ margin-top:12px; border:1px solid var(--line-strong); border-radius:var(--r-md); background:var(--bg); overflow:hidden; }
 .cfg-liste{ list-style:none; }

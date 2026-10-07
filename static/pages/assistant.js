@@ -758,7 +758,7 @@
       <div class="assistant-acces">
         <span class="assistant-acces-icone" aria-hidden="true"><i class="ph ph-lock-key"></i></span>
         <h2>L'assistant IA est réservé aux membres</h2>
-        <p>Crée ton compte gratuit en quelques secondes pour discuter avec l'assistant, te faire guider pas à pas
+        <p>Crée ton compte gratuit en quelques secondes pour discuter avec l'assistant
           et recevoir une config adaptée à ton budget et à tes jeux.</p>
         <ul class="assistant-acces-liste">
           <li><i class="ph ph-check" aria-hidden="true"></i> Gratuit, sans carte bancaire</li>
