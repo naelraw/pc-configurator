@@ -1086,6 +1086,18 @@ def _state_get(cle, defaut):
         client.close()
 
 
+def _state_brut(cle):
+    """Valeur texte telle quelle (dates écrites par _mark_task_done), ou None."""
+    client = get_client()
+    try:
+        rows = client.execute("SELECT valeur FROM app_state WHERE cle = ?", [cle]).rows
+        return rows[0][0] if rows and rows[0][0] else None
+    except Exception:
+        return None
+    finally:
+        client.close()
+
+
 def _state_set(cle, valeur):
     client = get_client()
     try:
@@ -3834,7 +3846,10 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
             attente = _state_get("prix_a_confirmer", {})
             if attente.pop(str(component_id), None) is not None:
                 _state_set("prix_a_confirmer", attente)
-        elif not _confirmer_prix_inhabituel(component_id, prix):
+        elif prix < reference * 0.3 or not _confirmer_prix_inhabituel(component_id, prix):
+            # Chute de plus de 70 % : jamais appliquée sur la seule répétition du même
+            # service (une erreur de lecture se répète à l'identique chaque nuit, ex.
+            # 1 063,05 € lu 1,05 €) ; il faut qu'un autre service la confirme.
             return {"error": f"{nom} ({asin}) : prix inhabituel via {source_label} ({info['prix']} € au lieu de {reference:g} €), "
                              "pas confirmé par un 2e service : appliqué seulement s'il se confirme au prochain passage.",
                     "remis_en_stock": False, "passe_epuise": False, "ignore": True}
@@ -4479,13 +4494,16 @@ def _run_daily_price_refresh_rotation():
 # pendant toute la fenêtre, elle attend la nuit suivante.
 PRIX_FUSEAU = ZoneInfo("Europe/Paris")
 PRIX_HEURE_DEBUT, PRIX_HEURE_FIN = 2, 6
+PRIX_ESSAIS_PAR_NUIT = 2
 
 
 def _mise_a_jour_prix_due(maintenant=None) -> bool:
     maintenant = maintenant or datetime.now(PRIX_FUSEAU)
     if not PRIX_HEURE_DEBUT <= maintenant.hour < PRIX_HEURE_FIN:
         return False
-    derniere = _state_get("derniere_mise_a_jour_prix", None)
+    # Texte brut écrit par _mark_task_done, pas du JSON : lu avec _state_get, il
+    # valait toujours None et la mise à jour repartait en boucle toute la nuit.
+    derniere = _state_brut("derniere_mise_a_jour_prix")
     if not derniere:
         return True
     try:
@@ -4541,10 +4559,18 @@ async def price_refresh_loop():
         if datetime.utcnow() < DAILY_ROTATION_START or not await asyncio.to_thread(_mise_a_jour_prix_due):
             await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
             continue
+        # Deux essais par nuit au plus : un passage qui plante n'est pas marqué
+        # fait et repartirait sinon sans fin, en dépensant les quotas.
+        nuit = datetime.now(PRIX_FUSEAU).date().isoformat()
+        essais = _state_get("essais_mise_a_jour_prix", {})
+        if essais.get(nuit, 0) >= PRIX_ESSAIS_PAR_NUIT:
+            await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
+            continue
         if not PRICE_REFRESH_LOCK.acquire(blocking=False):
             print("Rafraîchissement automatique des prix ignoré (déjà en cours via un autre déclenchement).")
             await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
             continue
+        await asyncio.to_thread(_state_set, "essais_mise_a_jour_prix", {nuit: essais.get(nuit, 0) + 1})
         try:
             debut = datetime.utcnow()
             stats = await asyncio.to_thread(_run_daily_price_refresh_rotation)
@@ -4572,8 +4598,11 @@ async def price_refresh_loop():
                 )
         except Exception as error:
             print(f"Rafraîchissement automatique des prix échoué : {error}")
+            await asyncio.to_thread(_state_set, "echec_mise_a_jour_prix", {
+                "date": datetime.utcnow().isoformat(timespec="minutes"), "erreur": f"{type(error).__name__} : {error}"[:500]})
         finally:
             PRICE_REFRESH_LOCK.release()
+        await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
 
 
 @app.on_event("startup")
@@ -5098,16 +5127,21 @@ def parse_amazon_price(raw):
                     return parsed
         return None
     if isinstance(raw, str):
-        cleaned = re.sub(r"[^\d,.\-]", "", raw)
+        cleaned = re.sub(r"[^\d,.\-]", "", raw).strip(".,")
         if not cleaned:
             return None
-        # "299,99" (virgule décimale FR) vs "1,299.99" (virgule = séparateur
-        # de milliers) : si les deux séparateurs sont présents, la virgule
-        # est forcément un séparateur de milliers à supprimer.
-        if "," in cleaned and "." in cleaned:
-            cleaned = cleaned.replace(",", "")
-        elif "," in cleaned:
-            cleaned = cleaned.replace(",", ".")
+        # Le dernier séparateur est la décimale (« 1.063,05 » FR, « 1,063.05 »
+        # US), sauf s'il est répété ou suivi d'exactement 3 chiffres sans autre
+        # séparateur : c'est alors un séparateur de milliers (« 1.246 »,
+        # « 1,246 », « 1.234.567 »).
+        separateurs = [c for c in cleaned if c in ",."]
+        if separateurs:
+            dernier = separateurs[-1]
+            entier, _, decimales = cleaned.rpartition(dernier)
+            if separateurs.count(dernier) > 1 or (len(separateurs) == 1 and len(decimales) == 3):
+                cleaned = re.sub(r"[,.]", "", cleaned)
+            else:
+                cleaned = re.sub(r"[,.]", "", entier) + "." + decimales
         try:
             return float(cleaned)
         except ValueError:
@@ -5535,10 +5569,13 @@ def _parse_zenrows_amazon_html(html, asin):
     price_zone_match = re.search(r'corePriceDisplay_(?:desktop|mobile)_feature_div(.{0,8000})', html, re.DOTALL)
     if price_zone_match:
         zone = price_zone_match.group(1)
-        whole_match = re.search(r'a-price-whole">\s*(\d[\d\s]*)', zone)
+        # Partie entière avec séparateur de milliers (« 1 063 », « 1.063 »,
+        # espace insécable en entité HTML) : sans ça, 1 063,05 € était lu 1,05 €.
+        whole_match = re.search(r'a-price-whole">\s*(\d(?:[\d\s.,\u00a0\u202f]|&nbsp;|&#160;|&#8239;|&#x202f;)*)',
+                                zone, re.IGNORECASE)
         frac_match = re.search(r'a-price-fraction">\s*(\d+)', zone)
         if whole_match:
-            whole = whole_match.group(1).replace(" ", "").replace("\xa0", "")
+            whole = re.sub(r"\D", "", re.sub(r"&[#\w]+;", "", whole_match.group(1)))
             frac = frac_match.group(1) if frac_match else "00"
             try:
                 prix = float(f"{whole}.{frac}")
