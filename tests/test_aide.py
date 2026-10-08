@@ -167,3 +167,36 @@ def test_relance_apres_un_merci():
     accord = [M(role="assistant", content="Tu veux que je change la carte graphique ?"), M(role="user", content="ok")]
     assert main._relancer_apres_fin("ok", "C'est fait.", accord) == "C'est fait."
     assert main._relancer_apres_fin("merci, et pour le 1440p ?", "Pour le 1440p...", disc) == "Pour le 1440p..."
+
+
+def test_gemini_surcharge_passe_directement_au_repli(monkeypatch):
+    """503 « high demand » : une seule clé essayée, puis Mistral sans attendre ;
+    l'appel suivant (dans la minute) ne tente même plus Gemini."""
+    from types import SimpleNamespace
+    essais = []
+
+    class Modeles:
+        def generate_content(self, **k):
+            essais.append(1)
+            raise RuntimeError("503 UNAVAILABLE. This model is currently experiencing high demand.")
+
+    class Groq:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(**k):
+                    raise RuntimeError("Error code: 429 rate_limit_exceeded, try again in 30s")
+
+    monkeypatch.setattr(main, "genai_new", SimpleNamespace(Client=lambda api_key: SimpleNamespace(models=Modeles())))
+    monkeypatch.setattr(main, "GEMINI_API_KEYS", ["k1", "k2", "k3", "k4", "k5"])
+    monkeypatch.setattr(main, "groq_client", Groq())
+    monkeypatch.setattr(main, "MISTRAL_API_KEY", "test")
+    monkeypatch.setattr(main, "call_mistral", lambda prompt, **k: "réponse de Mistral")
+    monkeypatch.setattr(main.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("aucune attente attendue")))
+    monkeypatch.setattr(main, "_gemini_surcharge", {"jusqu_a": 0.0})
+    monkeypatch.setattr(main, "_gemini_cles_en_pause", {})
+    assert main.call_ai_model("bonjour") == "réponse de Mistral"
+    assert len(essais) == 1
+    assert main.call_ai_model("bonjour") == "réponse de Mistral"
+    assert len(essais) == 1
+    assert not main._gemini_cles_en_pause   # les clés ne sont pas fautives

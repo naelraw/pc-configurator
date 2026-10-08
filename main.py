@@ -4775,6 +4775,17 @@ _gemini_call_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8, thr
 GEMINI_PAUSE_SECONDES = 600
 _gemini_cles_en_pause = {}
 _gemini_derniere_bonne = {"cle": None}
+# Surcharge du modèle lui-même (503 « high demand », pas de réponse) : changer de
+# clé ne sert à rien et coûtait 8 s par clé (jusqu'à 47 s pour une réponse).
+# On passe alors directement au repli pendant une minute.
+GEMINI_SURCHARGE_PAUSE_SECONDES = 60
+GEMINI_MAX_CLES_PAR_APPEL = 3
+_gemini_surcharge = {"jusqu_a": 0.0}
+
+
+def _gemini_surcharge_du_modele(erreur):
+    texte = str(erreur).lower()
+    return any(m in texte for m in ("503", "unavailable", "high demand", "overloaded", "délai de", "500 internal", "deadline"))
 
 
 def _cles_gemini_dans_l_ordre():
@@ -4823,9 +4834,11 @@ def call_ai_model(prompt, max_tokens=800, temperature=0.7, reasoning_effort="non
     disponibles pour un appelant qui aurait vraiment besoin de plus de
     réflexion sur une tâche complexe.
     """
-    if genai_new is not None and GEMINI_API_KEYS:
-        last_error = None
-        for api_key in _cles_gemini_dans_l_ordre():
+    last_error = None
+    if genai_new is not None and GEMINI_API_KEYS and time.time() < _gemini_surcharge["jusqu_a"]:
+        pass   # Gemini surchargé il y a moins d'une minute : repli direct
+    elif genai_new is not None and GEMINI_API_KEYS:
+        for api_key in _cles_gemini_dans_l_ordre()[:GEMINI_MAX_CLES_PAR_APPEL]:
             try:
                 gemini_client = genai_new.Client(api_key=api_key)
                 response = _call_gemini_with_hard_timeout(
@@ -4838,15 +4851,16 @@ def call_ai_model(prompt, max_tokens=800, temperature=0.7, reasoning_effort="non
                 last_error = RuntimeError("réponse vide")
             except Exception as error:
                 last_error = error
+                if _gemini_surcharge_du_modele(error):
+                    _gemini_surcharge["jusqu_a"] = time.time() + GEMINI_SURCHARGE_PAUSE_SECONDES
+                    print(f"Gemini surchargé, repli direct pendant {GEMINI_SURCHARGE_PAUSE_SECONDES} s : {error}")
+                    break
                 _gemini_cles_en_pause[api_key] = time.time() + GEMINI_PAUSE_SECONDES
                 print(f"Projet Gemini indisponible (call_ai_model), clé mise de côté 10 min, tentative suivante : {error}")
-        print(f"Gemini échoué sur toutes les clés, repli Groq : {last_error}")
+        else:
+            print(f"Gemini échoué sur les clés essayées, repli Groq : {last_error}")
 
-    if groq_client is None:
-        raise RuntimeError("Gemini et Groq ne sont pas configurés") if last_error is None else last_error
-
-    last_error = None
-    for attempt in range(1, AI_MODEL_MAX_ATTEMPTS + 1):
+    for attempt in range(1, AI_MODEL_MAX_ATTEMPTS + 1 if groq_client is not None else 1):
         try:
             message = groq_client.chat.completions.create(
                 model="qwen/qwen3.8-27b",
@@ -4867,8 +4881,8 @@ def call_ai_model(prompt, max_tokens=800, temperature=0.7, reasoning_effort="non
             message_text = str(error)
             if "rate_limit_exceeded" not in message_text and "429" not in message_text:
                 break
-            if attempt == AI_MODEL_MAX_ATTEMPTS:
-                break
+            if attempt == AI_MODEL_MAX_ATTEMPTS or MISTRAL_API_KEY:
+                break   # Mistral prend le relais tout de suite, sans attendre
             match = re.search(r"try again in ([\d.]+)s", message_text)
             # Plafonné à 10s (pas 25) : cet appel est lui-même imbriqué dans
             # la boucle de correction de suggest-config/refine-config
@@ -4892,7 +4906,7 @@ def call_ai_model(prompt, max_tokens=800, temperature=0.7, reasoning_effort="non
             print(f"Mistral indisponible (call_ai_model) : {error}")
             last_error = error
 
-    raise last_error
+    raise last_error or RuntimeError("aucun fournisseur d'IA configuré")
 
 
 MISTRAL_MAX_ATTEMPTS = 2
@@ -7905,21 +7919,19 @@ def _message_config(suggestion, components_by_id, fps_estimation):
         return (f"Avec {float(suggestion['budget_trop_bas']):.0f} €, il n'est pas possible de monter un PC complet neuf avec "
                 f"les prix actuels. La config complète la moins chère que je peux te proposer coûte {total:.0f} € : "
                 + phrases[0][0].lower() + phrases[0][1:]
-                + " Veux-tu que je regarde ce qu'on peut garder de ton ancien PC pour réduire le prix ?")
+                + " Tu veux que je regarde ce qu'on peut garder de ton ancien PC ?")
     if suggestion.get("budget_auto"):
-        phrases.append(f"Total : {total:.0f} €. Sans budget précisé, je me suis basé sur environ {float(budget):.0f} € ; "
-                       "indique-moi ton budget pour que j'ajuste la config.")
-    elif isinstance(budget, (int, float)) and budget > 0:
-        phrases.append(f"Total : {total:.0f} € pour un budget de {budget:.0f} €, avec la priorité donnée "
-                       f"{'à la carte graphique pour les performances en jeu' if usage in (None, 'jeu', 'mixte') else 'aux pièces utiles à ton usage'}.")
+        # Une seule question : le budget.
+        phrases.append(f"Total : {total:.0f} €, sur une base d'environ {float(budget):.0f} €. Quel est ton budget ?")
+        return " ".join(phrases)
+    if isinstance(budget, (int, float)) and budget > 0:
+        phrases.append(f"Total : {total:.0f} € pour {budget:.0f} € de budget.")
     else:
-        phrases.append(f"Total : {total:.0f} €, toutes les pièces sont compatibles.")
-    phrases.append(random.choice((
-        "Souhaites-tu changer une pièce en particulier ?",
-        "Veux-tu que je compare avec une version plus puissante ?",
-        "Veux-tu une estimation des FPS sur un autre jeu ?",
-        "Veux-tu le lien pour ajouter toute la config au panier Amazon ?",
-    )))
+        phrases.append(f"Total : {total:.0f} €.")
+    suites = ["Tu veux changer une pièce ?", "Tu veux le lien du panier Amazon ?", "Tu veux une version plus puissante ?"]
+    if usage in (None, "jeu", "mixte"):
+        suites.append("Tu veux les FPS sur un autre jeu ?")
+    phrases.append(random.choice(suites))
     return " ".join(phrases)
 
 
