@@ -4494,7 +4494,7 @@ RELEVE_SEUIL_SERVICES = 0.8          # retard (en intervalles) à partir duquel 
 RELEVE_PRET_SECONDES = 15 * 60       # une fiche confiée au PC n'est pas donnée ailleurs pendant 15 min
 RELEVE_ECHECS_PC_MAX = 2             # au-delà, la fiche est laissée aux services pendant 3 jours
 RELEVE_JOURNAL_JOURS = 3
-SOURCES_GRATUITES = ("PC", "Extension")
+SOURCES_GRATUITES = ("PC", "Extension", "Navigation")
 _releves_tables_pretes = False
 _ECHEANCIER_BASE = {"at": 0.0, "data": None, "infos": None}
 
@@ -9551,7 +9551,9 @@ class PrixExtensionRequest(BaseModel):
 @app.post("/api/admin/prix-extension")
 def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admin)):
     """Applique le prix lu par l'extension dans un extrait de page Amazon."""
-    origine = "PC" if body.origine.lower() == "pc" else "Extension"
+    # PC : programme au démarrage de Windows ; Extension : relevé automatique en
+    # arrière-plan ; Navigation : fiche Amazon ouverte par l'admin dans son navigateur.
+    origine = {"pc": "PC", "navigation": "Navigation"}.get(body.origine.lower(), "Extension")
     aujourd_hui = datetime.utcnow().date().isoformat()
     stats = _state_get("extension_stats", {})
     if stats.get("date") != aujourd_hui:
@@ -9586,7 +9588,7 @@ def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admi
     _state_set("extension_stats", stats)
     invalidate_catalog()
     return {"resultat": "ignore" if outcome.get("ignore") else "lu", "prix": info["prix"], "nom": row[1],
-            "message": outcome.get("error")}
+            "message": outcome.get("error"), "en_stock_avant": bool(row[5])}
 
 
 def _resume_releves():

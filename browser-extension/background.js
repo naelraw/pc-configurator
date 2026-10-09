@@ -359,6 +359,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           sendResponse({ ok: true, data: await res.json() });
           break;
         }
+        case 'AUTO_PRICE': {
+          // Fiche Amazon ouverte par l'admin : le site lit le prix de la page et l'applique.
+          const settings = await getSettings();
+          if (!settings.adminSecret) throw new Error('NO_SECRET');
+          const res = await fetch(settings.siteUrl + '/api/admin/prix-extension', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': settings.adminSecret },
+            body: JSON.stringify({ id: message.componentId, asin: message.asin, extrait: message.extrait, origine: 'navigation' }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || ('Erreur ' + res.status));
+          asinCache.delete(String(message.asin).toUpperCase());
+          sendResponse({ ok: true, data });
+          break;
+        }
         case 'RELEVE_ETAT':
           sendResponse({ ok: true, data: await releveEtat() });
           break;

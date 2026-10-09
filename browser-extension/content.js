@@ -126,23 +126,52 @@
       return Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
     }
 
-    // Infos utiles sur un produit déjà catalogué : variante, écart entre le prix
-    // affiché sur cette page et le prix du catalogue (mise à jour en un clic),
-    // prix signalé suspect par le contrôle quotidien.
+    // Prix de la page envoyé automatiquement au site, une fois par page : le site
+    // lit la vraie zone de prix (même lecture que le relevé automatique) et
+    // l'applique avec ses garde-fous (prix inhabituel confirmé par un autre
+    // service, page sans prix sans effet).
+    let autoPrix = null;   // promesse du résultat, pour ne l'envoyer qu'une fois
+    function extraitPrixPage() {
+      const morceau = (id) => { const el = document.getElementById(id); return el ? el.outerHTML : ''; };
+      return [morceau('productTitle'), morceau('corePriceDisplay_desktop_feature_div'), morceau('availability')].join('\n');
+    }
+    function majAutomatiqueDuPrix(c) {
+      if (!autoPrix) {
+        const extrait = extraitPrixPage();
+        autoPrix = extrait.includes('corePriceDisplay')
+          ? sendMessage({ type: 'AUTO_PRICE', componentId: c.id, asin, extrait: extrait.slice(0, 100000) })
+          : Promise.resolve({ resultat: 'sans_prix' });
+      }
+      return autoPrix;
+    }
+    function messageAutoPrix(r, avant) {
+      if (r.resultat === 'lu') {
+        const change = avant && Math.abs(r.prix - avant) / avant > 0.005;
+        return change
+          ? '<div class="pcradar-line pcradar-price-diff">✓ Prix mis à jour automatiquement : <strong>' + formatEuros(r.prix)
+            + '</strong> (avant ' + formatEuros(avant) + ')</div>'
+          : '<div class="pcradar-line">✓ Prix à jour : ' + formatEuros(r.prix) + '</div>';
+      }
+      if (r.resultat === 'ignore') {
+        return '<div class="pcradar-line pcradar-warn">Prix inhabituel sur cette page (' + formatEuros(r.prix)
+          + ') : appliqué seulement s\'il est confirmé par un autre service.</div>';
+      }
+      if (r.resultat === 'sans_prix') {
+        return '<div class="pcradar-line pcradar-muted">Pas de prix Amazon sur cette page : rien de modifié.</div>';
+      }
+      return '';
+    }
+
+    // Infos utiles sur un produit déjà catalogué : variante, prix de la page
+    // appliqué automatiquement, prix signalé suspect par le contrôle quotidien.
     function renderKnownInfo(c) {
       const parts = [];
       if (c.nb_variantes > 1) {
         parts.push('<div class="pcradar-line">Variante' + (c.variante ? ' « ' + escapeHtml(c.variante) + ' »' : '')
           + ' d\'un produit à ' + c.nb_variantes + ' annonces.</div>');
       }
-      const pagePrice = pcradarExtractQuickData(document).prix;
-      const catalogPrice = Number(c.prix_indicatif) || 0;
-      if (pagePrice && catalogPrice && Math.abs(pagePrice - catalogPrice) / catalogPrice > 0.01) {
-        const diff = pagePrice - catalogPrice;
-        parts.push('<div class="pcradar-line pcradar-price-diff">Prix sur cette page : <strong>' + formatEuros(pagePrice)
-          + '</strong> (catalogue : ' + formatEuros(catalogPrice) + ', ' + (diff > 0 ? '+' : '') + formatEuros(diff) + ')</div>'
-          + '<button id="pcradar-update-price" class="pcradar-secondary"><span class="pcradar-btn-label">Mettre à jour le prix (' + formatEuros(pagePrice) + ')</span></button>');
-      }
+      const premierPrix = autoPrix ? null : Number(c.prix_indicatif) || 0;   // prix du catalogue avant la mise à jour
+      parts.push('<div id="pcradar-auto-prix"><div class="pcradar-line pcradar-muted">Vérification du prix…</div></div>');
       if (c.prix_suspect) {
         parts.push('<div class="pcradar-line pcradar-warn">⚠ Prix signalé suspect : ' + formatEuros(c.prix_suspect.prix)
           + ' au lieu d\'environ ' + formatEuros(c.prix_suspect.reference) + ' pour les autres annonces du même produit.</div>');
@@ -151,20 +180,18 @@
         parts.push('<a class="pcradar-link" href="' + escapeHtml('https://pcradar.tech' + c.page) + '" target="_blank" rel="noopener">Voir la fiche PC Radar ↗</a>');
       }
       infoEl.innerHTML = parts.join('');
-      const btn = infoEl.querySelector('#pcradar-update-price');
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          setLoading(btn, true);
-          try {
-            await sendMessage({ type: 'UPDATE_PRICE', componentId: c.id, prix: pagePrice, asin });
-            setMsg('✓ Prix mis à jour : ' + formatEuros(pagePrice), 'ok');
-            refreshStatus();
-          } catch (e) {
-            setMsg(e.message === 'NO_SECRET' ? "Clé admin manquante — clique sur l'icône de l'extension." : 'Erreur : ' + e.message, 'error');
-            setLoading(btn, false);
-          }
-        });
-      }
+      if (premierPrix !== null) majAutomatiqueDuPrix.avant = premierPrix;
+      majAutomatiqueDuPrix(c).then((r) => {
+        const zone = infoEl.querySelector('#pcradar-auto-prix');
+        if (zone) zone.innerHTML = messageAutoPrix(r, majAutomatiqueDuPrix.avant);
+        if (r.resultat === 'lu') {
+          statusEl.innerHTML = statusEl.innerHTML.replace(/ — [\d.,]+€$/, ' — ' + r.prix + '€');
+        }
+      }).catch((e) => {
+        const zone = infoEl.querySelector('#pcradar-auto-prix');
+        if (zone) zone.innerHTML = '<div class="pcradar-line pcradar-warn">'
+          + (e.message === 'NO_SECRET' ? "Clé admin manquante : clique sur l'icône de l'extension." : 'Prix non mis à jour : ' + escapeHtml(e.message)) + '</div>';
+      });
     }
 
     // Produit pas encore catalogué : un produit proche existe-t-il déjà ?

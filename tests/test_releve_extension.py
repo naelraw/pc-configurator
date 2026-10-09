@@ -53,3 +53,17 @@ def test_zone_prix_reelle_avant_le_bloc_de_donnees():
     la lecture doit viser la vraie zone (id=...)."""
     html = ('{"dtu":"corePriceDisplay_desktop_feature_div","lb":0}' + "x" * 9000 + _zone("1&nbsp;063", "05"))
     assert main._parse_zenrows_amazon_html(html, "B0TEST")["prix"] == 1063.05
+
+
+def test_fiche_ouverte_par_l_admin_notee_navigation(client):
+    cid, asin, prix = main.get_client().execute(
+        "SELECT id, asin, prix_indicatif FROM components WHERE asin IS NOT NULL AND asin != '' AND en_stock = 1 LIMIT 1 OFFSET 3").rows[0]
+    extrait = ('<span id="productTitle">Produit</span>\n<div id="corePriceDisplay_desktop_feature_div" class="celwidget">'
+               '<span class="a-price-whole">' + str(int(prix)) + '<span class="a-price-decimal">,</span></span>'
+               '<span class="a-price-fraction">00</span></div>\n<div id="availability"><span> En stock </span></div>')
+    r = client.post("/api/admin/prix-extension", headers=ADMIN,
+                    json={"id": cid, "asin": asin, "extrait": extrait, "origine": "navigation"}).json()
+    assert r["resultat"] == "lu" and r["prix"] == float(int(prix))
+    derniere = main.get_client().execute(
+        "SELECT source, resultat FROM journal_releves WHERE component_id = ? ORDER BY id DESC LIMIT 1", [cid]).rows[0]
+    assert tuple(derniere) == ("Navigation", "lu")
