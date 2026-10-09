@@ -3953,6 +3953,7 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
             # Chute de plus de 70 % : jamais appliquée sur la seule répétition du même
             # service (une erreur de lecture se répète à l'identique chaque nuit, ex.
             # 1 063,05 € lu 1,05 €) ; il faut qu'un autre service la confirme.
+            _noter_releve(component_id, source_label, "ignore", client)
             return {"error": f"{nom} ({asin}) : prix inhabituel via {source_label} ({info['prix']} € au lieu de {reference:g} €), "
                              "pas confirmé par un 2e service : appliqué seulement s'il se confirme au prochain passage.",
                     "remis_en_stock": False, "passe_epuise": False, "ignore": True}
@@ -4009,6 +4010,7 @@ def _apply_amazon_price_info(client, component_id, nom, asin, prix_marche_json, 
 
     if prix_trouve:
         record_price_and_notify(client, component_id, nom, float(info["prix"]), info.get("lien"))
+    _noter_releve(component_id, source_label, "lu" if prix_trouve else "epuise", client)
 
     return {"error": error, "remis_en_stock": remis_en_stock, "passe_epuise": passe_epuise}
 
@@ -4470,6 +4472,224 @@ def _part_secours(nom, passages):
     return int(reste * 0.95 / cout / jours / passages), reste
 
 
+# ===========================================================================
+# Échéancier commun des relevés de prix
+#
+# Une seule file pour toutes les sources. Chaque fiche a une échéance :
+# intervalle de sa catégorie (alerte / prioritaire / autre en stock / épuisée),
+# raccourci ou allongé selon la capacité totale de lecture (services + PC des
+# dernières 24 h) et selon la volatilité de son prix. L'heure exacte de chaque
+# lecture est gardée (verifications_prix), avec sa source (journal_releves).
+#  - Le PC (programme au démarrage de Windows) et l'extension, gratuits,
+#    prennent en continu les fiches les plus en retard.
+#  - Les passages des services payants au quota ne prennent que ce qui reste en
+#    retard (RELEVE_SEUIL_SERVICES), hors fiches confiées au PC.
+#  - Une fiche que le PC ne sait pas lire (pas de prix sur la page) passe aux
+#    services ; les épuisées restent aux services (Bright Data seul décide du stock).
+# ===========================================================================
+RELEVE_INTERVALLES_H = {"alerte": 6, "prioritaire": 12, "normal": 36, "epuise": 72}
+RELEVE_FACTEUR_MIN, RELEVE_FACTEUR_MAX = 0.5, 4.0
+RELEVE_PART_PRIORITAIRES = 0.7      # part de la capacité (hors alertes) que les prioritaires peuvent prendre
+RELEVE_SEUIL_SERVICES = 0.8          # retard (en intervalles) à partir duquel les services relisent
+RELEVE_PRET_SECONDES = 15 * 60       # une fiche confiée au PC n'est pas donnée ailleurs pendant 15 min
+RELEVE_ECHECS_PC_MAX = 2             # au-delà, la fiche est laissée aux services pendant 3 jours
+RELEVE_JOURNAL_JOURS = 3
+SOURCES_GRATUITES = ("PC", "Extension")
+_releves_tables_pretes = False
+_ECHEANCIER_BASE = {"at": 0.0, "data": None, "infos": None}
+
+
+def _preparer_releves(client):
+    global _releves_tables_pretes
+    if _releves_tables_pretes:
+        return
+    client.execute("""CREATE TABLE IF NOT EXISTS verifications_prix (
+        component_id INTEGER PRIMARY KEY, verifie_le TEXT, source TEXT,
+        echecs_pc INTEGER NOT NULL DEFAULT 0, dernier_echec_pc TEXT)""")
+    client.execute("""CREATE TABLE IF NOT EXISTS journal_releves (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL, component_id INTEGER, source TEXT, resultat TEXT)""")
+    client.execute("CREATE INDEX IF NOT EXISTS idx_journal_releves_ts ON journal_releves (ts)")
+    _releves_tables_pretes = True
+
+
+def _noter_releve(component_id, source, resultat, client=None):
+    """Garde la trace d'une lecture. resultat : lu, epuise, ignore, sans_prix, bloque."""
+    propre = client is None
+    client = client or get_client()
+    try:
+        _preparer_releves(client)
+        maintenant = datetime.utcnow().isoformat(timespec="seconds")
+        client.execute("INSERT INTO journal_releves (ts, component_id, source, resultat) VALUES (?, ?, ?, ?)",
+                       [maintenant, component_id, source, resultat])
+        if resultat in ("lu", "epuise"):
+            remise = ", echecs_pc = 0" if source in SOURCES_GRATUITES else ""
+            client.execute(
+                "INSERT INTO verifications_prix (component_id, verifie_le, source) VALUES (?, ?, ?) "
+                f"ON CONFLICT(component_id) DO UPDATE SET verifie_le = excluded.verifie_le, source = excluded.source{remise}",
+                [component_id, maintenant, source])
+        elif resultat == "sans_prix" and source in SOURCES_GRATUITES:
+            client.execute(
+                "INSERT INTO verifications_prix (component_id, echecs_pc, dernier_echec_pc) VALUES (?, 1, ?) "
+                "ON CONFLICT(component_id) DO UPDATE SET echecs_pc = echecs_pc + 1, dernier_echec_pc = excluded.dernier_echec_pc",
+                [component_id, maintenant])
+        if random.random() < 0.02:
+            limite = (datetime.utcnow() - timedelta(days=RELEVE_JOURNAL_JOURS)).isoformat(timespec="seconds")
+            client.execute("DELETE FROM journal_releves WHERE ts < ?", [limite])
+    except Exception as err:
+        print(f"Relevé non noté ({component_id}, {source}) : {err}")
+    finally:
+        if propre:
+            client.close()
+
+
+def _lectures_24h():
+    """{source: {resultat: nombre}} sur les dernières 24 h."""
+    client = get_client()
+    try:
+        _preparer_releves(client)
+        depuis = (datetime.utcnow() - timedelta(hours=24)).isoformat(timespec="seconds")
+        rows = client.execute("SELECT source, resultat, COUNT(*) FROM journal_releves WHERE ts >= ? GROUP BY source, resultat",
+                              [depuis]).rows
+    finally:
+        client.close()
+    sortie = {}
+    for source, resultat, n in rows:
+        sortie.setdefault(source or "?", {})[resultat or "?"] = n
+    return sortie
+
+
+def _volatilite_prix():
+    """Multiplicateur d'intervalle par fiche d'après ses changements de prix sur 30 jours :
+    prix qui bouge souvent -> relu plus souvent ; prix stable -> moins souvent."""
+    client = get_client()
+    try:
+        depuis = (datetime.utcnow().date() - timedelta(days=30)).isoformat()
+        rows = client.execute("SELECT component_id, prix FROM price_history WHERE date >= ? AND prix > 0 ORDER BY component_id, date",
+                              [depuis]).rows
+    finally:
+        client.close()
+    series = {}
+    for cid, prix in rows:
+        series.setdefault(cid, []).append(float(prix))
+    multiplicateurs = {}
+    for cid, prix in series.items():
+        changements = sum(1 for a, b in zip(prix, prix[1:]) if abs(a - b) / max(a, 1) > 0.005)
+        if changements >= 4:
+            multiplicateurs[cid] = 0.6
+        elif changements == 0 and len(prix) >= 10:
+            multiplicateurs[cid] = 1.5
+    return multiplicateurs
+
+
+def _dernier_releve_connu(prix_marche_json):
+    date = _last_amazon_check_date(prix_marche_json)
+    return f"{date}T00:00:00" if date else None
+
+
+def _echeancier_base():
+    """Catégorie, intervalle et date de repli de chaque fiche. Gardé 10 min (calculs lourds)."""
+    if _ECHEANCIER_BASE["data"] is not None and time.time() - _ECHEANCIER_BASE["at"] < 600:
+        return _ECHEANCIER_BASE["data"], _ECHEANCIER_BASE["infos"]
+    client = get_client()
+    try:
+        rows = client.execute("SELECT id, nom, asin, prix_marche_json, en_stock FROM components "
+                              "WHERE asin IS NOT NULL AND asin != ''").rows
+    finally:
+        client.close()
+    prioritaires = _prioritaires_en_cache()
+    alertes = _composants_sous_alerte()
+    epuises_verifies = _state_get("epuises_verifies", {})
+    vitrines = _state_get("fiches_vitrine", {})
+    try:
+        volatilite = _volatilite_prix()
+    except Exception as err:
+        print(f"Échéancier : volatilité des prix indisponible ({err})")
+        volatilite = {}
+    fiches = {}
+    for cid, nom, asin, prix_marche_json, en_stock in rows:
+        if cid in alertes:
+            categorie = "alerte"
+        elif not en_stock:
+            categorie = "epuise"
+        elif cid in prioritaires:
+            categorie = "prioritaire"
+        else:
+            categorie = "normal"
+        repli = _dernier_releve_connu(prix_marche_json) or (
+            f"{epuises_verifies[str(cid)]}T00:00:00" if str(cid) in epuises_verifies else None)
+        fiches[cid] = {"id": cid, "nom": nom, "asin": asin, "categorie": categorie, "en_stock": bool(en_stock),
+                       "vitrine": str(cid) in vitrines, "volatilite": volatilite.get(cid, 1.0), "repli": repli}
+    # Capacité (services d'après leurs crédits + PC sur 24 h) face à la demande au rythme de base.
+    lectures = _lectures_24h()
+    lectures_pc = sum(n for src in SOURCES_GRATUITES for r, n in lectures.get(src, {}).items() if r in ("lu", "epuise", "sans_prix"))
+    try:
+        capacite_services = _capacite_prix()["total_par_jour"]
+    except Exception:
+        capacite_services = 0
+    # Capacité répartie par ordre d'importance : les alertes gardent toujours 6 h ;
+    # les prioritaires prennent jusqu'à RELEVE_PART_PRIORITAIRES de ce qui reste ;
+    # les autres annonces (puis les épuisées, plus espacées) se partagent le reste.
+    # Peu de capacité : ce sont elles qui ralentissent en premier.
+    borne = lambda x: min(RELEVE_FACTEUR_MAX, max(RELEVE_FACTEUR_MIN, x))
+    demande = lambda cats: sum(24 / (RELEVE_INTERVALLES_H[f["categorie"]] * f["volatilite"])
+                               for f in fiches.values() if f["categorie"] in cats)
+    demande_alertes = sum(24 / RELEVE_INTERVALLES_H["alerte"] for f in fiches.values() if f["categorie"] == "alerte")
+    demande_prio, demande_autres = demande(("prioritaire",)), demande(("normal", "epuise"))
+    disponible = max(1.0, capacite_services + lectures_pc - demande_alertes)
+    facteur_prio = borne(demande_prio / (RELEVE_PART_PRIORITAIRES * disponible))
+    reste = max(1.0, disponible - demande_prio / facteur_prio)
+    facteur = borne(demande_autres / reste)
+    for f in fiches.values():
+        base = RELEVE_INTERVALLES_H[f["categorie"]]
+        if f["categorie"] == "alerte":
+            f["intervalle_h"] = base
+        else:
+            f["intervalle_h"] = base * (facteur_prio if f["categorie"] == "prioritaire" else facteur) * f["volatilite"]
+    infos = {"facteur": round(facteur, 2), "facteur_prioritaires": round(facteur_prio, 2),
+             "capacite_services": capacite_services, "lectures_pc_24h": lectures_pc,
+             "demande_par_jour": round(demande_alertes + demande_prio + demande_autres)}
+    _ECHEANCIER_BASE.update(at=time.time(), data=fiches, infos=infos)
+    return fiches, infos
+
+
+def _cle_urgence(f):
+    return (f["categorie"] != "alerte", -f["retard"], f["categorie"] != "prioritaire")
+
+
+def _etat_releves():
+    """Liste des fiches avec leur retard (1 = échéance atteinte), de la plus urgente à la moins urgente."""
+    fiches, _ = _echeancier_base()
+    client = get_client()
+    try:
+        _preparer_releves(client)
+        verifs = {r[0]: r[1:] for r in client.execute(
+            "SELECT component_id, verifie_le, echecs_pc, dernier_echec_pc FROM verifications_prix").rows}
+    finally:
+        client.close()
+    maintenant = datetime.utcnow()
+    il_y_a_3_jours = (maintenant - timedelta(days=3)).isoformat(timespec="seconds")
+    etat = []
+    for cid, base in fiches.items():
+        f = dict(base)
+        verifie_le, echecs_pc, dernier_echec = verifs.get(cid, (None, 0, None))
+        derniere = verifie_le or f["repli"]
+        try:
+            age_h = (maintenant - datetime.fromisoformat(derniere)).total_seconds() / 3600
+        except (TypeError, ValueError):
+            age_h = None
+        f["age_h"] = age_h
+        f["retard"] = 99.0 if age_h is None else age_h / f["intervalle_h"]
+        f["pc_echoue"] = bool(echecs_pc and echecs_pc >= RELEVE_ECHECS_PC_MAX and (dernier_echec or "") >= il_y_a_3_jours)
+        etat.append(f)
+    etat.sort(key=_cle_urgence)
+    return etat
+
+
+def _prets_actifs():
+    maintenant = time.time()
+    return {k: v for k, v in _state_get("releve_prets", {}).items() if maintenant - v.get("ts", 0) < RELEVE_PRET_SECONDES}
+
+
 def _composants_sous_alerte():
     """Composants suivis par un compte : favoris et pièces des configs suivies."""
     ids = set()
@@ -4524,13 +4744,7 @@ def _run_daily_price_refresh_rotation():
         print(f"Priorité des prix indisponible, rotation par ancienneté seule : {err}")
         prioritaires = set()
 
-    ids_alertes = _composants_sous_alerte()
     passages = len(PRIX_PASSAGES_HEURES)
-
-    def urgence(row):
-        releve = _last_amazon_check_date(row[3])
-        retard = _retard_verification(releve or epuises_verifies.get(str(row[0])), row[0] in prioritaires, not releve)
-        return (-retard, row[0] not in prioritaires, releve)
 
     # Part de chaque fournisseur pour CE passage (le quota du jour est partagé
     # entre les PRIX_PASSAGES_HEURES passages de la journée).
@@ -4542,9 +4756,15 @@ def _run_daily_price_refresh_rotation():
     # passage, avant tout le reste, sur la moitié du passage au plus pour que le
     # reste du catalogue avance aussi.
     secours = {nom: _part_secours(nom, passages) for nom in scrapers_secours.SERVICES}
-    alertes = sorted([r for r in rows if r[0] in ids_alertes], key=urgence)[:max(5, sum(part.values()) // 2)]
-    en_tete = {r[0] for r in alertes}
-    rows_sorted = alertes + sorted([r for r in rows if r[0] not in en_tete], key=urgence)
+    # Échéancier commun : seulement les fiches en retard (ou que le PC ne sait pas
+    # lire), hors fiches confiées au PC en ce moment ; alertes d'abord.
+    etat = {f["id"]: f for f in _etat_releves()}
+    prets = _prets_actifs()
+    rows_sorted = sorted(
+        [r for r in rows if r[0] in etat and str(r[0]) not in prets
+         and (etat[r[0]]["retard"] >= RELEVE_SEUIL_SERVICES or etat[r[0]]["pc_echoue"])],
+        key=lambda r: _cle_urgence(etat[r[0]]))
+    alertes = [r for r in rows_sorted if etat[r[0]]["categorie"] == "alerte"]
 
     updated = 0
     prix_lus = 0
@@ -9299,49 +9519,39 @@ def _prioritaires_en_cache():
     return _PRIORITAIRES_CACHE["ids"]
 
 
-def _fiches_pour_extension(n):
-    """Prochaines fiches en stock à relire (alertes d'abord, puis les plus en retard),
-    hors fiches vitrine et hors fiches déjà confiées depuis moins de 3 h."""
-    client = get_client()
-    try:
-        rows = client.execute(
-            "SELECT id, nom, asin, prix_marche_json FROM components "
-            "WHERE asin IS NOT NULL AND asin != '' AND en_stock = 1"
-        ).rows
-    finally:
-        client.close()
+def _fiches_pour_extension(n, origine="Extension"):
+    """Fiches les plus en retard pour le PC ou l'extension : en stock, avec une offre
+    Amazon (pas de fiche vitrine), que le PC sait lire, et pas déjà confiées."""
+    prets = _prets_actifs()
+    choisies = [f for f in _etat_releves()
+                if f["en_stock"] and not f["vitrine"] and not f["pc_echoue"] and str(f["id"]) not in prets][:n]
     maintenant = time.time()
-    prets = {k: v for k, v in _state_get("extension_prets", {}).items() if maintenant - v < EXTENSION_PRET_SECONDES}
-    vitrines = _state_get("fiches_vitrine", {})
-    prioritaires = _prioritaires_en_cache()
-    alertes = _composants_sous_alerte()
-
-    def urgence(row):
-        releve = _last_amazon_check_date(row[3])
-        retard = _retard_verification(releve, row[0] in prioritaires, False)
-        return (row[0] not in alertes, -retard, row[0] not in prioritaires, releve)
-
-    candidates = sorted([r for r in rows if str(r[0]) not in prets and str(r[0]) not in vitrines], key=urgence)[:n]
-    for r in candidates:
-        prets[str(r[0])] = maintenant
-    _state_set("extension_prets", prets)
-    return [{"id": r[0], "nom": r[1], "asin": r[2]} for r in candidates]
+    for f in choisies:
+        prets[str(f["id"])] = {"ts": maintenant, "origine": origine}
+    _state_set("releve_prets", prets)
+    vus = _state_get("releve_sources_vues", {})
+    vus[origine] = datetime.utcnow().isoformat(timespec="seconds")
+    _state_set("releve_sources_vues", vus)
+    return [{"id": f["id"], "nom": f["nom"], "asin": f["asin"]} for f in choisies]
 
 
 @app.get("/api/admin/prix-a-relire")
-def admin_prix_a_relire(n: int = 1, _admin=Depends(require_admin)):
-    return {"fiches": _fiches_pour_extension(max(1, min(n, 5)))}
+def admin_prix_a_relire(n: int = 1, origine: str = "Extension", _admin=Depends(require_admin)):
+    origine = "PC" if origine.lower() == "pc" else "Extension"
+    return {"fiches": _fiches_pour_extension(max(1, min(n, 5)), origine)}
 
 
 class PrixExtensionRequest(BaseModel):
     id: int
     asin: str = Field(max_length=20)
     extrait: str = Field(max_length=EXTENSION_EXTRAIT_MAX)
+    origine: str = Field(default="Extension", max_length=20)
 
 
 @app.post("/api/admin/prix-extension")
 def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admin)):
     """Applique le prix lu par l'extension dans un extrait de page Amazon."""
+    origine = "PC" if body.origine.lower() == "pc" else "Extension"
     aujourd_hui = datetime.utcnow().date().isoformat()
     stats = _state_get("extension_stats", {})
     if stats.get("date") != aujourd_hui:
@@ -9349,6 +9559,7 @@ def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admi
     if "validateCaptcha" in body.extrait or "api-services-support@amazon.com" in body.extrait:
         stats["bloques"] += 1
         _state_set("extension_stats", stats)
+        _noter_releve(body.id, origine, "bloque")
         return {"resultat": "bloque"}
     client = get_client()
     try:
@@ -9364,9 +9575,10 @@ def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admi
             # Jamais « épuisé » sur la seule foi de l'extrait : Bright Data en décide.
             stats["sans_prix"] += 1
             _state_set("extension_stats", stats)
+            _noter_releve(row[0], origine, "sans_prix", client)
             return {"resultat": "sans_prix"}
         outcome = _apply_amazon_price_info(client, row[0], row[1], row[2], row[3], row[4], bool(row[5]), info,
-                                           source_label="Extension")
+                                           source_label=origine)
     finally:
         client.close()
     stats["lus"] += 1
@@ -9375,6 +9587,58 @@ def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admi
     invalidate_catalog()
     return {"resultat": "ignore" if outcome.get("ignore") else "lu", "prix": info["prix"], "nom": row[1],
             "message": outcome.get("error")}
+
+
+def _resume_releves():
+    etat = _etat_releves()
+    _, infos = _echeancier_base()
+    noms = {"alerte": "Suivies par une alerte", "prioritaire": "Prioritaires", "normal": "Autres en stock", "epuise": "Épuisées"}
+    categories = []
+    for cle, nom in noms.items():
+        lot = [f for f in etat if f["categorie"] == cle]
+        if not lot:
+            continue
+        ages = sorted(f["age_h"] for f in lot if f["age_h"] is not None)
+        categories.append({
+            "cle": cle, "nom": nom, "total": len(lot),
+            "a_jour": sum(1 for f in lot if f["retard"] <= 1),
+            "intervalle_h": round(sum(f["intervalle_h"] for f in lot) / len(lot), 1),
+            "age_median_h": round(ages[len(ages) // 2], 1) if ages else None,
+        })
+    lectures = _lectures_24h()
+    sources = []
+    for source, res in sorted(lectures.items(), key=lambda kv: -sum(kv[1].values())):
+        sources.append({"source": source, "lus": res.get("lu", 0) + res.get("epuise", 0),
+                        "sans_prix": res.get("sans_prix", 0), "bloques": res.get("bloque", 0),
+                        "ignores": res.get("ignore", 0), "gratuit": source in SOURCES_GRATUITES})
+    vus = _state_get("releve_sources_vues", {})
+    postes = []
+    for origine in SOURCES_GRATUITES:
+        if origine not in vus:
+            continue
+        try:
+            minutes = (datetime.utcnow() - datetime.fromisoformat(vus[origine])).total_seconds() / 60
+        except ValueError:
+            minutes = None
+        res = lectures.get(origine, {})
+        postes.append({"origine": origine, "derniere_minutes": round(minutes) if minutes is not None else None,
+                       "actif": minutes is not None and minutes < 10, "lus_24h": res.get("lu", 0),
+                       "sans_prix_24h": res.get("sans_prix", 0), "bloques_24h": res.get("bloque", 0)})
+    total_lus = sum(x["lus"] for x in sources)
+    gratuits = sum(x["lus"] for x in sources if x["gratuit"])
+    return {
+        "categories": categories, "sources": sources, "postes": postes,
+        "lus_24h": total_lus, "part_gratuite": round(100 * gratuits / total_lus) if total_lus else 0,
+        "en_retard": sum(1 for f in etat if f["retard"] > 1),
+        "prochaines": [{"nom": f["nom"], "categorie": f["categorie"], "retard": round(f["retard"], 2)} for f in etat[:5]],
+        "capacite": infos,
+        "laisses_aux_services": sum(1 for f in etat if f["pc_echoue"]),
+    }
+
+
+@app.get("/api/admin/releve-prix")
+def admin_releve_prix(_admin=Depends(require_admin)):
+    return _resume_releves()
 
 
 @app.get("/api/admin/prix-extension/stats")

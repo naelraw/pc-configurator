@@ -276,7 +276,7 @@ async function releverUnPrix() {
   const settings = await getSettings();
   if (!settings.adminSecret) return;
   const entete = { 'X-Admin-Secret': settings.adminSecret };
-  const res = await fetch(settings.siteUrl + '/api/admin/prix-a-relire?n=1', { headers: entete });
+  const res = await fetch(settings.siteUrl + '/api/admin/prix-a-relire?n=1&origine=extension', { headers: entete });
   if (!res.ok) { await chrome.storage.local.set({ releveDernier: 'Site : erreur ' + res.status }); return; }
   const fiche = ((await res.json()).fiches || [])[0];
   if (!fiche) return;
@@ -285,7 +285,7 @@ async function releverUnPrix() {
   const envoi = await fetch(settings.siteUrl + '/api/admin/prix-extension', {
     method: 'POST',
     headers: Object.assign({ 'Content-Type': 'application/json' }, entete),
-    body: JSON.stringify({ id: fiche.id, asin: fiche.asin, extrait: extraitAmazon(html) }),
+    body: JSON.stringify({ id: fiche.id, asin: fiche.asin, extrait: extraitAmazon(html), origine: 'extension' }),
   });
   const r = await envoi.json().catch(() => ({}));
   const maj = { releveJour: st.releveJour, releveCompte: (st.releveCompte || 0) + 1 };
@@ -351,6 +351,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'UPDATE_PRICE':
           sendResponse({ ok: true, data: await updatePrice(message.componentId, message.prix, message.asin) });
           break;
+        case 'RELEVE_RESUME': {
+          const settings = await getSettings();
+          if (!settings.adminSecret) throw new Error('NO_SECRET');
+          const res = await fetch(settings.siteUrl + '/api/admin/releve-prix', { headers: { 'X-Admin-Secret': settings.adminSecret } });
+          if (!res.ok) throw new Error('Erreur ' + res.status);
+          sendResponse({ ok: true, data: await res.json() });
+          break;
+        }
         case 'RELEVE_ETAT':
           sendResponse({ ok: true, data: await releveEtat() });
           break;

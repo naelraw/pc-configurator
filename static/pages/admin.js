@@ -180,9 +180,49 @@
 
   // Tout ce qui alimente le tableau de bord, chargé en parallèle.
   async function refreshAll(){
-    await Promise.allSettled([loadComponents(), loadWatch(), loadStats(), loadQuotas(), loadBuilds(), loadTickets()]);
+    await Promise.allSettled([loadComponents(), loadWatch(), loadStats(), loadQuotas(), loadBuilds(), loadTickets(), loadReleve()]);
     renderDashboard();
   }
+
+  // ---------------------------------------------------------------------
+  // Relevé des prix : échéancier commun (PC, extension, services au quota)
+  // ---------------------------------------------------------------------
+  const dureeReleve = h => h == null ? '—' : h < 1 ? `${Math.max(1, Math.round(h * 60))} min` : h < 48 ? `${Math.round(h)} h` : `${Math.round(h / 24)} j`;
+  const NOMS_POSTES = { PC: 'Programme du PC', Extension: 'Extension du navigateur' };
+
+  async function loadReleve(){
+    const zone = $('releve-contenu');
+    let r;
+    try{ r = await api('/api/admin/releve-prix'); }
+    catch(e){ zone.innerHTML = '<p class="empty">Relevé indisponible pour le moment.</p>'; return; }
+    const cap = r.capacite || {};
+    const lignes = r.categories.map(c => {
+      const pct = c.total ? Math.round(c.a_jour / c.total * 100) : 0;
+      return `<tr><td>${escapeHtml(c.nom)}</td>
+        <td class="releve-pct"><b class="${pct >= 90 ? 'ok' : pct >= 60 ? 'moyen' : 'bas'}">${pct} %</b><span class="faint"> ${nombre(c.a_jour)} / ${nombre(c.total)}</span>
+          <div class="meter"><span style="width:${pct}%"></span></div></td>
+        <td>toutes les ${dureeReleve(c.intervalle_h)}</td><td class="hide-sm">${dureeReleve(c.age_median_h)}</td></tr>`;
+    }).join('');
+    const postes = r.postes.length ? r.postes.map(p => `<li><span class="releve-point ${p.actif ? 'on' : 'off'}"></span>
+        <b>${escapeHtml(NOMS_POSTES[p.origine] || p.origine)}</b> : ${p.actif ? 'actif' : 'inactif'}${p.derniere_minutes != null ? `, dernière demande il y a ${dureeReleve(p.derniere_minutes / 60)}` : ''}
+        · ${nombre(p.lus_24h)} prix lus en 24 h${p.sans_prix_24h ? ` · ${nombre(p.sans_prix_24h)} pages sans prix` : ''}${p.bloques_24h ? ` · <span class="releve-alerte">${nombre(p.bloques_24h)} vérifications Amazon</span>` : ''}</li>`).join('')
+      : '<li class="faint">Ni le programme du PC ni l\'extension n\'ont encore demandé de fiche.</li>';
+    const sources = r.sources.length ? r.sources.map(s => `<span class="releve-source ${s.gratuit ? 'gratuit' : ''}">${escapeHtml(s.source)} <b>${nombre(s.lus)}</b></span>`).join('')
+      : '<span class="faint">Aucune lecture sur les dernières 24 h.</span>';
+    zone.innerHTML = `
+      <p class="releve-resume"><b>${nombre(r.lus_24h)}</b> prix lus en 24 h, dont <b>${r.part_gratuite} %</b> gratuitement (PC et extension)
+        · <b>${nombre(r.en_retard)}</b> fiche(s) en retard${r.laisses_aux_services ? ` · ${nombre(r.laisses_aux_services)} illisible(s) par le PC, laissée(s) aux services` : ''}</p>
+      <table class="list releve-table"><thead><tr><th>Fiches</th><th>À jour</th><th>Rythme actuel</th><th class="hide-sm">Âge médian</th></tr></thead><tbody>${lignes}</tbody></table>
+      <div class="releve-bas">
+        <div><h4>Postes gratuits</h4><ul class="releve-postes">${postes}</ul></div>
+        <div><h4>Lectures sur 24 h par source</h4><div class="releve-sources">${sources}</div>
+          <p class="faint releve-capacite">Capacité : services ~${nombre(cap.capacite_services)}/jour + PC ${nombre(cap.lectures_pc_24h)} sur 24 h, pour une demande de ~${nombre(cap.demande_par_jour)}/jour au rythme de base
+          → rythme des prioritaires ×${String(cap.facteur_prioritaires ?? 1).replace('.', ',')}, des autres ×${String(cap.facteur ?? 1).replace('.', ',')}
+          (en dessous de 1 : plus souvent que prévu ; au-dessus : espacé faute de capacité).</p></div>
+      </div>`;
+  }
+  $('releve-actualiser').addEventListener('click', loadReleve);
+  setInterval(() => { if(vueActuelle === 'dashboard' && !document.hidden) loadReleve(); }, 60_000);
 
   // ---------------------------------------------------------------------
   // Navigation entre les vues

@@ -49,6 +49,13 @@ def test_alertes_en_tete_et_fiches_bloquees_reprises(client, app_main, monkeypat
     """Les produits suivis passent en premier ; une fiche qu'Apify n'a pas pu lire
     est reprise par Bright Data dans le même passage."""
     main = app_main
+    # Journal des relevés vide : toutes les fiches sont en retard (échéancier commun).
+    c = main.get_client()
+    main._preparer_releves(c)
+    c.execute("DELETE FROM verifications_prix")
+    c.execute("DELETE FROM journal_releves")
+    c.close()
+    main._state_set("releve_prets", {})
     lignes = main.get_client().execute(
         "SELECT id, asin FROM components WHERE asin IS NOT NULL AND asin != '' ORDER BY id").rows
     ids = [r[0] for r in lignes]
@@ -72,6 +79,7 @@ def test_alertes_en_tete_et_fiches_bloquees_reprises(client, app_main, monkeypat
     monkeypatch.setattr(main, "refresh_allowance", lambda f, per_day=True: {"apify": 3, "brightdata": 2}.get(f, 0))
     monkeypatch.setattr(main, "_composants_prioritaires", lambda: set())
     monkeypatch.setattr(main, "_composants_sous_alerte", lambda: {suivi})
+    monkeypatch.setattr(main, "_capacite_prix", lambda: {"total_par_jour": 1000, "services": []})
     monkeypatch.setattr(main, "_apify_credit", lambda: None)
     monkeypatch.setattr(main, "fetch_amazon_products_apify", apify)
     monkeypatch.setattr(main, "_brightdata_scrape_sync", bright)

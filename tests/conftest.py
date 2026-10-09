@@ -136,3 +136,12 @@ def inscrire(client, email, password="motdepasse123"):
     r = client.post("/api/auth/register", json={"email": email, "password": password})
     assert r.status_code == 200 and r.json()["status"] == "code_envoye", r.text
     return client.post("/api/auth/register/verifier", json={"email": email, "code": CODES_ENVOYES[email]})
+
+
+@pytest.fixture(autouse=True)
+def _caches_releve_vides():
+    """L'échéancier des relevés garde ses calculs 10 min : chaque test repart de zéro."""
+    main._ECHEANCIER_BASE.update(at=0.0, data=None, infos=None)
+    main._PRIORITAIRES_CACHE.update(at=0.0, ids=set())
+    main._CAPACITE_CACHE.update(at=0.0, data=None)
+    yield

@@ -77,6 +77,13 @@
   .releve-tete strong{ font-size:12.5px; font-weight:600; }
   .releve-aide{ font-size:11.5px; color:var(--text-3); line-height:1.45; margin-top:2px; }
   #releve-etat:not(:empty){ margin-top:8px; color:var(--text-2); }
+  #releve-suivi{ margin-top:10px; padding:10px; border-radius:8px; background:var(--surface-2); border:1px solid var(--line); font-size:11.5px; line-height:1.5; color:var(--text-2); }
+  #releve-suivi:empty{ display:none; }
+  #releve-suivi .ligne{ display:flex; justify-content:space-between; gap:8px; }
+  #releve-suivi .ligne b{ color:var(--text); font-family:var(--mono); font-weight:500; }
+  #releve-suivi .ok{ color:var(--accent); } #releve-suivi .bas{ color:var(--danger); }
+  #releve-suivi .titre{ font-weight:600; color:var(--text); margin-bottom:4px; }
+  #releve-suivi .sep{ border-top:1px solid var(--line); margin:6px 0; }
   .interrupteur{ position:relative; flex-shrink:0; width:36px; height:20px; margin:0; cursor:pointer; }
   .interrupteur input{ position:absolute; opacity:0; width:0; height:0; }
   .interrupteur span{ position:absolute; inset:0; border-radius:999px; background:var(--surface-3); border:1px solid var(--line-strong); transition:background-color .2s ease; }
@@ -154,6 +161,8 @@
         <label class="interrupteur"><input type="checkbox" id="releve-actif"><span></span></label>
       </div>
       <div id="releve-etat" class="releve-aide"></div>
+      <div id="releve-suivi"></div>
+      <p class="releve-aide">N'active pas cet interrupteur si le programme du PC tourne déjà : les deux passent par ta connexion.</p>
     </section>
 
     <details id="settings">

@@ -113,7 +113,7 @@ def configurer():
 
 def un_releve(secret):
     entete = {"X-Admin-Secret": secret}
-    statut, texte = http(SITE + "/api/admin/prix-a-relire?n=1", entetes=entete)
+    statut, texte = http(SITE + "/api/admin/prix-a-relire?n=1&origine=pc", entetes=entete)
     if statut == 401:
         journal("Le site refuse le mot de passe admin : relancer « installer_releve_prix.bat ».")
         return "refuse"
@@ -125,7 +125,7 @@ def un_releve(secret):
         return "rien"
     fiche = fiches[0]
     statut, html = page_amazon(fiche["asin"])
-    corps = json.dumps({"id": fiche["id"], "asin": fiche["asin"], "extrait": extrait_amazon(html)}).encode()
+    corps = json.dumps({"id": fiche["id"], "asin": fiche["asin"], "extrait": extrait_amazon(html), "origine": "pc"}).encode()
     statut, texte = http(SITE + "/api/admin/prix-extension", donnees=corps,
                          entetes=dict(entete, **{"Content-Type": "application/json"}))
     try:

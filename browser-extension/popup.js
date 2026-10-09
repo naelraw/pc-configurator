@@ -232,4 +232,33 @@ document.getElementById('releve-actif').addEventListener('change', async (ev) =>
 afficherReleve();
 setInterval(afficherReleve, 5000);
 
+// Suivi du système de relevé (échéancier commun du site).
+function heures(h) {
+  if (h == null) return '—';
+  return h < 1 ? Math.max(1, Math.round(h * 60)) + ' min' : h < 48 ? Math.round(h) + ' h' : Math.round(h / 24) + ' j';
+}
+async function afficherSuivi() {
+  const zone = document.getElementById('releve-suivi');
+  try {
+    const r = await sendMessage({ type: 'RELEVE_RESUME' });
+    const noms = { PC: 'Programme du PC', Extension: 'Extension' };
+    const cats = r.categories.map(c => {
+      const pct = c.total ? Math.round(c.a_jour / c.total * 100) : 0;
+      return '<div class="ligne"><span>' + escapeHtml(c.nom) + ' (toutes les ' + heures(c.intervalle_h) + ')</span><b class="' +
+        (pct >= 90 ? 'ok' : pct < 60 ? 'bas' : '') + '">' + pct + ' %</b></div>';
+    }).join('');
+    const postes = r.postes.map(p => '<div class="ligne"><span>' + escapeHtml(noms[p.origine] || p.origine) + ' : ' +
+      (p.actif ? 'actif' : 'inactif') + '</span><b>' + p.lus_24h + ' lus</b></div>').join('');
+    zone.innerHTML = '<div class="titre">Fiches à jour</div>' + cats + '<div class="sep"></div>' +
+      '<div class="ligne"><span>Prix lus en 24 h</span><b>' + r.lus_24h + '</b></div>' +
+      '<div class="ligne"><span>dont gratuits (PC, extension)</span><b>' + r.part_gratuite + ' %</b></div>' +
+      '<div class="ligne"><span>Fiches en retard</span><b>' + r.en_retard + '</b></div>' +
+      (postes ? '<div class="sep"></div>' + postes : '');
+  } catch (err) {
+    zone.textContent = err.message === 'NO_SECRET' ? 'Enregistre le mot de passe admin dans les réglages pour voir le suivi.' : '';
+  }
+}
+afficherSuivi();
+setInterval(afficherSuivi, 30000);
+
 init();
