@@ -204,7 +204,7 @@
         <td>toutes les ${dureeReleve(c.intervalle_h)}</td><td class="hide-sm">${dureeReleve(c.age_median_h)}</td></tr>`;
     }).join('');
     const postes = r.postes.length ? r.postes.map(p => `<li><span class="releve-point ${p.actif ? 'on' : 'off'}"></span>
-        <b>${escapeHtml(NOMS_POSTES[p.origine] || p.origine)}</b> : ${p.actif ? 'actif' : 'inactif'}${p.derniere_minutes != null ? `, dernière demande il y a ${dureeReleve(p.derniere_minutes / 60)}` : ''}
+        <b>${escapeHtml(NOMS_POSTES[p.origine] || p.origine)}</b> : ${p.actif ? `actif${p.rythme_s ? `, une fiche toutes les ${Math.round(p.rythme_s)} s` : ''}` : 'inactif'}${p.derniere_minutes != null ? `, dernière demande il y a ${dureeReleve(p.derniere_minutes / 60)}` : ''}
         · ${nombre(p.lus_24h)} prix lus en 24 h${p.sans_prix_24h ? ` · ${nombre(p.sans_prix_24h)} pages sans prix` : ''}${p.bloques_24h ? ` · <span class="releve-alerte">${nombre(p.bloques_24h)} vérifications Amazon</span>` : ''}</li>`).join('')
       : '<li class="faint">Ni le programme du PC ni l\'extension n\'ont encore demandé de fiche.</li>';
     const sources = r.sources.length ? r.sources.map(s => `<span class="releve-source ${s.gratuit ? 'gratuit' : ''}">${escapeHtml(s.source)} <b>${nombre(s.lus)}</b></span>`).join('')

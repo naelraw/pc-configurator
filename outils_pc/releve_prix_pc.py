@@ -7,7 +7,8 @@ amazon.fr (connexion de la maison, qu'Amazon ne bloque pas, sans cookies donc
 sans lien avec un compte Amazon) et renvoie au site seulement la zone du prix
 et de la disponibilité. Le site applique le prix avec ses garde-fous habituels.
 
-- Vérification « robot » d'Amazon : pause d'une heure, jamais de contournement.
+- Vitesse adaptative (une fiche toutes les 6 à 60 s) ; vérification « robot »
+  d'Amazon : vitesse divisée par deux et pause, jamais de contournement.
 - Au plus MAX_PAR_JOUR fiches par jour.
 - Pages demandées compressées (environ 300 Ko au lieu de 2,5 Mo).
 - Un seul exemplaire à la fois ; journal dans %LOCALAPPDATA%\\PCRadar\\releve.log.
@@ -32,9 +33,14 @@ import urllib.error
 import urllib.request
 
 SITE = "https://pcradar.tech"
-INTERVALLE_SECONDES = 30
-MAX_PAR_JOUR = 800
-PAUSE_BLOCAGE_SECONDES = 3600
+# Vitesse adaptative : départ à une fiche toutes les 12 s, accélère jusqu'à 6 s tant
+# qu'Amazon ne demande aucune vérification ; à la première vérification, vitesse
+# divisée par deux (jusqu'à 60 s) et pause. Rien à relire : attente de 5 min.
+INTERVALLE_DEPART = 12
+INTERVALLE_MIN, INTERVALLE_MAX = 6, 60
+ACCELERER_APRES = 40          # lectures sans vérification avant de gagner une seconde
+MAX_PAR_JOUR = 2500
+PAUSE_BLOCAGE_SECONDES = 30 * 60
 DOSSIER = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "PCRadar")
 CONFIG = os.path.join(DOSSIER, "releve.json")
 JOURNAL = os.path.join(DOSSIER, "releve.log")
@@ -111,9 +117,10 @@ def configurer():
     return True
 
 
-def un_releve(secret):
+def un_releve(secret, intervalle=None):
     entete = {"X-Admin-Secret": secret}
-    statut, texte = http(SITE + "/api/admin/prix-a-relire?n=1&origine=pc", entetes=entete)
+    rythme = f"&rythme={intervalle:.0f}" if intervalle else ""
+    statut, texte = http(SITE + "/api/admin/prix-a-relire?n=1&origine=pc" + rythme, entetes=entete)
     if statut == 401:
         journal("Le site refuse le mot de passe admin : relancer « installer_releve_prix.bat ».")
         return "refuse"
@@ -150,6 +157,7 @@ def en_continu():
         return
     journal("Démarrage du relevé des prix.")
     jour, compte = None, 0
+    intervalle, sans_alerte = float(INTERVALLE_DEPART), 0
     while True:
         if datetime.date.today() != jour:
             jour, compte = datetime.date.today(), 0
@@ -157,14 +165,19 @@ def en_continu():
             time.sleep(600)
             continue
         try:
-            resultat = un_releve(secret)
+            resultat = un_releve(secret, intervalle)
         except Exception as err:   # réseau coupé, PC en veille... : on réessaie plus tard
             journal(f"Erreur : {type(err).__name__} : {str(err)[:150]}")
             resultat = "erreur"
         if resultat in ("lu", "ignore", "sans_prix"):
             compte += 1
+            sans_alerte += 1
+            if sans_alerte >= ACCELERER_APRES and intervalle > INTERVALLE_MIN:
+                intervalle, sans_alerte = max(INTERVALLE_MIN, intervalle - 1), 0
+                journal(f"Aucune vérification Amazon : une fiche toutes les {intervalle:.0f} s.")
         if resultat == "bloque":
-            journal("Amazon demande une vérification : pause d'une heure.")
+            intervalle, sans_alerte = min(INTERVALLE_MAX, intervalle * 2), 0
+            journal(f"Amazon demande une vérification : pause de 30 min, puis une fiche toutes les {intervalle:.0f} s.")
             time.sleep(PAUSE_BLOCAGE_SECONDES)
         elif resultat == "refuse":
             time.sleep(3600)
@@ -172,7 +185,7 @@ def en_continu():
         elif resultat in ("rien", "erreur"):
             time.sleep(300)
         else:
-            time.sleep(INTERVALLE_SECONDES + random.uniform(-5, 10))
+            time.sleep(intervalle * random.uniform(0.8, 1.3))
 
 
 if __name__ == "__main__":

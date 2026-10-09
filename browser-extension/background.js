@@ -234,15 +234,19 @@ async function updatePrice(componentId, prix, asin) {
 
 // ---------------------------------------------------------------------------
 // Relevé automatique des prix (interrupteur dans la fenêtre de l'extension).
-// Toutes les 30 s, tant que Chrome est ouvert : le site donne la fiche la plus
-// urgente, l'extension ouvre sa page Amazon en arrière-plan (sans cookies, donc
-// sans lien avec ton compte Amazon) et renvoie au site la zone du prix et de la
-// disponibilité. Vérification « robot » d'Amazon : pause d'une heure, jamais
-// de contournement. Au plus RELEVE_MAX_PAR_JOUR fiches par jour.
+// Tant que le navigateur est ouvert : le site donne les fiches les plus en retard,
+// l'extension ouvre leur page Amazon en arrière-plan (sans cookies, donc sans lien
+// avec ton compte Amazon) et renvoie au site la zone du prix et de la disponibilité.
+// Vitesse adaptative : une fiche toutes les 12 s au départ, jusqu'à 6 s sans
+// vérification « robot » ; à la première vérification, vitesse divisée par deux et
+// pause de 30 min, jamais de contournement. Au plus RELEVE_MAX_PAR_JOUR par jour.
 // ---------------------------------------------------------------------------
 const RELEVE_ALARME = 'pcr-releve-prix';
-const RELEVE_MAX_PAR_JOUR = 800;
-const RELEVE_PAUSE_BLOCAGE_MS = 60 * 60 * 1000;
+const RELEVE_MAX_PAR_JOUR = 2500;
+const RELEVE_PAUSE_BLOCAGE_MS = 30 * 60 * 1000;
+const RELEVE_INTERVALLE_DEPART = 12, RELEVE_INTERVALLE_MIN = 6, RELEVE_INTERVALLE_MAX = 60;
+const RELEVE_ACCELERER_APRES = 40;
+let releveEnCours = false;
 
 function aujourdhui() {
   return new Date().toISOString().slice(0, 10);
@@ -263,23 +267,20 @@ function extraitAmazon(html) {
 }
 
 async function releveEtat() {
-  const st = await chrome.storage.local.get(['releveActif', 'relevePauseJusqua', 'releveJour', 'releveCompte', 'releveDernier']);
+  const st = await chrome.storage.local.get(['releveActif', 'relevePauseJusqua', 'releveJour', 'releveCompte', 'releveDernier',
+    'releveIntervalle', 'releveSansAlerte']);
+  st.releveIntervalle = st.releveIntervalle || RELEVE_INTERVALLE_DEPART;
   if (st.releveJour !== aujourdhui()) { st.releveJour = aujourdhui(); st.releveCompte = 0; }
   return st;
 }
 
-async function releverUnPrix() {
-  const st = await releveEtat();
-  if (!st.releveActif) return;
-  if (Date.now() < (st.relevePauseJusqua || 0)) return;
-  if ((st.releveCompte || 0) >= RELEVE_MAX_PAR_JOUR) return;
-  const settings = await getSettings();
-  if (!settings.adminSecret) return;
+async function releverUneFiche(st, settings) {
   const entete = { 'X-Admin-Secret': settings.adminSecret };
-  const res = await fetch(settings.siteUrl + '/api/admin/prix-a-relire?n=1&origine=extension', { headers: entete });
-  if (!res.ok) { await chrome.storage.local.set({ releveDernier: 'Site : erreur ' + res.status }); return; }
+  const res = await fetch(settings.siteUrl + '/api/admin/prix-a-relire?n=1&origine=extension&rythme=' + Math.round(st.releveIntervalle),
+    { headers: entete });
+  if (!res.ok) { await chrome.storage.local.set({ releveDernier: 'Site : erreur ' + res.status }); return 'erreur'; }
   const fiche = ((await res.json()).fiches || [])[0];
-  if (!fiche) return;
+  if (!fiche) return 'rien';
   const page = await fetch('https://www.amazon.fr/dp/' + fiche.asin + '?th=1&psc=1', { credentials: 'omit' });
   const html = await page.text();
   const envoi = await fetch(settings.siteUrl + '/api/admin/prix-extension', {
@@ -288,18 +289,52 @@ async function releverUnPrix() {
     body: JSON.stringify({ id: fiche.id, asin: fiche.asin, extrait: extraitAmazon(html), origine: 'extension' }),
   });
   const r = await envoi.json().catch(() => ({}));
-  const maj = { releveJour: st.releveJour, releveCompte: (st.releveCompte || 0) + 1 };
-  if (r.resultat === 'bloque') {
-    maj.relevePauseJusqua = Date.now() + RELEVE_PAUSE_BLOCAGE_MS;
-    maj.releveDernier = 'Amazon demande une vérification : pause d\'une heure.';
-  } else if (r.resultat === 'lu') {
-    maj.releveDernier = fiche.nom + ' : ' + String(r.prix).replace('.', ',') + ' €';
-  } else if (r.resultat === 'ignore') {
-    maj.releveDernier = fiche.nom + ' : prix inhabituel, en attente de confirmation.';
-  } else {
-    maj.releveDernier = fiche.nom + ' : pas de prix sur la page.';
+  if (r.resultat === 'lu') st.releveDernier = fiche.nom + ' : ' + String(r.prix).replace('.', ',') + ' €';
+  else if (r.resultat === 'ignore') st.releveDernier = fiche.nom + ' : prix inhabituel, en attente de confirmation.';
+  else if (r.resultat === 'sans_prix') st.releveDernier = fiche.nom + ' : pas de prix sur la page.';
+  return r.resultat || 'erreur';
+}
+
+// Un réveil toutes les 30 s : autant de fiches que la vitesse actuelle le permet.
+async function releverUnPrix() {
+  if (releveEnCours) return;
+  releveEnCours = true;
+  try {
+    const st = await releveEtat();
+    if (!st.releveActif || Date.now() < (st.relevePauseJusqua || 0)) return;
+    const settings = await getSettings();
+    if (!settings.adminSecret) return;
+    const fin = Date.now() + 28000;
+    while (Date.now() < fin && (st.releveCompte || 0) < RELEVE_MAX_PAR_JOUR) {
+      const debut = Date.now();
+      const resultat = await releverUneFiche(st, settings);
+      if (['lu', 'ignore', 'sans_prix'].includes(resultat)) {
+        st.releveCompte = (st.releveCompte || 0) + 1;
+        st.releveSansAlerte = (st.releveSansAlerte || 0) + 1;
+        if (st.releveSansAlerte >= RELEVE_ACCELERER_APRES && st.releveIntervalle > RELEVE_INTERVALLE_MIN) {
+          st.releveIntervalle = Math.max(RELEVE_INTERVALLE_MIN, st.releveIntervalle - 1);
+          st.releveSansAlerte = 0;
+        }
+      }
+      if (resultat === 'bloque') {
+        st.releveIntervalle = Math.min(RELEVE_INTERVALLE_MAX, st.releveIntervalle * 2);
+        st.releveSansAlerte = 0;
+        st.relevePauseJusqua = Date.now() + RELEVE_PAUSE_BLOCAGE_MS;
+        st.releveDernier = 'Amazon demande une vérification : pause de 30 min, puis plus lentement.';
+        break;
+      }
+      if (resultat === 'rien' || resultat === 'erreur') break;
+      const attente = st.releveIntervalle * 1000 * (0.8 + Math.random() * 0.5) - (Date.now() - debut);
+      if (Date.now() + attente > fin) break;
+      await new Promise((ok) => setTimeout(ok, Math.max(0, attente)));
+    }
+    await chrome.storage.local.set({
+      releveJour: st.releveJour, releveCompte: st.releveCompte || 0, releveDernier: st.releveDernier || '',
+      releveIntervalle: st.releveIntervalle, releveSansAlerte: st.releveSansAlerte || 0, relevePauseJusqua: st.relevePauseJusqua || 0,
+    });
+  } finally {
+    releveEnCours = false;
   }
-  await chrome.storage.local.set(maj);
 }
 
 function programmerReleve() {
@@ -357,6 +392,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const res = await fetch(settings.siteUrl + '/api/admin/releve-prix', { headers: { 'X-Admin-Secret': settings.adminSecret } });
           if (!res.ok) throw new Error('Erreur ' + res.status);
           sendResponse({ ok: true, data: await res.json() });
+          break;
+        }
+        case 'AUTO_PRICES': {
+          // Page de résultats : prix de tous les produits du catalogue affichés, en une requête.
+          const settings = await getSettings();
+          if (!settings.adminSecret) throw new Error('NO_SECRET');
+          const res = await fetch(settings.siteUrl + '/api/admin/prix-liste', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Admin-Secret': settings.adminSecret },
+            body: JSON.stringify({ items: message.items }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.detail || ('Erreur ' + res.status));
+          message.items.forEach((i) => asinCache.delete(String(i.asin).toUpperCase()));
+          sendResponse({ ok: true, data: data.resultats || {} });
           break;
         }
         case 'AUTO_PRICE': {

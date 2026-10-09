@@ -67,3 +67,23 @@ def test_fiche_ouverte_par_l_admin_notee_navigation(client):
     derniere = main.get_client().execute(
         "SELECT source, resultat FROM journal_releves WHERE component_id = ? ORDER BY id DESC LIMIT 1", [cid]).rows[0]
     assert tuple(derniere) == ("Navigation", "lu")
+
+
+def test_prix_d_une_page_de_resultats(client):
+    lignes = main.get_client().execute(
+        "SELECT id, asin, prix_indicatif FROM components WHERE asin IS NOT NULL AND asin != '' AND en_stock = 1 "
+        "AND prix_indicatif > 20 LIMIT 2 OFFSET 5").rows
+    (id1, asin1, prix1), (id2, asin2, prix2) = lignes
+    items = [{"id": id1, "asin": asin1, "prix": round(prix1 * 0.97, 2)},          # petite baisse : appliquée
+             {"id": id2, "asin": asin2, "prix": round(prix2 * 0.1, 2)},           # -90 % : pas d'office
+             {"id": id1, "asin": "B0AUTRE000", "prix": 10.0}]                     # ne correspond pas : ignoré
+    assert client.post("/api/admin/prix-liste", json={"items": items}).status_code == 401
+    r = client.post("/api/admin/prix-liste", headers=ADMIN, json={"items": items}).json()["resultats"]
+    assert r[asin1]["resultat"] == "lu" and r[asin1]["avant"] == prix1
+    assert r[asin2]["resultat"] == "ignore"
+    assert "B0AUTRE000" not in r
+    c = main.get_client()
+    assert c.execute("SELECT prix_indicatif FROM components WHERE id = ?", [id1]).rows[0][0] == round(prix1 * 0.97, 2)
+    assert c.execute("SELECT prix_indicatif FROM components WHERE id = ?", [id2]).rows[0][0] == prix2
+    assert tuple(c.execute("SELECT source, resultat FROM journal_releves WHERE component_id = ? ORDER BY id DESC LIMIT 1",
+                           [id1]).rows[0]) == ("Navigation", "lu")

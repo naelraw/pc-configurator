@@ -104,3 +104,15 @@ def test_resume_pour_l_admin_et_l_extension(client, monkeypatch):
     pc = next(p for p in r["postes"] if p["origine"] == "PC")
     assert pc["actif"] and pc["lus_24h"] == 1 and pc["sans_prix_24h"] == 1
     assert client.get("/api/admin/releve-prix").status_code == 401
+
+
+def test_pc_ne_relit_pas_une_fiche_fraiche(client, monkeypatch):
+    _vider(client)
+    ids = _fiches(client)
+    _base(monkeypatch)
+    for cid in ids:
+        main._noter_releve(cid, "PC", "lu")          # tout vient d'être lu
+    assert main._fiches_pour_extension(5, "PC", rythme=8) == []   # le PC attend au lieu de solliciter Amazon
+    assert main._state_get("releve_rythmes", {})["PC"] == 8
+    r = client.get("/api/admin/releve-prix", headers=ADMIN).json()
+    assert next(p for p in r["postes"] if p["origine"] == "PC")["rythme_s"] == 8

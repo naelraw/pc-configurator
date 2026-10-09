@@ -182,3 +182,38 @@ a.pcradar-pill-near:hover { color: var(--pcr-accent); }
   #pcradar-panel, #pcradar-bar { animation: none; }
   .pcradar-pill-spin, #pcradar-panel button.pcradar-loading::after { animation: none; }
 }
+
+/* ------------------------------------------------------------------ */
+/* Produits pas encore sur le site : à repérer d'un coup d'œil           */
+/* ------------------------------------------------------------------ */
+.pcradar-card-nouveau {
+  outline: 3px solid var(--pcr-accent, #3ecf8e) !important; outline-offset: -3px;
+  border-radius: 10px; box-shadow: 0 0 0 6px rgba(62, 207, 142, 0.18) !important;
+}
+.pcradar-pill.pcradar-pill-out {
+  top: 8px; right: 8px; padding: 8px 9px; gap: 6px; max-width: 270px;
+  background: #3ecf8e; border: 2px solid #9ff0c8; color: #05140d;
+  box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.35), 0 10px 26px -8px rgba(0, 0, 0, 0.6);
+  animation: pcradar-appel 1.8s ease-in-out infinite;
+}
+.pcradar-pill-titre {
+  font-size: 12.5px; font-weight: 750; letter-spacing: 0.02em; text-transform: uppercase; color: #05140d; align-self: stretch; text-align: right;
+}
+.pcradar-pill.pcradar-pill-out .pcradar-pill-add {
+  font-size: 13px; font-weight: 750; padding: 6px 14px; background: #05140d; border-color: #05140d; color: #3ecf8e;
+}
+.pcradar-pill.pcradar-pill-out .pcradar-pill-add:hover { background: #0e2a1c; }
+.pcradar-pill.pcradar-pill-out .pcradar-pill-cat { background-color: rgba(5, 20, 13, 0.85); border-color: #05140d; color: #ececee; }
+.pcradar-pill.pcradar-pill-out a.pcradar-pill-near { color: #05140d; font-weight: 560; }
+@keyframes pcradar-appel {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(62, 207, 142, 0.35), 0 10px 26px -8px rgba(0, 0, 0, 0.6); }
+  50% { box-shadow: 0 0 0 9px rgba(62, 207, 142, 0.12), 0 10px 26px -8px rgba(0, 0, 0, 0.6); }
+}
+@media (prefers-reduced-motion: reduce) { .pcradar-pill.pcradar-pill-out { animation: none; } }
+
+/* Produits déjà sur le site : étiquette discrète, pour que les nouveaux ressortent. */
+.pcradar-pill.pcradar-pill-in { opacity: 0.82; font-size: 11px; padding: 4px 6px; }
+.pcradar-pill.pcradar-pill-in:hover { opacity: 1; }
+.pcradar-pill-maj { color: var(--pcr-accent, #3ecf8e); }
+.pcradar-pill-maj b { color: var(--pcr-text, #ececee); }
+#pcradar-bar .pcradar-bar-nouveaux b { color: var(--pcr-accent, #3ecf8e); font-size: 1.15em; }

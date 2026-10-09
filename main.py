@@ -4490,7 +4490,8 @@ def _part_secours(nom, passages):
 RELEVE_INTERVALLES_H = {"alerte": 6, "prioritaire": 12, "normal": 36, "epuise": 72}
 RELEVE_FACTEUR_MIN, RELEVE_FACTEUR_MAX = 0.5, 4.0
 RELEVE_PART_PRIORITAIRES = 0.7      # part de la capacité (hors alertes) que les prioritaires peuvent prendre
-RELEVE_SEUIL_SERVICES = 0.8          # retard (en intervalles) à partir duquel les services relisent
+RELEVE_SEUIL_SERVICES = 0.8
+RELEVE_SEUIL_PC = 0.5                # le PC ne relit pas une fiche à moins de la moitié de son intervalle          # retard (en intervalles) à partir duquel les services relisent
 RELEVE_PRET_SECONDES = 15 * 60       # une fiche confiée au PC n'est pas donnée ailleurs pendant 15 min
 RELEVE_ECHECS_PC_MAX = 2             # au-delà, la fiche est laissée aux services pendant 3 jours
 RELEVE_JOURNAL_JOURS = 3
@@ -9519,12 +9520,19 @@ def _prioritaires_en_cache():
     return _PRIORITAIRES_CACHE["ids"]
 
 
-def _fiches_pour_extension(n, origine="Extension"):
+def _fiches_pour_extension(n, origine="Extension", rythme=None):
     """Fiches les plus en retard pour le PC ou l'extension : en stock, avec une offre
-    Amazon (pas de fiche vitrine), que le PC sait lire, et pas déjà confiées."""
+    Amazon (pas de fiche vitrine), que le PC sait lire, pas déjà confiées, et pas
+    encore fraîches (RELEVE_SEUIL_PC) : quand tout est à jour, le poste attend au
+    lieu de solliciter Amazon pour rien."""
     prets = _prets_actifs()
     choisies = [f for f in _etat_releves()
-                if f["en_stock"] and not f["vitrine"] and not f["pc_echoue"] and str(f["id"]) not in prets][:n]
+                if f["en_stock"] and not f["vitrine"] and not f["pc_echoue"] and str(f["id"]) not in prets
+                and f["retard"] >= RELEVE_SEUIL_PC][:n]
+    if rythme:
+        rythmes = _state_get("releve_rythmes", {})
+        rythmes[origine] = round(float(rythme), 1)
+        _state_set("releve_rythmes", rythmes)
     maintenant = time.time()
     for f in choisies:
         prets[str(f["id"])] = {"ts": maintenant, "origine": origine}
@@ -9536,9 +9544,11 @@ def _fiches_pour_extension(n, origine="Extension"):
 
 
 @app.get("/api/admin/prix-a-relire")
-def admin_prix_a_relire(n: int = 1, origine: str = "Extension", _admin=Depends(require_admin)):
+def admin_prix_a_relire(n: int = 1, origine: str = "Extension", rythme: float | None = None,
+                        _admin=Depends(require_admin)):
     origine = "PC" if origine.lower() == "pc" else "Extension"
-    return {"fiches": _fiches_pour_extension(max(1, min(n, 5)), origine)}
+    rythme = max(1.0, min(rythme, 3600.0)) if rythme else None
+    return {"fiches": _fiches_pour_extension(max(1, min(n, 5)), origine, rythme)}
 
 
 class PrixExtensionRequest(BaseModel):
@@ -9614,6 +9624,7 @@ def _resume_releves():
                         "sans_prix": res.get("sans_prix", 0), "bloques": res.get("bloque", 0),
                         "ignores": res.get("ignore", 0), "gratuit": source in SOURCES_GRATUITES})
     vus = _state_get("releve_sources_vues", {})
+    rythmes = _state_get("releve_rythmes", {})
     postes = []
     for origine in SOURCES_GRATUITES:
         if origine not in vus:
@@ -9625,6 +9636,7 @@ def _resume_releves():
         res = lectures.get(origine, {})
         postes.append({"origine": origine, "derniere_minutes": round(minutes) if minutes is not None else None,
                        "actif": minutes is not None and minutes < 10, "lus_24h": res.get("lu", 0),
+                       "rythme_s": rythmes.get(origine),
                        "sans_prix_24h": res.get("sans_prix", 0), "bloques_24h": res.get("bloque", 0)})
     total_lus = sum(x["lus"] for x in sources)
     gratuits = sum(x["lus"] for x in sources if x["gratuit"])
@@ -9641,6 +9653,50 @@ def _resume_releves():
 @app.get("/api/admin/releve-prix")
 def admin_releve_prix(_admin=Depends(require_admin)):
     return _resume_releves()
+
+
+class PrixListeItem(BaseModel):
+    id: int
+    asin: str = Field(max_length=20)
+    prix: float
+
+
+class PrixListeRequest(BaseModel):
+    items: list[PrixListeItem] = Field(max_length=80)
+
+
+@app.post("/api/admin/prix-liste")
+def admin_prix_liste(body: PrixListeRequest, _admin=Depends(require_admin)):
+    """Prix des produits du catalogue affichés sur une page de résultats Amazon
+    ouverte par l'admin, appliqués automatiquement (source « Navigation »). Un prix
+    très différent du catalogue n'est pas appliqué d'office : l'extension propose
+    alors de le faire à la main, après vérification."""
+    resultats = {}
+    client = get_client()
+    try:
+        for item in body.items:
+            if not 0 < item.prix < 20000:
+                continue
+            rows = client.execute(
+                "SELECT id, nom, asin, prix_marche_json, image_url, en_stock, prix_indicatif FROM components WHERE id = ? AND asin = ?",
+                [item.id, item.asin]).rows
+            if not rows:
+                continue
+            row = rows[0]
+            avant = float(row[6] or 0)
+            if avant and not _prix_plausible(item.prix, avant):
+                _noter_releve(row[0], "Navigation", "ignore", client)
+                resultats[item.asin] = {"resultat": "ignore", "prix": item.prix, "avant": avant}
+                continue
+            info = {"prix": item.prix, "lien": f"https://www.amazon.{AMAZON_DOMAIN_TLD}/dp/{row[2]}"}
+            outcome = _apply_amazon_price_info(client, row[0], row[1], row[2], row[3], row[4], bool(row[5]), info,
+                                               source_label="Navigation")
+            resultats[item.asin] = {"resultat": "ignore" if outcome.get("ignore") else "lu", "prix": item.prix, "avant": avant}
+    finally:
+        client.close()
+    if resultats:
+        invalidate_catalog()
+    return {"resultats": resultats}
 
 
 @app.get("/api/admin/prix-extension/stats")

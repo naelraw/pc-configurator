@@ -308,9 +308,15 @@
   const euros = (v) => Number(v).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
   const cardTitle = (card) => (card.querySelector('h2')?.innerText || '').replace(/\s+/g, ' ').trim();
 
+  function prixCarte(card) {
+    const el = card.querySelector('[data-cy="price-recipe"] .a-price:not(.a-text-price) .a-offscreen')
+      || card.querySelector('.a-price:not(.a-text-price) .a-offscreen');
+    return el ? pcradarParsePrice(el.textContent) : null;
+  }
+
   function priceGap(entry) {
     const c = entry.data && entry.data.catalogue;
-    const pagePrice = pcradarExtractQuickData(entry.card).prix;
+    const pagePrice = prixCarte(entry.card);
     const catalogPrice = c ? Number(c.prix_indicatif) || 0 : 0;
     if (!c || !pagePrice || !catalogPrice) return null;
     return Math.abs(pagePrice - catalogPrice) / catalogPrice > 0.01 ? pagePrice : null;
@@ -350,11 +356,13 @@
     });
     try {
       const resultats = await sendMessage({ type: 'ANALYSE_PAGE', items });
-      entries.filter((e) => asins.includes(e.asin)).forEach((e) => {
+      const analysees = entries.filter((e) => asins.includes(e.asin));
+      analysees.forEach((e) => {
         e.data = resultats[e.asin] || { catalogue: null, proche: null };
         e.state = e.data.catalogue ? 'in' : 'out';
         renderPill(e);
       });
+      majPrixDeLaPage(analysees.filter((e) => e.state === 'in'));
     } catch (err) {
       secretMissing = err.message === 'NO_SECRET';
       entries.filter((e) => asins.includes(e.asin)).forEach((e) => {
@@ -364,6 +372,33 @@
       });
     }
     if (pending.size) scheduleAnalyse();
+    renderBar();
+  }
+
+  // Prix des produits déjà au catalogue mis à jour automatiquement, une fois par
+  // produit et par page. Un prix très différent n'est pas appliqué d'office :
+  // le bouton « mettre à jour » reste proposé pour le faire à la main.
+  async function majPrixDeLaPage(list) {
+    const items = list
+      .filter((e) => !e.autoPrix)
+      .map((e) => ({ e, prix: prixCarte(e.card) }))
+      .filter((x) => x.prix && x.e.data.catalogue && x.e.data.catalogue.id);
+    if (!items.length) return;
+    items.forEach((x) => { x.e.autoPrix = { resultat: 'en_cours' }; });
+    try {
+      const resultats = await sendMessage({
+        type: 'AUTO_PRICES',
+        items: items.map((x) => ({ id: x.e.data.catalogue.id, asin: x.e.asin, prix: x.prix })),
+      });
+      items.forEach(({ e }) => {
+        const r = resultats[e.asin];
+        e.autoPrix = r || { resultat: 'aucun' };
+        if (r && r.resultat === 'lu') e.data.catalogue.prix_indicatif = r.prix;
+        if (e.state === 'in') renderPill(e);
+      });
+    } catch (err) {
+      items.forEach(({ e }) => { e.autoPrix = { resultat: 'erreur' }; if (e.state === 'in') renderPill(e); });
+    }
     renderBar();
   }
 
@@ -379,16 +414,30 @@
     const pill = entry.pill;
     const c = entry.data && entry.data.catalogue;
     pill.className = 'pcradar-pill pcradar-pill-' + entry.state;
+    // Produit pas encore sur le site : toute la carte est mise en évidence.
+    entry.card.classList.toggle('pcradar-card-nouveau', entry.state === 'out');
     if (entry.state === 'in') {
       const gap = priceGap(entry);
+      const a = entry.autoPrix;
+      let prixInfo = '';
+      if (a && a.resultat === 'lu') {
+        prixInfo = a.avant && Math.abs(a.prix - a.avant) / a.avant > 0.005
+          ? '<span class="pcradar-pill-sub pcradar-pill-maj">Prix mis à jour : <b>' + euros(a.prix) + '</b> (avant ' + euros(a.avant) + ')</span>'
+          : '<span class="pcradar-pill-sub">Prix à jour : <b>' + euros(a.prix) + '</b></span>';
+      } else if (a && a.resultat === 'en_cours') {
+        prixInfo = '<span class="pcradar-pill-sub">Mise à jour du prix…</span>';
+      }
       pill.innerHTML =
         '<a class="pcradar-pill-known" href="https://pcradar.tech' + escapeHtml(c.page || '/') + '" target="_blank" rel="noopener" title="Voir la fiche sur PC Radar">'
-        + '<span class="pcradar-pill-check" aria-hidden="true">✓</span>Au catalogue</a>'
-        + (gap ? '<button class="pcradar-pill-btn" data-act="price" title="Le catalogue affiche ' + euros(c.prix_indicatif) + '">Nouveau prix ' + euros(gap) + ' · mettre à jour</button>' : '');
+        + '<span class="pcradar-pill-check" aria-hidden="true">✓</span>Sur le site</a>'
+        + prixInfo
+        + (gap && (!a || a.resultat === 'ignore' || a.resultat === 'erreur')
+          ? '<button class="pcradar-pill-btn" data-act="price" title="Écart important avec le catalogue (' + euros(c.prix_indicatif) + ') : vérifie avant d\'appliquer">Prix inhabituel ' + euros(gap) + ' · appliquer</button>' : '');
     } else if (entry.state === 'out') {
       const p = entry.data && entry.data.proche;
       pill.innerHTML =
-        '<span class="pcradar-pill-row">'
+        '<span class="pcradar-pill-titre">Pas sur PC Radar</span>'
+        + '<span class="pcradar-pill-row">'
         + '<button class="pcradar-pill-btn pcradar-pill-add" data-act="add">+ Ajouter</button>'
         + categorySelect(entry)
         + '</span>'
@@ -506,10 +555,12 @@
     const unique = (list) => [...new Map(list.map((e) => [e.asin, e])).values()];
     const known = unique(entries.filter((e) => e.state === 'in'));
     const fresh = unique(entries.filter((e) => e.state === 'out'));
-    const gaps = unique(known.filter((e) => priceGap(e)));
+    // Prix appliqués automatiquement ; ne restent à la main que les écarts inhabituels.
+    const gaps = unique(known.filter((e) => priceGap(e) && (!e.autoPrix || ['ignore', 'erreur'].includes(e.autoPrix.resultat))));
+    const majAuto = unique(known.filter((e) => e.autoPrix && e.autoPrix.resultat === 'lu')).length;
     bar.querySelector('.pcradar-bar-stats').innerHTML =
-      '<div><b>' + known.length + '</b> déjà au catalogue</div>'
-      + '<div><b>' + fresh.length + '</b> nouveau' + (fresh.length > 1 ? 'x' : '') + '</div>';
+      '<div><b>' + known.length + '</b> déjà sur le site' + (majAuto ? ' · ' + majAuto + ' prix mis à jour' : '') + '</div>'
+      + '<div class="pcradar-bar-nouveaux"><b>' + fresh.length + '</b> pas encore sur le site</div>';
     if (secretMissing) {
       bar.querySelector('.pcradar-bar-actions').innerHTML =
         '<span class="pcradar-bar-note">Mot de passe admin manquant : clique sur l\'icône de l\'extension pour le renseigner.</span>';
@@ -525,7 +576,7 @@
         + (fresh.length > 1 ? 'Ajouter les ' + fresh.length + ' nouveaux' : 'Ajouter le nouveau') + '</button>');
     }
     if (gaps.length && !confirmAddAll) {
-      actions.push('<button data-act="update-prices"' + (busy ? ' disabled' : '') + '>Mettre à jour ' + gaps.length + ' prix</button>');
+      actions.push('<button data-act="update-prices"' + (busy ? ' disabled' : '') + ' title="Écart important avec le catalogue : vérifie avant d’appliquer">Appliquer ' + gaps.length + ' prix inhabituel' + (gaps.length > 1 ? 's' : '') + '</button>');
     }
     if (!actions.length) actions.push('<span class="pcradar-bar-note">Rien à faire sur cette page.</span>');
     bar.querySelector('.pcradar-bar-actions').innerHTML = actions.join('');

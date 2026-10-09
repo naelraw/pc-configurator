@@ -217,7 +217,7 @@ async function afficherReleve() {
       if (Date.now() < (e.relevePauseJusqua || 0)) {
         lignes.push('En pause jusqu\'à ' + new Date(e.relevePauseJusqua).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + '.');
       }
-      lignes.push((e.releveCompte || 0) + ' fiche(s) relue(s) aujourd\'hui.');
+      lignes.push((e.releveCompte || 0) + ' fiche(s) relue(s) aujourd\'hui, une toutes les ' + Math.round(e.releveIntervalle || 12) + ' s.');
     }
     if (e.releveDernier) lignes.push('Dernier : ' + e.releveDernier);
     document.getElementById('releve-etat').textContent = lignes.join(' ');
@@ -248,7 +248,7 @@ async function afficherSuivi() {
         (pct >= 90 ? 'ok' : pct < 60 ? 'bas' : '') + '">' + pct + ' %</b></div>';
     }).join('');
     const postes = r.postes.map(p => '<div class="ligne"><span>' + escapeHtml(noms[p.origine] || p.origine) + ' : ' +
-      (p.actif ? 'actif' : 'inactif') + '</span><b>' + p.lus_24h + ' lus</b></div>').join('');
+      (p.actif ? 'actif' + (p.rythme_s ? ', 1 fiche / ' + Math.round(p.rythme_s) + ' s' : '') : 'inactif') + '</span><b>' + p.lus_24h + ' lus</b></div>').join('');
     zone.innerHTML = '<div class="titre">Fiches à jour</div>' + cats + '<div class="sep"></div>' +
       '<div class="ligne"><span>Prix lus en 24 h</span><b>' + r.lus_24h + '</b></div>' +
       '<div class="ligne"><span>dont gratuits (PC, extension)</span><b>' + r.part_gratuite + ' %</b></div>' +
