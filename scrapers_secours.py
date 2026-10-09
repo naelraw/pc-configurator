@@ -17,7 +17,13 @@ import os
 
 import requests
 
-SERVICES = ("scraperapi", "scrapingant", "scrapedo")
+# Services utilisés par la mise à jour des prix. Scrape.do n'y est pas : avec le
+# proxy de centre de données de son offre gratuite (les proxys résidentiels sont
+# réservés aux offres payantes), Amazon lui renvoie une page sans aucune offre
+# ni prix, décomptée quand même (constaté le 9 octobre 2026). Sa clé reste
+# enregistrée et vérifiée par ops/set_scraping_keys.sh.
+SERVICES = ("scraperapi", "scrapingant")
+TOUS = ("scraperapi", "scrapingant", "scrapedo")
 NOMS = {"scraperapi": "ScraperAPI", "scrapingant": "ScrapingAnt", "scrapedo": "Scrape.do"}
 VARIABLES = {"scraperapi": "SCRAPERAPI_KEY", "scrapingant": "SCRAPINGANT_KEY", "scrapedo": "SCRAPEDO_KEY"}
 # Crédits estimés par fiche Amazon avant la première mesure.

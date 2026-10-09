@@ -35,7 +35,7 @@ from dotenv import dotenv_values
 import os
 os.environ.update({k: v for k, v in dotenv_values(".env").items() if v})
 import scrapers_secours as s
-for nom in s.SERVICES:
+for nom in s.TOUS:
     if not s.cle(nom):
         print(f"{s.NOMS[nom]} : pas de cle.")
         continue
