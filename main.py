@@ -1211,12 +1211,99 @@ def api_components(request: Request):
     return Response(content=_CATALOG["body"], media_type="application/json", headers=headers)
 
 
+# Relecture à la consultation : une fiche ouverte par un visiteur dont le prix
+# Amazon date de plus de PRIX_RELECTURE_VUE_JOURS est relue en arrière-plan.
+# Plafonnée par jour (quotas gratuits), une fois par jour et par fiche, jamais
+# pour les robots, seulement pour les produits en stock.
+PRIX_RELECTURE_VUE_JOURS = 2
+PRIX_RELECTURES_VUE_PAR_JOUR = 30
+ROBOTS_UA = re.compile(r"bot|spider|crawl|slurp|preview|python|curl|headless|wget|monitor|lighthouse", re.I)
+_relectures_vue_en_cours = set()
+_relectures_vue_verrou = threading.Lock()
+
+
+def _relire_si_ancien(component_id, user_agent):
+    """Lance la relecture du prix en arrière-plan si elle est utile et permise ; True si lancée."""
+    if not user_agent or ROBOTS_UA.search(user_agent):
+        return False
+    composant = next((c for c in get_catalog() if c["id"] == component_id), None)
+    if not composant or not composant.get("asin") or not composant.get("en_stock"):
+        return False
+    releve = next((p.get("date_releve") for p in composant.get("prix_marche") or []
+                   if isinstance(p, dict) and p.get("vendeur") == "Amazon"), None)
+    try:
+        age = (datetime.utcnow().date() - datetime.fromisoformat(releve).date()).days
+    except (TypeError, ValueError):
+        age = 99
+    if age < PRIX_RELECTURE_VUE_JOURS:
+        return False
+    with _relectures_vue_verrou:
+        if component_id in _relectures_vue_en_cours:
+            return False
+        aujourd_hui = datetime.utcnow().date().isoformat()
+        compteur = _state_get("relectures_vue", {})
+        if compteur.get("date") != aujourd_hui:
+            compteur = {"date": aujourd_hui, "ids": []}
+        if len(compteur["ids"]) >= PRIX_RELECTURES_VUE_PAR_JOUR or component_id in compteur["ids"]:
+            return False
+        compteur["ids"].append(component_id)
+        _state_set("relectures_vue", compteur)
+        _relectures_vue_en_cours.add(component_id)
+    threading.Thread(target=_relire_un_composant, args=(component_id,), daemon=True).start()
+    return True
+
+
+def _relire_un_composant(component_id):
+    """Relit le prix Amazon d'une fiche (Apify, puis Bright Data si besoin) et l'applique
+    avec les mêmes garde-fous que la mise à jour automatique."""
+    try:
+        client = get_client()
+        try:
+            rows = client.execute("SELECT id, nom, asin, prix_marche_json, image_url, en_stock FROM components WHERE id = ?",
+                                  [component_id]).rows
+            if not rows:
+                return
+            row = rows[0]
+            info, source = None, None
+            if APIFY_API_TOKEN and str(row[0]) not in _state_get("fiches_vitrine", {}):
+                try:
+                    info, source = fetch_amazon_products_apify([row[2]]).get(row[2]), "Apify"
+                except Exception as err:
+                    print(f"Relecture à la consultation : Apify indisponible pour {row[1]} ({err})")
+            if (not info or info.get("prix") is None) and BRIGHTDATA_API_TOKEN and refresh_allowance("brightdata") > 0:
+                try:
+                    info, source = fetch_amazon_product(row[2], timeout=60), "Bright Data"
+                except Exception as err:
+                    print(f"Relecture à la consultation : Bright Data indisponible pour {row[1]} ({err})")
+            if not info or info.get("prix") is None:
+                print(f"Relecture à la consultation : prix de {row[1]} non lu, gardé tel quel.")
+                return
+            outcome = _apply_amazon_price_info(client, row[0], row[1], row[2], row[3], row[4], bool(row[5]), info,
+                                               source_label=source)
+            print(f"Relecture à la consultation : {row[1]} -> {info.get('prix')} € via {source}"
+                  + (f" ({outcome['error']})" if outcome.get("error") else ""))
+        finally:
+            client.close()
+        invalidate_catalog()
+    except Exception as err:
+        print(f"Relecture à la consultation échouée pour {component_id} : {err}")
+    finally:
+        with _relectures_vue_verrou:
+            _relectures_vue_en_cours.discard(component_id)
+
+
 @app.get("/api/components/{component_id}/prix-historique")
-def component_price_history(component_id: int, jours: int = 90):
+def component_price_history(component_id: int, request: Request, jours: int = 90):
     """
     Historique du prix d'un composant (un point par jour, relevé par la mise
     à jour automatique des prix), pour le graphique de la fiche détail.
+    Appelé quand un visiteur ouvre une fiche : relance aussi la lecture du prix
+    s'il est trop ancien (voir _relire_si_ancien).
     """
+    try:
+        _relire_si_ancien(component_id, request.headers.get("user-agent", ""))
+    except Exception as err:
+        print(f"Relecture à la consultation non lancée pour {component_id} : {err}")
     jours = max(7, min(jours, 365))
     depuis = (datetime.utcnow().date() - timedelta(days=jours)).isoformat()
     client = get_client()
@@ -4196,7 +4283,7 @@ def _vues_composants():
 
 def _composants_prioritaires():
     """
-    Fiches à relire chaque nuit : celles que le site recommande vraiment
+    Fiches à relire chaque jour : celles que le site recommande vraiment
     (configurateur automatique sur toute la plage de budgets et d'usages,
     configs de l'accueil, guides par budget, configs officielles), les autres
     annonces du même produit, les favoris et alertes des comptes, et les fiches
@@ -4267,7 +4354,7 @@ def _retard_verification(date_releve, prioritaire, epuise):
 
 
 def _compter_en_stock_a_jour(prioritaires=frozenset()):
-    """Fiches en stock et leur fraîcheur, dont les prioritaires (relues chaque nuit)."""
+    """Fiches en stock et leur fraîcheur, dont les prioritaires (relues chaque jour)."""
     client = get_client()
     try:
         rows = client.execute("SELECT id, prix_marche_json FROM components WHERE en_stock = 1 AND asin IS NOT NULL AND asin != ''").rows
@@ -4295,6 +4382,26 @@ def _last_amazon_check_date(prix_marche_json):
         if isinstance(entry, dict) and entry.get("vendeur") == "Amazon":
             return entry.get("date_releve") or ""
     return ""  # jamais vérifié : chaîne vide trie en premier (priorité maximale)
+
+
+def _composants_sous_alerte():
+    """Composants suivis par un compte : favoris et pièces des configs suivies."""
+    ids = set()
+    client = get_client()
+    try:
+        ids.update(row[0] for row in client.execute("SELECT DISTINCT component_id FROM favorites").rows)
+        for (composants_json,) in client.execute(
+            "SELECT composants_json FROM builds WHERE id IN (SELECT build_id FROM build_alerts)"
+        ).rows:
+            try:
+                ids.update(v for v in json.loads(composants_json or "{}").values() if isinstance(v, int))
+            except (TypeError, json.JSONDecodeError, AttributeError):
+                pass
+    except Exception as err:
+        print(f"Composants sous alerte illisibles : {err}")
+    finally:
+        client.close()
+    return ids
 
 
 def _run_daily_price_refresh_rotation():
@@ -4331,29 +4438,111 @@ def _run_daily_price_refresh_rotation():
         print(f"Priorité des prix indisponible, rotation par ancienneté seule : {err}")
         prioritaires = set()
 
+    ids_alertes = _composants_sous_alerte()
+    passages = len(PRIX_PASSAGES_HEURES)
+
     def urgence(row):
         releve = _last_amazon_check_date(row[3])
         retard = _retard_verification(releve or epuises_verifies.get(str(row[0])), row[0] in prioritaires, not releve)
         return (-retard, row[0] not in prioritaires, releve)
 
-    rows_sorted = sorted(rows, key=urgence)
-
-    brightdata_rows = rows_sorted[:refresh_allowance("brightdata")] if BRIGHTDATA_API_TOKEN else []
-    reste = rows_sorted[len(brightdata_rows):]
-    zenrows_rows = reste[:refresh_allowance("zenrows")] if ZENROWS_API_KEY else []
-    reste = reste[len(zenrows_rows):]
-    apify_rows = reste[:refresh_allowance("apify")] if APIFY_API_TOKEN else []
-    tentes = len(brightdata_rows) + len(zenrows_rows) + len(apify_rows)
+    # Part de chaque fournisseur pour CE passage (le quota du jour est partagé
+    # entre les PRIX_PASSAGES_HEURES passages de la journée).
+    part = {}
+    for fournisseur, actif in (("brightdata", BRIGHTDATA_API_TOKEN), ("zenrows", ZENROWS_API_KEY), ("apify", APIFY_API_TOKEN)):
+        jour = refresh_allowance(fournisseur) if actif else 0
+        part[fournisseur] = -(-jour // passages)   # arrondi au-dessus : 3 fiches/jour -> 1 par passage
+    # Produits suivis par une alerte (favoris, configs suivies) : relus à chaque
+    # passage, avant tout le reste, sur la moitié du passage au plus pour que le
+    # reste du catalogue avance aussi.
+    alertes = sorted([r for r in rows if r[0] in ids_alertes], key=urgence)[:max(5, sum(part.values()) // 2)]
+    en_tete = {r[0] for r in alertes}
+    rows_sorted = alertes + sorted([r for r in rows if r[0] not in en_tete], key=urgence)
 
     updated = 0
     prix_lus = 0
     bloques_apify = 0
+    repris = 0
     reportes = 0
     remis_en_stock = 0
     passes_epuises = 0
     errors = []
+    tentes_ids = set()
+    etablis = set()        # fiches dont le prix (ou l'épuisement) a été établi pendant ce passage
+    bloques_ids = set()    # fiches qu'Apify n'a pas pu lire, à reprendre par un autre service
+
+    def appliquer(row, info, source):
+        nonlocal updated, prix_lus, remis_en_stock, passes_epuises, repris
+        component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
+            row[0], row[1], row[2], row[3], row[4], bool(row[5]),
+        )
+        outcome = _apply_amazon_price_info(
+            client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info, source_label=source,
+        )
+        if outcome["error"]:
+            errors.append(outcome["error"])
+        if outcome["remis_en_stock"]:
+            remis_en_stock += 1
+        if outcome["passe_epuise"]:
+            passes_epuises += 1
+        updated += 0 if outcome.get("ignore") else 1
+        if info.get("prix") is not None and not outcome.get("ignore"):
+            prix_lus += 1
+            if component_id in bloques_ids:
+                repris += 1
+        etablis.add(component_id)
+
     client = get_client()
     try:
+        # --- Apify d'abord, en volume (par lots de APIFY_MAX_ROWS_PER_RUN) ---
+        # Un lot en échec (panne, crédit épuisé) ou une fiche non lue (page
+        # bloquée par Amazon) ne touche à RIEN et passe à Bright Data / ZenRows
+        # juste après, dans ce même passage. Un ASIN absent d'un lot réussi n'est
+        # jamais déclaré épuisé : la recherche par ASIN d'Apify peut le manquer ;
+        # Bright Data et ZenRows, qui lisent la fiche /dp/ elle-même, tranchent.
+        vitrines = _state_get("fiches_vitrine", {})
+        apify_rows = [r for r in rows_sorted if str(r[0]) not in vitrines][:part["apify"]]
+        credit = _apify_credit() if apify_rows else None
+        budget_passage = None
+        if credit:
+            depense_debut, jours = credit
+            budget_passage = max(0.0, APIFY_CREDIT_USD - APIFY_CREDIT_MARGE_USD - depense_debut) / jours / passages
+        for start in range(0, len(apify_rows), APIFY_MAX_ROWS_PER_RUN):
+            batch = apify_rows[start:start + APIFY_MAX_ROWS_PER_RUN]
+            # Budget du passage en dollars atteint : le reste va aux autres services
+            # ou attend le passage suivant (ces fiches restent les plus urgentes).
+            if budget_passage is not None:
+                actuel = _apify_credit()
+                if actuel and actuel[0] - depense_debut >= budget_passage:
+                    reportes = len(apify_rows) - start
+                    errors.append(f"Apify : budget du passage atteint ({budget_passage:.2f} $), {reportes} fiche(s) "
+                                  "confiée(s) aux autres services ou au passage suivant.")
+                    break
+            tentes_ids.update(r[0] for r in batch)
+            try:
+                results_by_asin = fetch_amazon_products_apify([row[2] for row in batch])
+            except Exception as error:
+                errors.append(f"Apify (lot de {len(batch)}, repris par les autres services) : {error}")
+                bloques_apify += len(batch)
+                bloques_ids.update(r[0] for r in batch)
+                continue
+            for row in batch:
+                info = results_by_asin.get(row[2])
+                if info is None or info.get("prix") is None:
+                    errors.append(f"{row[1]} ({row[2]}) : prix non lu par Apify (page bloquée par Amazon), "
+                                  "repris par un autre service si son quota le permet.")
+                    bloques_apify += 1
+                    bloques_ids.add(row[0])
+                    continue
+                appliquer(row, info, "Apify")
+
+        # --- Puis Bright Data et ZenRows : les fiches bloquées chez Apify et les
+        # plus urgentes non encore lues, dans l'ordre d'urgence ---
+        file_attente = [r for r in rows_sorted if r[0] not in etablis]
+        brightdata_rows = file_attente[:part["brightdata"]]
+        zenrows_rows = file_attente[len(brightdata_rows):len(brightdata_rows) + part["zenrows"]]
+        tentes_ids.update(r[0] for r in brightdata_rows + zenrows_rows)
+
         if brightdata_rows:
             items = [{"url": f"https://www.amazon.{AMAZON_DOMAIN_TLD}/dp/{row[2]}"} for row in brightdata_rows]
             try:
@@ -4365,18 +4554,12 @@ def _run_daily_price_refresh_rotation():
             results_by_asin, redirections = _indexer_resultats_brightdata(results)
 
             for row in brightdata_rows:
-                component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
-                    row[0], row[1], row[2], row[3], row[4], bool(row[5]),
-                )
+                component_id, nom, asin = row[0], row[1], row[2]
                 result_item = results_by_asin.get(asin.upper())
                 if result_item is None and asin.upper() in redirections:
-                    outcome = _apply_amazon_price_info(
-                        client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, {"prix": None},
-                        source_label="Bright Data",
-                    )
+                    appliquer(row, {"prix": None}, "Bright Data")
                     errors.append(f"{nom} ({asin}) : la fiche Amazon mène maintenant à un autre produit "
                                   f"({redirections[asin.upper()]}), annonce marquée épuisée.")
-                    passes_epuises += 1 if outcome["passe_epuise"] else 0
                     continue
                 if result_item is None:
                     errors.append(f"{nom} ({asin}) : aucun résultat Bright Data.")
@@ -4386,123 +4569,50 @@ def _run_daily_price_refresh_rotation():
                     _marquer_vitrine(component_id, True)
                 elif info.get("prix") is not None:
                     _marquer_vitrine(component_id, False)
-                outcome = _apply_amazon_price_info(
-                    client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
-                    source_label="Bright Data",
-                )
-                if outcome["error"]:
-                    errors.append(outcome["error"])
-                if outcome["remis_en_stock"]:
-                    remis_en_stock += 1
-                if outcome["passe_epuise"]:
-                    passes_epuises += 1
-                updated += 0 if outcome.get("ignore") else 1
-                prix_lus += 1 if info.get("prix") is not None and not outcome.get("ignore") else 0
+                appliquer(row, info, "Bright Data")
 
         for row in zenrows_rows:
-            component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
-                row[0], row[1], row[2], row[3], row[4], bool(row[5]),
-            )
             try:
-                info = fetch_amazon_product_zenrows(asin)
+                info = fetch_amazon_product_zenrows(row[2])
             except Exception as error:
-                errors.append(f"{nom} ({asin}) : ZenRows a échoué ({error}).")
+                errors.append(f"{row[1]} ({row[2]}) : ZenRows a échoué ({error}).")
                 continue
             if info.get("prix") is not None:
-                _marquer_vitrine(component_id, False)
-            outcome = _apply_amazon_price_info(
-                client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
-                source_label="ZenRows",
-            )
-            if outcome["error"]:
-                errors.append(outcome["error"])
-            if outcome["remis_en_stock"]:
-                remis_en_stock += 1
-            if outcome["passe_epuise"]:
-                passes_epuises += 1
-            updated += 0 if outcome.get("ignore") else 1
-            prix_lus += 1 if info.get("prix") is not None and not outcome.get("ignore") else 0
-
-        # Par lots de APIFY_MAX_ROWS_PER_RUN. Un lot en échec (panne, crédit
-        # épuisé) ne touche à RIEN : ses composants seront repris à un prochain
-        # passage. Un ASIN absent d'un lot réussi (recherche Amazon sans
-        # correspondance exacte) n'est pas non plus déclaré épuisé : la
-        # recherche par ASIN d'Apify peut simplement le manquer ; Bright Data
-        # et ZenRows, qui lisent la fiche /dp/ elle-même, tranchent le stock
-        # lors de leurs propres passages.
-        vitrines = _state_get("fiches_vitrine", {})
-        ignorees = [row for row in apify_rows if str(row[0]) in vitrines]
-        for row in ignorees:
-            errors.append(f"{row[1]} ({row[2]}) : fiche vitrine (pas d'offre Amazon), laissée à Bright Data.")
-        apify_rows = [row for row in apify_rows if str(row[0]) not in vitrines]
-        tentes -= len(ignorees)
-        credit = _apify_credit() if apify_rows else None
-        budget_jour = None
-        if credit:
-            depense_debut, jours = credit
-            budget_jour = max(0.0, APIFY_CREDIT_USD - APIFY_CREDIT_MARGE_USD - depense_debut) / jours
-        for start in range(0, len(apify_rows), APIFY_MAX_ROWS_PER_RUN):
-            batch = apify_rows[start:start + APIFY_MAX_ROWS_PER_RUN]
-            # Budget du jour en dollars atteint : le reste attend demain (ces
-            # fiches restent les plus anciennes, donc passent en premier).
-            if budget_jour is not None:
-                actuel = _apify_credit()
-                if actuel and actuel[0] - depense_debut >= budget_jour:
-                    reportes = len(apify_rows) - start
-                    tentes -= reportes
-                    errors.append(f"Apify : budget du jour atteint ({budget_jour:.2f} $), {reportes} fiche(s) reportée(s) au prochain passage.")
-                    break
-            try:
-                results_by_asin = fetch_amazon_products_apify([row[2] for row in batch])
-            except Exception as error:
-                errors.append(f"Apify (lot de {len(batch)}, ignoré) : {error}")
-                bloques_apify += len(batch)
-                continue
-
-            for row in batch:
-                component_id, nom, asin, prix_marche_json, image_url, was_en_stock = (
-                    row[0], row[1], row[2], row[3], row[4], bool(row[5]),
-                )
-                info = results_by_asin.get(asin)
-                if info is None or info.get("prix") is None:
-                    errors.append(f"{nom} ({asin}) : prix non lu par Apify (page bloquée par Amazon), stock inchangé.")
-                    bloques_apify += 1
-                    continue
-                outcome = _apply_amazon_price_info(
-                    client, component_id, nom, asin, prix_marche_json, image_url, was_en_stock, info,
-                    source_label="Apify",
-                )
-                if outcome["error"]:
-                    errors.append(outcome["error"])
-                if outcome["remis_en_stock"]:
-                    remis_en_stock += 1
-                if outcome["passe_epuise"]:
-                    passes_epuises += 1
-                updated += 0 if outcome.get("ignore") else 1
-                prix_lus += 1 if info.get("prix") is not None and not outcome.get("ignore") else 0
+                _marquer_vitrine(row[0], False)
+            appliquer(row, info, "ZenRows")
     finally:
         client.close()
 
     return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises,
-            "tentes": tentes, "prix_lus": prix_lus, "bloques": bloques_apify, "reportes": reportes,
-            "ids_prioritaires": sorted(prioritaires)}
+            "tentes": len(tentes_ids), "prix_lus": prix_lus, "bloques": bloques_apify, "repris": repris,
+            "reportes": reportes, "alertes": len(alertes), "ids_prioritaires": sorted(prioritaires)}
 
 
-# La mise à jour des prix tourne la nuit, entre 2 h et 6 h (heure de Paris) :
-# moins de visiteurs sur le site pendant l'heure qu'elle dure, et des prix
-# frais dès le matin. Une seule fois par nuit ; si le serveur était arrêté
-# pendant toute la fenêtre, elle attend la nuit suivante.
+# La mise à jour des prix tourne en PRIX_PASSAGES_HEURES passages par jour
+# (heure de Paris) qui se partagent le quota quotidien : une baisse de prix est
+# vue en 6 h au plus au lieu de 24 h, et les alertes partent d'autant plus tôt.
+# Chaque passage démarre à son heure (ou dès que le service tourne, s'il était
+# arrêté) et ne se rejoue pas tant que le créneau suivant n'est pas arrivé.
 PRIX_FUSEAU = ZoneInfo("Europe/Paris")
-PRIX_HEURE_DEBUT, PRIX_HEURE_FIN = 2, 6
-PRIX_ESSAIS_PAR_NUIT = 2
+PRIX_PASSAGES_HEURES = (2, 8, 14, 20)
+PRIX_ESSAIS_PAR_PASSAGE = 2
+PRIX_VERIFICATION_SECONDES = 10 * 60
+
+
+def _creneau_prix(maintenant=None):
+    """Début du créneau de passage en cours (heure de Paris)."""
+    maintenant = maintenant or datetime.now(PRIX_FUSEAU)
+    heures = [h for h in PRIX_PASSAGES_HEURES if h <= maintenant.hour]
+    if heures:
+        return maintenant.replace(hour=heures[-1], minute=0, second=0, microsecond=0)
+    veille = maintenant - timedelta(days=1)
+    return veille.replace(hour=PRIX_PASSAGES_HEURES[-1], minute=0, second=0, microsecond=0)
 
 
 def _mise_a_jour_prix_due(maintenant=None) -> bool:
     maintenant = maintenant or datetime.now(PRIX_FUSEAU)
-    if not PRIX_HEURE_DEBUT <= maintenant.hour < PRIX_HEURE_FIN:
-        return False
     # Texte brut écrit par _mark_task_done, pas du JSON : lu avec _state_get, il
-    # valait toujours None et la mise à jour repartait en boucle toute la nuit.
+    # valait toujours None et la mise à jour repartait en boucle.
     derniere = _state_brut("derniere_mise_a_jour_prix")
     if not derniere:
         return True
@@ -4511,7 +4621,7 @@ def _mise_a_jour_prix_due(maintenant=None) -> bool:
         derniere = datetime.fromisoformat(derniere).replace(tzinfo=timezone.utc).astimezone(PRIX_FUSEAU)
     except (TypeError, ValueError):
         return True
-    return derniere.date() < maintenant.date()
+    return derniere < _creneau_prix(maintenant)
 
 
 # Les tâches quotidiennes vérifient leur échéance toutes les 30 minutes, à
@@ -4553,24 +4663,24 @@ def _mark_task_done(key: str):
 
 
 async def price_refresh_loop():
-    """Boucle de fond : rafraîchit une tranche du catalogue chaque nuit entre 2 h et 6 h (voir _run_daily_price_refresh_rotation)."""
+    """Boucle de fond : rafraîchit une tranche du catalogue à chaque passage (PRIX_PASSAGES_HEURES, voir _run_daily_price_refresh_rotation)."""
     await asyncio.sleep(5 * 60)  # laisse le service démarrer tranquillement
     while True:
         if datetime.utcnow() < DAILY_ROTATION_START or not await asyncio.to_thread(_mise_a_jour_prix_due):
-            await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
+            await asyncio.sleep(PRIX_VERIFICATION_SECONDES)
             continue
-        # Deux essais par nuit au plus : un passage qui plante n'est pas marqué
+        # Deux essais par créneau au plus : un passage qui plante n'est pas marqué
         # fait et repartirait sinon sans fin, en dépensant les quotas.
-        nuit = datetime.now(PRIX_FUSEAU).date().isoformat()
+        creneau = _creneau_prix().strftime("%Y-%m-%dT%H")
         essais = _state_get("essais_mise_a_jour_prix", {})
-        if essais.get(nuit, 0) >= PRIX_ESSAIS_PAR_NUIT:
-            await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
+        if essais.get(creneau, 0) >= PRIX_ESSAIS_PAR_PASSAGE:
+            await asyncio.sleep(PRIX_VERIFICATION_SECONDES)
             continue
         if not PRICE_REFRESH_LOCK.acquire(blocking=False):
             print("Rafraîchissement automatique des prix ignoré (déjà en cours via un autre déclenchement).")
-            await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
+            await asyncio.sleep(PRIX_VERIFICATION_SECONDES)
             continue
-        await asyncio.to_thread(_state_set, "essais_mise_a_jour_prix", {nuit: essais.get(nuit, 0) + 1})
+        await asyncio.to_thread(_state_set, "essais_mise_a_jour_prix", {creneau: essais.get(creneau, 0) + 1})
         try:
             debut = datetime.utcnow()
             stats = await asyncio.to_thread(_run_daily_price_refresh_rotation)
@@ -4582,7 +4692,8 @@ async def price_refresh_loop():
                     "duree_min": round((datetime.utcnow() - debut).total_seconds() / 60),
                     "mis_a_jour": stats["updated"], "tentes": stats.get("tentes"), "remis_en_stock": stats["remis_en_stock"],
                     "passes_epuises": stats["passes_epuises"], "erreurs": len(stats["errors"]),
-                    "prix_lus": stats.get("prix_lus"), "bloques": stats.get("bloques"), "reportes": stats.get("reportes"),
+                    "prix_lus": stats.get("prix_lus"), "bloques": stats.get("bloques"), "repris": stats.get("repris"),
+                    "reportes": stats.get("reportes"), "alertes": stats.get("alertes"),
                     "en_stock": _compter_en_stock_a_jour(set(stats.get("ids_prioritaires") or [])),
                     "exemples_erreurs": stats["errors"][:8],
                 })
@@ -4602,7 +4713,7 @@ async def price_refresh_loop():
                 "date": datetime.utcnow().isoformat(timespec="minutes"), "erreur": f"{type(error).__name__} : {error}"[:500]})
         finally:
             PRICE_REFRESH_LOCK.release()
-        await asyncio.sleep(SCHEDULER_CHECK_SECONDS)
+        await asyncio.sleep(PRIX_VERIFICATION_SECONDES)
 
 
 @app.on_event("startup")
@@ -6881,8 +6992,9 @@ Pages :
   une config entière, partager une config par lien, télécharger ses données ou supprimer son compte.
 - Application (/application) : le site s'installe sur téléphone comme une appli (Android via Chrome,
   iPhone via Safari > Partager > Sur l'écran d'accueil). Gratuit, sans store.
-Prix : relevés automatiquement chaque nuit sur Amazon (les produits les plus demandés chaque jour, les
-autres tous les quelques jours). Un prix peut donc avoir changé depuis : le prix final est toujours celui
+Prix : relevés automatiquement sur Amazon quatre fois par jour (produits suivis par une alerte à chaque
+passage, les plus demandés chaque jour, les autres tous les quelques jours, et une fiche consultée dont le
+prix date de plus de 2 jours est relue aussitôt). Un prix peut donc avoir changé depuis : le prix final est toujours celui
 affiché sur Amazon. « Épuisé » = plus d'offre vendue par Amazon. Les achats et livraisons se font chez
 Amazon, pas sur PC Radar (pas de commande, pas de paiement, pas de SAV sur le site).
 Contact : contact@pcradar.tech. Données hébergées en France."""

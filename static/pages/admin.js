@@ -260,7 +260,7 @@
             <span class="hint">${nombre(bd.ajouts_restants)} ajouts encore possibles</span></div>`
          : kpi('Bright Data ce mois-ci', '—', ''),
       (() => {
-        // Bilan du dernier passage automatique des prix (chaque nuit).
+        // Bilan du dernier passage automatique des prix (4 par jour : 2 h, 8 h, 14 h, 20 h).
         const p = quotas && quotas.dernier_passage;
         if(!p) return kpi('Mise à jour des prix', '—', 'pas encore de bilan');
         const quand = new Date(p.date + 'Z').toLocaleString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -269,17 +269,18 @@
             `prix revérifiés le ${quand} · ${nombre(p.erreurs)} non lus${p.passes_epuises ? ` · ${nombre(p.passes_epuises)} épuisés` : ''}`,
             p.mis_a_jour ? 'is-ok' : 'is-alert');
         }
-        // Les fiches bloquées par Amazon ou reportées (budget du jour) restent
-        // les plus anciennes : elles passent en premier la nuit suivante.
+        // Les fiches bloquées par Amazon sont reprises par Bright Data / ZenRows dans le
+        // même passage si leur quota le permet ; les autres passent en premier au suivant.
         const s = p.en_stock || {};
         const details = [`relus le ${quand}`];
         if(s.prioritaires) details.push(`${nombre(s.prioritaires_aujourd_hui)} / ${nombre(s.prioritaires)} produits prioritaires (les plus achetables) à jour du jour`);
         if(s.total) details.push(`${nombre(s.moins_de_3_jours)} / ${nombre(s.total)} fiches en stock vérifiées depuis moins de 3 jours`);
-        if(p.bloques) details.push(`${nombre(p.bloques)} bloqués par Amazon`);
+        if(p.alertes) details.push(`${nombre(p.alertes)} produits suivis par une alerte relus en premier`);
+        if(p.bloques) details.push(`${nombre(p.bloques)} bloqués chez Apify${p.repris != null ? `, dont ${nombre(p.repris)} repris par un autre service` : ''}`);
         if(p.reportes) details.push(`${nombre(p.reportes)} reportés`);
         if(p.passes_epuises) details.push(`${nombre(p.passes_epuises)} passés épuisés`);
-        details.push('les non lus passent en priorité la nuit suivante');
-        return kpi('Prix relus cette nuit', nombre(p.prix_lus), details.join(' · '), p.prix_lus ? 'is-ok' : 'is-alert');
+        details.push('les non lus passent en priorité au passage suivant');
+        return kpi('Prix relus au dernier passage', nombre(p.prix_lus), details.join(' · '), p.prix_lus ? 'is-ok' : 'is-alert');
       })(),
     ].join('');
 
