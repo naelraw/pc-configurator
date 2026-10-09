@@ -180,6 +180,11 @@ ZENROWS_CREDITS_PER_REQUEST = 10
 # principal de la rotation quotidienne plutôt que de simple complément.
 APIFY_API_TOKEN = os.getenv("APIFY_API_TOKEN", "")
 APIFY_AMAZON_ACTOR_ID = "memo23~free-amazon-product-scraper"
+# Mémoire de chaque lancement : Apify facture le calcul en Go x heure. Mesuré le
+# 9 octobre 2026 sur 10 fiches : 1024 Mo (défaut utilisé jusque-là) ~0,0006 $ par
+# fiche, 512 Mo ~0,0003 $ à vitesse et taux de lecture égaux, 256 Mo plus lent,
+# plus cher et 2 prix sur 10 seulement. 512 Mo = deux fois plus de fiches par mois.
+APIFY_MEMOIRE_MO = 512
 
 # Détourage (suppression d'arrière-plan) des photos produit, via un service
 # rembg auto-hébergé sur un VM Oracle Cloud personnel — gratuit, illimité.
@@ -5872,7 +5877,7 @@ def fetch_amazon_products_apify(asins, timeout=300):
         try:
             response = requests.post(
                 f"https://api.apify.com/v2/acts/{APIFY_AMAZON_ACTOR_ID}/run-sync-get-dataset-items",
-                params={"token": APIFY_API_TOKEN},
+                params={"token": APIFY_API_TOKEN, "memory": APIFY_MEMOIRE_MO},
                 json=payload,
                 timeout=timeout,
             )
