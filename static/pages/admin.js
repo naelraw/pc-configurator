@@ -287,6 +287,16 @@
         details.push('les non lus passent en priorité au passage suivant');
         return kpi('Prix relus au dernier passage', nombre(p.prix_lus), details.join(' · '), p.prix_lus ? 'is-ok' : 'is-alert');
       })(),
+      (() => {
+        // Capacité de lecture des prix : ce que chaque service peut lire par jour
+        // jusqu'au renouvellement de ses crédits gratuits.
+        const c = quotas && quotas.capacite;
+        if(!c || !c.services || !c.services.length) return '';
+        const lignes = c.services.map(s => s.erreur
+          ? `${escapeHtml(s.nom)} : illisible`
+          : `${escapeHtml(s.nom)} ${nombre(s.par_jour)}/j${s.reste ? ` (${escapeHtml(s.reste)}${s.jours ? `, ${nombre(s.jours)} j` : ''})` : ''}`);
+        return kpi('Fiches lisibles par jour', nombre(c.total_par_jour), lignes.join(' · '), c.total_par_jour ? 'is-ok' : 'is-alert');
+      })(),
     ].join('');
 
     // « À traiter » : les signalements qui demandent une décision, avec leurs actions.

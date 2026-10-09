@@ -13,7 +13,9 @@ selon le service et le type de proxy) ; le coût réel par fiche est mesuré à
 chaque passage par l'appelant. Les clés ne sont jamais écrites dans un message
 d'erreur (les erreurs de requests contiennent l'adresse appelée).
 """
+import math
 import os
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -27,7 +29,10 @@ TOUS = ("scraperapi", "scrapingant", "scrapedo")
 NOMS = {"scraperapi": "ScraperAPI", "scrapingant": "ScrapingAnt", "scrapedo": "Scrape.do"}
 VARIABLES = {"scraperapi": "SCRAPERAPI_KEY", "scrapingant": "SCRAPINGANT_KEY", "scrapedo": "SCRAPEDO_KEY"}
 # Crédits estimés par fiche Amazon avant la première mesure.
-COUT_INITIAL = {"scraperapi": 5, "scrapingant": 10, "scrapedo": 1}
+COUT_INITIAL = {"scraperapi": 5, "scrapingant": 26, "scrapedo": 1}   # ScraperAPI et ScrapingAnt mesurés le 9/10/2026
+# Essai ScraperAPI : 5 000 crédits sur 7 jours, puis 1 000 par mois (offre gratuite).
+SCRAPERAPI_LIMITE_GRATUITE = 1000
+SCRAPERAPI_DUREE_ESSAI_JOURS = 7
 DELAI_SECONDES = 70
 
 
@@ -64,11 +69,20 @@ def _cherche(donnees, *noms):
     return None
 
 
-def credits_restants(nom):
-    """Crédits restants sur le compte (None si le service ne l'indique pas)."""
+def _date(texte):
+    try:
+        d = datetime.fromisoformat(str(texte).replace("Z", "+00:00"))
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def etat(nom):
+    """{"reste": crédits restants, "jours": jours avant qu'ils ne se renouvellent (ou
+    n'expirent)} ; None pour ce que le service n'indique pas."""
     k = cle(nom)
     if not k:
-        return None
+        return {"reste": None, "jours": None}
     if nom == "scraperapi":
         r = _get(nom, "https://api.scraperapi.com/account", params={"api_key": k}, timeout=20)
     elif nom == "scrapingant":
@@ -78,14 +92,33 @@ def credits_restants(nom):
     if r.status_code != 200:
         raise RuntimeError(f"HTTP {r.status_code} : {_sans_cle(nom, r.text)[:200]}")
     d = r.json()
+    fin = None
     if nom == "scraperapi":
-        limite, utilises = _cherche(d, "requestLimit"), _cherche(d, "requestCount")
-        return int(limite) - int(utilises) if limite is not None and utilises is not None else None
-    if nom == "scrapingant":
+        reste = _cherche(d, "creditsLeft")
+        if reste is None:
+            limite, utilises = _cherche(d, "requestLimit"), _cherche(d, "requestCount")
+            reste = int(limite) - int(utilises) if limite is not None and utilises is not None else None
+        fin = _date(_cherche(d, "nextBillingDate"))
+        # Crédits d'essai (au-delà de l'offre gratuite) : valables 7 jours après l'inscription.
+        debut = _date(_cherche(d, "subscriptionDate"))
+        if debut and int(_cherche(d, "requestLimit") or 0) > SCRAPERAPI_LIMITE_GRATUITE:
+            fin_essai = debut + timedelta(days=SCRAPERAPI_DUREE_ESSAI_JOURS)
+            if fin_essai > datetime.now(timezone.utc):
+                fin = min(fin, fin_essai) if fin else fin_essai
+    elif nom == "scrapingant":
         reste = _cherche(d, "remained_credits", "remaining_credits", "credits_left")
+        fin = _date(_cherche(d, "end_date"))
     else:
         reste = _cherche(d, "RemainingMonthlyRequest", "remaining_monthly_request", "RemainingRequest")
-    return int(reste) if reste is not None else None
+    jours = None
+    if fin:
+        jours = max(1, math.ceil((fin - datetime.now(timezone.utc)).total_seconds() / 86400))
+    return {"reste": int(reste) if reste is not None else None, "jours": jours}
+
+
+def credits_restants(nom):
+    """Crédits restants sur le compte (None si le service ne l'indique pas)."""
+    return etat(nom)["reste"]
 
 
 def _page_bloquee(html):

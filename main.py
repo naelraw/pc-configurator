@@ -4247,6 +4247,54 @@ def _totaux_stats(historique, data):
     }
 
 
+APIFY_COUT_FICHE_USD = 0.0003   # mesuré à 512 Mo (voir APIFY_MEMOIRE_MO)
+_CAPACITE_CACHE = {"at": 0.0, "data": None}
+
+
+def _capacite_prix():
+    """Fiches que chaque service peut lire par jour d'ici le renouvellement de ses
+    crédits, pour l'admin. Gardé 10 min (interroge Apify et les services de secours)."""
+    if _CAPACITE_CACHE["data"] is not None and time.time() - _CAPACITE_CACHE["at"] < 600:
+        return _CAPACITE_CACHE["data"]
+    lignes = []
+    if APIFY_API_TOKEN:
+        ligne = {"nom": "Apify", "par_jour": 0, "reste": None, "jours": None}
+        try:
+            credit = _apify_credit()
+            if credit:
+                depense, jours = credit
+                reste = max(0.0, APIFY_CREDIT_USD - APIFY_CREDIT_MARGE_USD - depense)
+                ligne.update(par_jour=min(refresh_allowance("apify"), int(reste / jours / APIFY_COUT_FICHE_USD)),
+                             reste=f"{reste:.2f} $", jours=jours)
+        except Exception as err:
+            ligne["erreur"] = str(err)[:120]
+        lignes.append(ligne)
+    if BRIGHTDATA_API_TOKEN:
+        reste = max(0, BRIGHTDATA_MONTHLY_QUOTA - BRIGHTDATA_ADDITION_RESERVE - api_usage_this_month("brightdata"))
+        lignes.append({"nom": "Bright Data", "par_jour": refresh_allowance("brightdata"), "reste": f"{reste} fiches",
+                       "jours": _days_left_in_month()})
+    if ZENROWS_API_KEY:
+        reste = max(0, ZENROWS_MONTHLY_CREDITS - api_usage_this_month("zenrows"))
+        lignes.append({"nom": "ZenRows", "par_jour": refresh_allowance("zenrows"), "reste": f"{reste} crédits",
+                       "jours": _days_left_in_month()})
+    for nom in scrapers_secours.SERVICES:
+        if not scrapers_secours.cle(nom):
+            continue
+        ligne = {"nom": scrapers_secours.NOMS[nom], "par_jour": 0, "reste": None, "jours": None}
+        try:
+            etat = scrapers_secours.etat(nom)
+            cout = _state_get("secours_cout", {}).get(nom) or scrapers_secours.COUT_INITIAL[nom]
+            jours = etat["jours"] or _days_left_in_month()
+            if etat["reste"]:
+                ligne.update(par_jour=int(etat["reste"] * 0.95 / cout / jours), reste=f"{etat['reste']} crédits", jours=jours)
+        except Exception as err:
+            ligne["erreur"] = str(err)[:120]
+        lignes.append(ligne)
+    data = {"services": lignes, "total_par_jour": sum(l["par_jour"] for l in lignes)}
+    _CAPACITE_CACHE.update(at=time.time(), data=data)
+    return data
+
+
 @app.get("/api/admin/quotas")
 def admin_quotas(_admin=Depends(require_admin)):
     """Consommation du mois par fournisseur, affichée dans l'admin."""
@@ -4263,6 +4311,7 @@ def admin_quotas(_admin=Depends(require_admin)):
         "zenrows": {"credits_utilises": api_usage_this_month("zenrows"), "quota_credits": ZENROWS_MONTHLY_CREDITS},
         "apify": {"utilise": api_usage_this_month("apify"), "quota": APIFY_MONTHLY_ITEMS},
         "dernier_passage": _state_get("dernier_rafraichissement_prix", None),
+        "capacite": _capacite_prix(),
     }
 
 
@@ -4406,14 +4455,18 @@ def _part_secours(nom, passages):
     if not scrapers_secours.cle(nom):
         return 0, None
     try:
-        reste = scrapers_secours.credits_restants(nom)
+        etat = scrapers_secours.etat(nom)
     except Exception as err:
         print(f"{scrapers_secours.NOMS[nom]} : crédits restants illisibles ({err})")
         return 0, None
+    reste = etat["reste"]
     if not reste or reste <= 0:
         return 0, reste
     cout = _state_get("secours_cout", {}).get(nom) or scrapers_secours.COUT_INITIAL[nom]
-    return int(reste * 0.95 / cout / _days_left_in_month() / passages), reste
+    # Étalé jusqu'au renouvellement des crédits de CE service (sa propre date,
+    # ou la fin de l'essai), pas jusqu'à la fin du mois calendaire.
+    jours = etat["jours"] or _days_left_in_month()
+    return int(reste * 0.95 / cout / jours / passages), reste
 
 
 def _composants_sous_alerte():

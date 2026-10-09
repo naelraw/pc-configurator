@@ -71,3 +71,24 @@ def test_passage_reprend_les_fiches_restantes(client, monkeypatch):
     assert stats["secours"]["scrapingant"] == 2
     assert main._state_get("secours_cout", {})["scrapingant"] == 10   # (100 - 80) / 2 fiches
     assert len(lignes) > 2
+
+
+def test_jours_jusqu_au_renouvellement(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    maintenant = datetime.now(timezone.utc)
+    iso = lambda d: d.isoformat().replace("+00:00", "Z")
+    monkeypatch.setenv("SCRAPERAPI_KEY", "k" * 32)
+    monkeypatch.setenv("SCRAPINGANT_KEY", "k" * 32)
+    # Essai ScraperAPI commencé il y a 2 jours : crédits à dépenser dans les 5 jours, pas en un mois.
+    monkeypatch.setattr(s.requests, "get", lambda url, **k: Reponse(status_code=200, text="", donnees={
+        "requestLimit": 5000, "requestCount": 5, "creditsLeft": 4995,
+        "subscriptionDate": iso(maintenant - timedelta(days=2)), "nextBillingDate": iso(maintenant + timedelta(days=28))}))
+    assert s.etat("scraperapi") == {"reste": 4995, "jours": 5}
+    # Offre gratuite ordinaire (1 000 crédits) : jusqu'à la prochaine facturation.
+    monkeypatch.setattr(s.requests, "get", lambda url, **k: Reponse(status_code=200, text="", donnees={
+        "requestLimit": 1000, "requestCount": 0, "creditsLeft": 1000,
+        "subscriptionDate": iso(maintenant - timedelta(days=40)), "nextBillingDate": iso(maintenant + timedelta(days=20))}))
+    assert s.etat("scraperapi")["jours"] == 20
+    monkeypatch.setattr(s.requests, "get", lambda url, **k: Reponse(status_code=200, text="", donnees={
+        "plan_total_credits": 10000, "remained_credits": 9974, "end_date": (maintenant + timedelta(days=30)).isoformat()}))
+    assert s.etat("scrapingant") == {"reste": 9974, "jours": 30}
