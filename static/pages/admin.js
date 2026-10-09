@@ -277,6 +277,11 @@
         if(s.total) details.push(`${nombre(s.moins_de_3_jours)} / ${nombre(s.total)} fiches en stock vérifiées depuis moins de 3 jours`);
         if(p.alertes) details.push(`${nombre(p.alertes)} produits suivis par une alerte relus en premier`);
         if(p.bloques) details.push(`${nombre(p.bloques)} bloqués chez Apify${p.repris != null ? `, dont ${nombre(p.repris)} repris par un autre service` : ''}`);
+        const secours = Object.entries(p.secours || {}).filter(([, n]) => n);
+        if(secours.length){
+          const noms = { scraperapi: 'ScraperAPI', scrapingant: 'ScrapingAnt', scrapedo: 'Scrape.do' };
+          details.push('lus en secours : ' + secours.map(([k, n]) => `${nombre(n)} via ${noms[k] || k}`).join(', '));
+        }
         if(p.reportes) details.push(`${nombre(p.reportes)} reportés`);
         if(p.passes_epuises) details.push(`${nombre(p.passes_epuises)} passés épuisés`);
         details.push('les non lus passent en priorité au passage suivant');

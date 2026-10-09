@@ -54,6 +54,7 @@ import notes
 import guides
 import erreurs
 import serveur_info
+import scrapers_secours
 from fastapi.exception_handlers import http_exception_handler
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import component_pages
@@ -1270,6 +1271,16 @@ def _relire_un_composant(component_id):
                     info, source = fetch_amazon_products_apify([row[2]]).get(row[2]), "Apify"
                 except Exception as err:
                     print(f"Relecture à la consultation : Apify indisponible pour {row[1]} ({err})")
+            for nom in scrapers_secours.SERVICES:
+                if info and info.get("prix") is not None:
+                    break
+                if _part_secours(nom, 1)[0] <= 0:
+                    continue
+                try:
+                    info, source = (scrapers_secours.lire(nom, row[2], _parse_zenrows_amazon_html, parse_amazon_price),
+                                    scrapers_secours.NOMS[nom])
+                except Exception as err:
+                    print(f"Relecture à la consultation : {scrapers_secours.NOMS[nom]} n'a pas lu {row[1]} ({err})")
             if (not info or info.get("prix") is None) and BRIGHTDATA_API_TOKEN and refresh_allowance("brightdata") > 0:
                 try:
                     info, source = fetch_amazon_product(row[2], timeout=60), "Bright Data"
@@ -4384,6 +4395,22 @@ def _last_amazon_check_date(prix_marche_json):
     return ""  # jamais vérifié : chaîne vide trie en premier (priorité maximale)
 
 
+def _part_secours(nom, passages):
+    """(fiches permises pour ce passage, crédits restants) d'un service de secours, d'après
+    les crédits que le service annonce et le coût mesuré d'une fiche Amazon."""
+    if not scrapers_secours.cle(nom):
+        return 0, None
+    try:
+        reste = scrapers_secours.credits_restants(nom)
+    except Exception as err:
+        print(f"{scrapers_secours.NOMS[nom]} : crédits restants illisibles ({err})")
+        return 0, None
+    if not reste or reste <= 0:
+        return 0, reste
+    cout = _state_get("secours_cout", {}).get(nom) or scrapers_secours.COUT_INITIAL[nom]
+    return int(reste * 0.95 / cout / _days_left_in_month() / passages), reste
+
+
 def _composants_sous_alerte():
     """Composants suivis par un compte : favoris et pièces des configs suivies."""
     ids = set()
@@ -4455,6 +4482,7 @@ def _run_daily_price_refresh_rotation():
     # Produits suivis par une alerte (favoris, configs suivies) : relus à chaque
     # passage, avant tout le reste, sur la moitié du passage au plus pour que le
     # reste du catalogue avance aussi.
+    secours = {nom: _part_secours(nom, passages) for nom in scrapers_secours.SERVICES}
     alertes = sorted([r for r in rows if r[0] in ids_alertes], key=urgence)[:max(5, sum(part.values()) // 2)]
     en_tete = {r[0] for r in alertes}
     rows_sorted = alertes + sorted([r for r in rows if r[0] not in en_tete], key=urgence)
@@ -4468,6 +4496,7 @@ def _run_daily_price_refresh_rotation():
     passes_epuises = 0
     errors = []
     tentes_ids = set()
+    lus_secours = {}
     etablis = set()        # fiches dont le prix (ou l'épuisement) a été établi pendant ce passage
     bloques_ids = set()    # fiches qu'Apify n'a pas pu lire, à reprendre par un autre service
 
@@ -4580,12 +4609,41 @@ def _run_daily_price_refresh_rotation():
             if info.get("prix") is not None:
                 _marquer_vitrine(row[0], False)
             appliquer(row, info, "ZenRows")
+
+        # --- Services de secours (quotas gratuits) : fiches encore sans prix,
+        # dans l'ordre d'urgence. Ils lisent seulement des prix (jamais d'épuisement).
+        essayes_secours = set()
+        for nom in scrapers_secours.SERVICES:
+            permis, avant = secours[nom]
+            lot = [r for r in rows_sorted if r[0] not in etablis and r[0] not in essayes_secours][:permis]
+            reussis = 0
+            for row in lot:
+                essayes_secours.add(row[0])
+                tentes_ids.add(row[0])
+                try:
+                    info = scrapers_secours.lire(nom, row[2], _parse_zenrows_amazon_html, parse_amazon_price)
+                except Exception as error:
+                    errors.append(f"{row[1]} ({row[2]}) : {scrapers_secours.NOMS[nom]} n'a pas lu le prix ({error}).")
+                    continue
+                appliquer(row, info, scrapers_secours.NOMS[nom])
+                reussis += 1
+            lus_secours[nom] = reussis
+            # Coût réel d'une fiche, pour régler les passages suivants.
+            if reussis and avant is not None:
+                try:
+                    apres = scrapers_secours.credits_restants(nom)
+                    if apres is not None and avant > apres:
+                        couts = _state_get("secours_cout", {})
+                        couts[nom] = max(1, round((avant - apres) / reussis))
+                        _state_set("secours_cout", couts)
+                except Exception as err:
+                    print(f"{scrapers_secours.NOMS[nom]} : coût non mesuré ({err})")
     finally:
         client.close()
 
     return {"updated": updated, "errors": errors, "remis_en_stock": remis_en_stock, "passes_epuises": passes_epuises,
             "tentes": len(tentes_ids), "prix_lus": prix_lus, "bloques": bloques_apify, "repris": repris,
-            "reportes": reportes, "alertes": len(alertes), "ids_prioritaires": sorted(prioritaires)}
+            "reportes": reportes, "alertes": len(alertes), "secours": lus_secours, "ids_prioritaires": sorted(prioritaires)}
 
 
 # La mise à jour des prix tourne en PRIX_PASSAGES_HEURES passages par jour
@@ -4693,7 +4751,7 @@ async def price_refresh_loop():
                     "mis_a_jour": stats["updated"], "tentes": stats.get("tentes"), "remis_en_stock": stats["remis_en_stock"],
                     "passes_epuises": stats["passes_epuises"], "erreurs": len(stats["errors"]),
                     "prix_lus": stats.get("prix_lus"), "bloques": stats.get("bloques"), "repris": stats.get("repris"),
-                    "reportes": stats.get("reportes"), "alertes": stats.get("alertes"),
+                    "reportes": stats.get("reportes"), "alertes": stats.get("alertes"), "secours": stats.get("secours"),
                     "en_stock": _compter_en_stock_a_jour(set(stats.get("ids_prioritaires") or [])),
                     "exemples_erreurs": stats["errors"][:8],
                 })
