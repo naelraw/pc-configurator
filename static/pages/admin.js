@@ -295,6 +295,10 @@
         const lignes = c.services.map(s => s.erreur
           ? `${escapeHtml(s.nom)} : illisible`
           : `${escapeHtml(s.nom)} ${nombre(s.par_jour)}/j${s.reste ? ` (${escapeHtml(s.reste)}${s.jours ? `, ${nombre(s.jours)} j` : ''})` : ''}`);
+        const ext = quotas.extension || {};
+        if(ext.date === new Date().toISOString().slice(0, 10)){
+          lignes.push(`extension du navigateur : ${nombre(ext.lus || 0)} lus aujourd'hui${ext.bloques ? `, ${nombre(ext.bloques)} vérifications Amazon` : ''}`);
+        }
         return kpi('Fiches lisibles par jour', nombre(c.total_par_jour), lignes.join(' · '), c.total_par_jour ? 'is-ok' : 'is-alert');
       })(),
     ].join('');

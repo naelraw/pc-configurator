@@ -232,6 +232,90 @@ async function updatePrice(componentId, prix, asin) {
   return data;
 }
 
+// ---------------------------------------------------------------------------
+// Relevé automatique des prix (interrupteur dans la fenêtre de l'extension).
+// Toutes les 30 s, tant que Chrome est ouvert : le site donne la fiche la plus
+// urgente, l'extension ouvre sa page Amazon en arrière-plan (sans cookies, donc
+// sans lien avec ton compte Amazon) et renvoie au site la zone du prix et de la
+// disponibilité. Vérification « robot » d'Amazon : pause d'une heure, jamais
+// de contournement. Au plus RELEVE_MAX_PAR_JOUR fiches par jour.
+// ---------------------------------------------------------------------------
+const RELEVE_ALARME = 'pcr-releve-prix';
+const RELEVE_MAX_PAR_JOUR = 800;
+const RELEVE_PAUSE_BLOCAGE_MS = 60 * 60 * 1000;
+
+function aujourdhui() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function extraitAmazon(html) {
+  // Seulement ce dont le site a besoin : titre, zone du prix, disponibilité.
+  const morceaux = [];
+  const bloc = (repere, longueur) => {
+    const i = html.indexOf(repere);
+    if (i >= 0) morceaux.push(html.slice(i, i + longueur));
+  };
+  bloc('id="productTitle"', 600);
+  bloc('id="corePriceDisplay_desktop_feature_div"', 8000);
+  bloc('id="availability"', 2000);
+  if (html.includes('validateCaptcha')) morceaux.push('validateCaptcha');
+  return morceaux.join('\n');
+}
+
+async function releveEtat() {
+  const st = await chrome.storage.local.get(['releveActif', 'relevePauseJusqua', 'releveJour', 'releveCompte', 'releveDernier']);
+  if (st.releveJour !== aujourdhui()) { st.releveJour = aujourdhui(); st.releveCompte = 0; }
+  return st;
+}
+
+async function releverUnPrix() {
+  const st = await releveEtat();
+  if (!st.releveActif) return;
+  if (Date.now() < (st.relevePauseJusqua || 0)) return;
+  if ((st.releveCompte || 0) >= RELEVE_MAX_PAR_JOUR) return;
+  const settings = await getSettings();
+  if (!settings.adminSecret) return;
+  const entete = { 'X-Admin-Secret': settings.adminSecret };
+  const res = await fetch(settings.siteUrl + '/api/admin/prix-a-relire?n=1', { headers: entete });
+  if (!res.ok) { await chrome.storage.local.set({ releveDernier: 'Site : erreur ' + res.status }); return; }
+  const fiche = ((await res.json()).fiches || [])[0];
+  if (!fiche) return;
+  const page = await fetch('https://www.amazon.fr/dp/' + fiche.asin + '?th=1&psc=1', { credentials: 'omit' });
+  const html = await page.text();
+  const envoi = await fetch(settings.siteUrl + '/api/admin/prix-extension', {
+    method: 'POST',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, entete),
+    body: JSON.stringify({ id: fiche.id, asin: fiche.asin, extrait: extraitAmazon(html) }),
+  });
+  const r = await envoi.json().catch(() => ({}));
+  const maj = { releveJour: st.releveJour, releveCompte: (st.releveCompte || 0) + 1 };
+  if (r.resultat === 'bloque') {
+    maj.relevePauseJusqua = Date.now() + RELEVE_PAUSE_BLOCAGE_MS;
+    maj.releveDernier = 'Amazon demande une vérification : pause d\'une heure.';
+  } else if (r.resultat === 'lu') {
+    maj.releveDernier = fiche.nom + ' : ' + String(r.prix).replace('.', ',') + ' €';
+  } else if (r.resultat === 'ignore') {
+    maj.releveDernier = fiche.nom + ' : prix inhabituel, en attente de confirmation.';
+  } else {
+    maj.releveDernier = fiche.nom + ' : pas de prix sur la page.';
+  }
+  await chrome.storage.local.set(maj);
+}
+
+function programmerReleve() {
+  chrome.alarms.get(RELEVE_ALARME, (alarme) => {
+    if (!alarme) chrome.alarms.create(RELEVE_ALARME, { periodInMinutes: 0.5 });
+  });
+}
+chrome.runtime.onInstalled.addListener(programmerReleve);
+chrome.runtime.onStartup.addListener(programmerReleve);
+programmerReleve();
+chrome.alarms.onAlarm.addListener((alarme) => {
+  if (alarme.name === RELEVE_ALARME) {
+    releverUnPrix().catch((e) => chrome.storage.local.set({ releveDernier: 'Erreur : ' + e.message }));
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     try {
@@ -266,6 +350,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
         case 'UPDATE_PRICE':
           sendResponse({ ok: true, data: await updatePrice(message.componentId, message.prix, message.asin) });
+          break;
+        case 'RELEVE_ETAT':
+          sendResponse({ ok: true, data: await releveEtat() });
+          break;
+        case 'RELEVE_ACTIVER':
+          await chrome.storage.local.set({ releveActif: !!message.actif, relevePauseJusqua: 0 });
+          programmerReleve();
+          if (message.actif) releverUnPrix().catch(() => {});
+          sendResponse({ ok: true });
           break;
         case 'REMOVE_COMPONENT':
           sendResponse({ ok: true, data: await removeComponent(message.componentId, message.asin) });

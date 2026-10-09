@@ -207,4 +207,29 @@ document.getElementById('remove-btn').addEventListener('click', async () => {
   }
 });
 
+// Relevé automatique des prix : interrupteur et dernier relevé.
+async function afficherReleve() {
+  try {
+    const e = await sendMessage({ type: 'RELEVE_ETAT' });
+    document.getElementById('releve-actif').checked = !!e.releveActif;
+    const lignes = [];
+    if (e.releveActif) {
+      if (Date.now() < (e.relevePauseJusqua || 0)) {
+        lignes.push('En pause jusqu\'à ' + new Date(e.relevePauseJusqua).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + '.');
+      }
+      lignes.push((e.releveCompte || 0) + ' fiche(s) relue(s) aujourd\'hui.');
+    }
+    if (e.releveDernier) lignes.push('Dernier : ' + e.releveDernier);
+    document.getElementById('releve-etat').textContent = lignes.join(' ');
+  } catch (err) {
+    document.getElementById('releve-etat').textContent = '';
+  }
+}
+document.getElementById('releve-actif').addEventListener('change', async (ev) => {
+  await sendMessage({ type: 'RELEVE_ACTIVER', actif: ev.target.checked });
+  afficherReleve();
+});
+afficherReleve();
+setInterval(afficherReleve, 5000);
+
 init();

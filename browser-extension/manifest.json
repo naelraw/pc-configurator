@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PC Radar - Ajout rapide Amazon",
-  "version": "1.4",
-  "description": "Gère le catalogue PC Radar depuis Amazon : état de chaque produit sur les pages de résultats, ajout groupé, mise à jour des prix en un clic, détection des doublons.",
+  "version": "1.5",
+  "description": "Gère le catalogue PC Radar depuis Amazon : état de chaque produit sur les pages de résultats, ajout groupé, mise à jour des prix en un clic, relevé automatique des prix en arrière-plan.",
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -40,7 +40,8 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "https://pcradar.tech/*",

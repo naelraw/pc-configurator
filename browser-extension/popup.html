@@ -72,6 +72,19 @@
 
   .tip{ margin-top:12px; font-size:11.5px; color:var(--text-3); line-height:1.45; }
 
+  #releve{ margin-top:16px; border-top:1px solid var(--line); padding-top:12px; }
+  .releve-tete{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .releve-tete strong{ font-size:12.5px; font-weight:600; }
+  .releve-aide{ font-size:11.5px; color:var(--text-3); line-height:1.45; margin-top:2px; }
+  #releve-etat:not(:empty){ margin-top:8px; color:var(--text-2); }
+  .interrupteur{ position:relative; flex-shrink:0; width:36px; height:20px; margin:0; cursor:pointer; }
+  .interrupteur input{ position:absolute; opacity:0; width:0; height:0; }
+  .interrupteur span{ position:absolute; inset:0; border-radius:999px; background:var(--surface-3); border:1px solid var(--line-strong); transition:background-color .2s ease; }
+  .interrupteur span::after{ content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--text-2); transition:transform .2s ease, background-color .2s ease; }
+  .interrupteur input:checked + span{ background:var(--accent-soft); border-color:var(--accent-line); }
+  .interrupteur input:checked + span::after{ transform:translateX(16px); background:var(--accent); }
+  .interrupteur input:focus-visible + span{ outline:2px solid var(--accent-line); outline-offset:2px; }
+
   details#settings{ margin-top:16px; border-top:1px solid var(--line); padding-top:10px; }
   details#settings summary{
     cursor:pointer; font-size:12px; color:var(--text-2); list-style:none; display:flex; align-items:center; gap:6px; user-select:none;
@@ -131,6 +144,17 @@
 
       <div id="status"></div>
     </div>
+
+    <section id="releve">
+      <div class="releve-tete">
+        <div>
+          <strong>Relevé automatique des prix</strong>
+          <div class="releve-aide">Une fiche toutes les 30 s tant que Chrome est ouvert, sans quota.</div>
+        </div>
+        <label class="interrupteur"><input type="checkbox" id="releve-actif"><span></span></label>
+      </div>
+      <div id="releve-etat" class="releve-aide"></div>
+    </section>
 
     <details id="settings">
       <summary>Réglages</summary>

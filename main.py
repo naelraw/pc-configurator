@@ -4312,6 +4312,7 @@ def admin_quotas(_admin=Depends(require_admin)):
         "apify": {"utilise": api_usage_this_month("apify"), "quota": APIFY_MONTHLY_ITEMS},
         "dernier_passage": _state_get("dernier_rafraichissement_prix", None),
         "capacite": _capacite_prix(),
+        "extension": _state_get("extension_stats", {}),
     }
 
 
@@ -5793,7 +5794,10 @@ def _parse_zenrows_amazon_html(html, asin):
     nom = titre_match.group(1).strip() if titre_match else None
 
     prix = None
-    price_zone_match = re.search(r'corePriceDisplay_(?:desktop|mobile)_feature_div(.{0,8000})', html, re.DOTALL)
+    # La vraie zone (id="corePriceDisplay_...") d'abord : le même nom apparaît aussi
+    # plus haut dans un bloc de données de la page, loin de tout prix.
+    price_zone_match = (re.search(r'id="corePriceDisplay_(?:desktop|mobile)_feature_div"(.{0,8000})', html, re.DOTALL)
+                        or re.search(r'corePriceDisplay_(?:desktop|mobile)_feature_div(.{0,8000})', html, re.DOTALL))
     if price_zone_match:
         zone = price_zone_match.group(1)
         # Partie entière avec séparateur de milliers (« 1 063 », « 1.063 »,
@@ -9269,6 +9273,113 @@ def admin_analyse_page(request: AnalysePageRequest, _admin=Depends(require_admin
 
 class PrixAmazonRequest(BaseModel):
     prix: float
+
+
+# ---------------------------------------------------------------------------
+# Relevé par l'extension : l'extension PC Radar de l'admin lit en arrière-plan,
+# depuis son navigateur (connexion à la maison, qu'Amazon ne bloque pas), une
+# fiche à la fois choisie ici dans l'ordre d'urgence de la mise à jour des prix.
+# Gratuit et sans quota ; elle envoie seulement la zone prix / disponibilité de
+# la page, lue par le même code que ZenRows et appliquée avec les mêmes
+# garde-fous (prix inhabituel confirmé, etc.).
+# ---------------------------------------------------------------------------
+EXTENSION_PRET_SECONDES = 3 * 3600        # une fiche confiée n'est pas redonnée avant 3 h
+EXTENSION_EXTRAIT_MAX = 120_000
+_PRIORITAIRES_CACHE = {"at": 0.0, "ids": set()}
+
+
+def _prioritaires_en_cache():
+    """_composants_prioritaires (calcul lourd : balayage du configurateur) gardé 1 h."""
+    if time.time() - _PRIORITAIRES_CACHE["at"] > 3600:
+        try:
+            _PRIORITAIRES_CACHE.update(at=time.time(), ids=_composants_prioritaires())
+        except Exception as err:
+            print(f"Relevé extension : priorités indisponibles ({err})")
+            _PRIORITAIRES_CACHE["at"] = time.time()
+    return _PRIORITAIRES_CACHE["ids"]
+
+
+def _fiches_pour_extension(n):
+    """Prochaines fiches en stock à relire (alertes d'abord, puis les plus en retard),
+    hors fiches vitrine et hors fiches déjà confiées depuis moins de 3 h."""
+    client = get_client()
+    try:
+        rows = client.execute(
+            "SELECT id, nom, asin, prix_marche_json FROM components "
+            "WHERE asin IS NOT NULL AND asin != '' AND en_stock = 1"
+        ).rows
+    finally:
+        client.close()
+    maintenant = time.time()
+    prets = {k: v for k, v in _state_get("extension_prets", {}).items() if maintenant - v < EXTENSION_PRET_SECONDES}
+    vitrines = _state_get("fiches_vitrine", {})
+    prioritaires = _prioritaires_en_cache()
+    alertes = _composants_sous_alerte()
+
+    def urgence(row):
+        releve = _last_amazon_check_date(row[3])
+        retard = _retard_verification(releve, row[0] in prioritaires, False)
+        return (row[0] not in alertes, -retard, row[0] not in prioritaires, releve)
+
+    candidates = sorted([r for r in rows if str(r[0]) not in prets and str(r[0]) not in vitrines], key=urgence)[:n]
+    for r in candidates:
+        prets[str(r[0])] = maintenant
+    _state_set("extension_prets", prets)
+    return [{"id": r[0], "nom": r[1], "asin": r[2]} for r in candidates]
+
+
+@app.get("/api/admin/prix-a-relire")
+def admin_prix_a_relire(n: int = 1, _admin=Depends(require_admin)):
+    return {"fiches": _fiches_pour_extension(max(1, min(n, 5)))}
+
+
+class PrixExtensionRequest(BaseModel):
+    id: int
+    asin: str = Field(max_length=20)
+    extrait: str = Field(max_length=EXTENSION_EXTRAIT_MAX)
+
+
+@app.post("/api/admin/prix-extension")
+def admin_prix_extension(body: PrixExtensionRequest, _admin=Depends(require_admin)):
+    """Applique le prix lu par l'extension dans un extrait de page Amazon."""
+    aujourd_hui = datetime.utcnow().date().isoformat()
+    stats = _state_get("extension_stats", {})
+    if stats.get("date") != aujourd_hui:
+        stats = {"date": aujourd_hui, "lus": 0, "sans_prix": 0, "bloques": 0}
+    if "validateCaptcha" in body.extrait or "api-services-support@amazon.com" in body.extrait:
+        stats["bloques"] += 1
+        _state_set("extension_stats", stats)
+        return {"resultat": "bloque"}
+    client = get_client()
+    try:
+        rows = client.execute(
+            "SELECT id, nom, asin, prix_marche_json, image_url, en_stock FROM components WHERE id = ? AND asin = ?",
+            [body.id, body.asin],
+        ).rows
+        if not rows:
+            raise HTTPException(status_code=404, detail="Fiche introuvable.")
+        row = rows[0]
+        info = _parse_zenrows_amazon_html(body.extrait, row[2])
+        if info.get("prix") is None:
+            # Jamais « épuisé » sur la seule foi de l'extrait : Bright Data en décide.
+            stats["sans_prix"] += 1
+            _state_set("extension_stats", stats)
+            return {"resultat": "sans_prix"}
+        outcome = _apply_amazon_price_info(client, row[0], row[1], row[2], row[3], row[4], bool(row[5]), info,
+                                           source_label="Extension")
+    finally:
+        client.close()
+    stats["lus"] += 1
+    stats["dernier"] = {"nom": row[1], "prix": info["prix"], "heure": datetime.utcnow().isoformat(timespec="minutes")}
+    _state_set("extension_stats", stats)
+    invalidate_catalog()
+    return {"resultat": "ignore" if outcome.get("ignore") else "lu", "prix": info["prix"], "nom": row[1],
+            "message": outcome.get("error")}
+
+
+@app.get("/api/admin/prix-extension/stats")
+def admin_prix_extension_stats(_admin=Depends(require_admin)):
+    return _state_get("extension_stats", {})
 
 
 @app.post("/api/admin/components/{component_id}/prix-amazon")
