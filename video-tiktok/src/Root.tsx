@@ -4,6 +4,7 @@ import { FPS, H, W } from "./theme";
 import { Accroche, AppelAction, Assemblage, Atouts, Probleme, Solution } from "./Scenes";
 import { Essai } from "./Essai";
 import { DUREE_TOTALE, Promo } from "./v2/Promo";
+import { EssaiModeles } from "./EssaiModeles";
 
 // Durées des plans, en images (30 par seconde) : 22 s au total.
 const PLANS = [
@@ -32,6 +33,7 @@ export const Root: React.FC = () => (
   <>
     <Composition id="PcRadarTikTok" component={Video} durationInFrames={TOTAL} fps={FPS} width={W} height={H} />
     <Composition id="Essai3D" component={Essai} durationInFrames={3} fps={FPS} width={W} height={H} />
+    <Composition id="EssaiModeles" component={EssaiModeles} durationInFrames={8} fps={FPS} width={W} height={H} />
     <Composition id="PcRadarPromo" component={Promo} durationInFrames={DUREE_TOTALE} fps={FPS} width={W} height={H} />
   </>
 );

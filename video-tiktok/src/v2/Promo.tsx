@@ -4,9 +4,8 @@ import { ThreeCanvas } from "@remotion/three";
 import { C, FONT, H, MONO, W } from "../theme";
 import { Coche, Fond, LogoR, ressort } from "../ui";
 import voix from "../voix.json";
-import {
-  Alim, CameraFixe, CarteGraphique, Eclairage, Effets, PcReel, SolStudio, Studio, Telephone, Ventirad,
-} from "../three/Realiste";
+import { CameraFixe, Eclairage, Effets, SolStudio, Studio } from "../three/Realiste";
+import { Modele } from "../three/Modeles";
 
 // ---------------------------------------------------------------------------
 // Vidéo promo PC Radar : 8 plans calés sur la voix off (src/voix.json).
@@ -111,11 +110,11 @@ const P1: React.FC = () => {
       <ThreeCanvas width={W} height={H}>
         <Studio />
         <Eclairage alerte={alerte} />
-        <CameraFixe position={[2.1 - 2.8 * k, 0.7 + 0.25 * k, 4.4 - 0.6 * k]} cible={[0.5 - 1.4 * k, 0, 0]} fov={34} />
-        <group rotation={[0.18, -0.32, 0.04]}>
-          <CarteGraphique tour={frame * 0.12} rouge={alerte * 0.6} />
+        <CameraFixe position={[1.8 - 1.4 * k, 1.4 - 1.6 * k, 8.4 - 1.2 * k]} cible={[0, 0.5 - 1.2 * k, 0]} fov={34} />
+        <group rotation={[0.15, -0.5 + 0.25 * k, 0.05]}>
+          <Modele nom="gpu" taille={5.2} rouge={alerte * 0.5} temps={frame / 30} />
         </group>
-        <Effets flou={{ cible: [0.5 - 1.4 * k, 0, 0.25], force: 2.5 }} />
+        <Effets flou={{ cible: [0, 0.6 - 1.5 * k, 0.4], force: 2 }} />
       </ThreeCanvas>
       <SousTitres i={0} />
       <Voix i={0} />
@@ -163,14 +162,14 @@ const P2: React.FC = () => {
         <Studio />
         <Eclairage alerte={0.4 * rouge(a) + 0.3 * rouge(c)} accent={0.6} />
         <CameraFixe position={[-0.6, 0.6, 14]} cible={[0.2, 0.4, 0]} fov={40} />
-        <group position={[1.55, 2.05 + flotte(0), 0]} rotation={[0.25, -0.6 + derive, 0]} scale={0.95}>
-          <Ventirad tour={frame * 0.1} rouge={rouge(a)} />
+        <group position={[1.5, 2.85 + flotte(0), 0]} rotation={[0.25, -0.6 + derive, 0]}>
+          <Modele nom="ventirad" taille={1.9} rouge={rouge(a)} luminosite={0.35} />
         </group>
-        <group position={[1.4, 0.95 + flotte(1), 0]} rotation={[0.35, 0.5 + derive, 0]} scale={0.9}>
-          <Alim tour={frame * 0.08} rouge={rouge(b)} />
+        <group position={[1.45, 0.75 + flotte(1), 0]} rotation={[0.35, 0.6 + derive, 0]}>
+          <Modele nom="alim" taille={1.9} rouge={rouge(b)} />
         </group>
-        <group position={[1.45, -1.25 + flotte(2), 0]} rotation={[0.25, -0.35 + derive, 0.05]} scale={0.78}>
-          <CarteGraphique tour={frame * 0.12} rouge={rouge(c)} />
+        <group position={[1.4, -1.35 + flotte(2), 0]} rotation={[0.2, Math.PI / 2 - 0.5 + derive, Math.PI / 2]}>
+          <Modele nom="gpu" taille={3.5} rouge={rouge(c)} temps={frame / 30} />
         </group>
         <Effets />
       </ThreeCanvas>
@@ -243,10 +242,17 @@ const PlanTelephone: React.FC<{ ecran: string; de: number; a: number; d: number;
       <Studio intensite={1.3} />
       <Eclairage accent={0.7} />
       <CameraFixe position={[0, 0.2, 12.2]} cible={[0, -0.25, 0]} fov={38} />
-      <group rotation={[0.06, rot[0] + (rot[1] - rot[0]) * lisse, 0.03 - 0.05 * lisse]} position={[0, -0.25 + Math.sin(frame * 0.05) * 0.05, 0]} scale={0.86}>
-        <Telephone ecran={ecran} defilement={de + (a - de) * lisse} />
+      <group position={[-2.4, 2.4, -4]} rotation={[0.5, frame * 0.008, 0.3]}>
+        <Modele nom="carteMere" taille={3.4} />
       </group>
-      <Effets ecran />
+      <group position={[2.6, -2.2, -3.5]} rotation={[0.3, -frame * 0.01, 0.9]}>
+        <Modele nom="ram" taille={3} />
+      </group>
+      <group rotation={[0.06, Math.PI + rot[0] + (rot[1] - rot[0]) * lisse, 0.03 - 0.05 * lisse]} position={[0, -0.25 + Math.sin(frame * 0.05) * 0.05, 0]}>
+        <Modele nom="telephone" taille={5.6} masquer={(n) => n.includes("Screen_Glass")}
+          ecran={{ fichier: ecran, defilement: de + (a - de) * lisse }} />
+      </group>
+      <Effets ecran flou={{ cible: [0, 0, 0.2], force: 1.5 }} />
     </ThreeCanvas>
   );
 };
@@ -428,8 +434,8 @@ const P7: React.FC = () => {
         <Studio />
         <Eclairage accent={0.8} />
         <CameraFixe position={[0, 0.4, 7.5]} cible={[0, -0.2, 0]} fov={36} />
-        <group rotation={[0.35, -0.6 + frame * 0.006, 0.08]} position={[0, -0.5, 0]} scale={0.95}>
-          <CarteGraphique tour={frame * 0.12} />
+        <group rotation={[0.3, Math.PI / 2 - 0.9 + frame * 0.006, Math.PI / 2]} position={[0, -1.1, 0]}>
+          <Modele nom="gpu" taille={4.6} temps={frame / 30} />
         </group>
         <Effets />
       </ThreeCanvas>
@@ -493,9 +499,8 @@ const P8: React.FC = () => {
   const { fps } = useVideoConfig();
   const d = dureePlan(7);
   const fondu = useFondu(d, 4, 1);
-  const arrive = (debut: number) => 1 - ressort(frame, fps, debut, 110, 16);
-  const ecarts = { cm: arrive(0), alim: arrive(5), cpu: arrive(10), ram: arrive(15), gpu: arrive(20) };
-  const angle = 0.95 + frame * 0.012;
+  const entree = ressort(frame, fps, 0, 80, 16);
+  const angle = 0.7 + frame * 0.01;
   const url = ressort(frame, fps, moment(7, "Rendez-vous") - 6, 140, 13);
   const gratuit = ressort(frame, fps, moment(7, "gratuit"), 220, 12);
   return (
@@ -504,10 +509,10 @@ const P8: React.FC = () => {
       <ThreeCanvas width={W} height={H}>
         <Studio />
         <Eclairage />
-        <CameraFixe position={[12.5 * Math.sin(angle), 2.6, 12.5 * Math.cos(angle)]} cible={[0, -2.4, 0]} fov={40} />
-        <group position={[0, 0.2, 0]} scale={0.78}>
-          <PcReel tour={frame * 0.3} ecarts={ecarts} />
-          <SolStudio />
+        <CameraFixe position={[14 * Math.sin(angle), 3.2, 14 * Math.cos(angle)]} cible={[0, -1.9, 0]} fov={40} />
+        <group position={[0, 1.15 - (1 - entree) * 2, 0]} scale={0.85 + 0.15 * entree}>
+          <Modele nom="pcLeger" taille={3.1} />
+          <SolStudio y={-1.58} />
         </group>
         <Effets />
       </ThreeCanvas>
