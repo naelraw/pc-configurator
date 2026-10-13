@@ -1,0 +1,668 @@
+[
+ {
+  "fichier": "voix/plan1.mp3",
+  "texte": "Monter son PC, c'est une dizaine de pièces. Et une seule erreur suffit.",
+  "mots": [
+   {
+    "mot": "Monter",
+    "debut": 0.096291,
+    "fin": 0.431957
+   },
+   {
+    "mot": "son",
+    "debut": 0.4435,
+    "fin": 0.593958
+   },
+   {
+    "mot": "PC",
+    "debut": 0.605541,
+    "fin": 1.010624
+   },
+   {
+    "mot": "c'est",
+    "debut": 1.276833,
+    "fin": 1.392583
+   },
+   {
+    "mot": "une",
+    "debut": 1.404166,
+    "fin": 1.577791
+   },
+   {
+    "mot": "dizaine",
+    "debut": 1.589333,
+    "fin": 1.901833
+   },
+   {
+    "mot": "de",
+    "debut": 1.913416,
+    "fin": 2.029166
+   },
+   {
+    "mot": "pièces",
+    "debut": 2.04075,
+    "fin": 2.573166
+   },
+   {
+    "mot": "Et",
+    "debut": 3.379625,
+    "fin": 3.5185
+   },
+   {
+    "mot": "une",
+    "debut": 3.530083,
+    "fin": 3.645833
+   },
+   {
+    "mot": "seule",
+    "debut": 3.657416,
+    "fin": 3.854166
+   },
+   {
+    "mot": "erreur",
+    "debut": 3.86575,
+    "fin": 4.050916
+   },
+   {
+    "mot": "suffit",
+    "debut": 4.0625,
+    "fin": 4.456
+   }
+  ],
+  "fin_voix": 4.456
+ },
+ {
+  "fichier": "voix/plan2.mp3",
+  "texte": "Un processeur sur le mauvais socket. Une alimentation trop faible. Une carte graphique trop longue pour le boîtier.",
+  "mots": [
+   {
+    "mot": "Un",
+    "debut": 0.096291,
+    "fin": 0.258332
+   },
+   {
+    "mot": "processeur",
+    "debut": 0.269916,
+    "fin": 0.790749
+   },
+   {
+    "mot": "sur",
+    "debut": 0.802333,
+    "fin": 0.929666
+   },
+   {
+    "mot": "le",
+    "debut": 0.941208,
+    "fin": 0.999083
+   },
+   {
+    "mot": "mauvais",
+    "debut": 1.010666,
+    "fin": 1.253707
+   },
+   {
+    "mot": "socket",
+    "debut": 1.265291,
+    "fin": 1.843999
+   },
+   {
+    "mot": "Une",
+    "debut": 2.650458,
+    "fin": 2.835624
+   },
+   {
+    "mot": "alimentation",
+    "debut": 2.847208,
+    "fin": 3.402749
+   },
+   {
+    "mot": "trop",
+    "debut": 3.414333,
+    "fin": 3.599499
+   },
+   {
+    "mot": "faible",
+    "debut": 3.611125,
+    "fin": 4.016208
+   },
+   {
+    "mot": "Une",
+    "debut": 4.814833,
+    "fin": 4.999999
+   },
+   {
+    "mot": "carte",
+    "debut": 5.011583,
+    "fin": 5.277791
+   },
+   {
+    "mot": "graphique",
+    "debut": 5.289333,
+    "fin": 5.659708
+   },
+   {
+    "mot": "trop",
+    "debut": 5.671291,
+    "fin": 5.833332
+   },
+   {
+    "mot": "longue",
+    "debut": 5.844916,
+    "fin": 6.041666
+   },
+   {
+    "mot": "pour",
+    "debut": 6.05325,
+    "fin": 6.192125
+   },
+   {
+    "mot": "le",
+    "debut": 6.203708,
+    "fin": 6.261583
+   },
+   {
+    "mot": "boîtier",
+    "debut": 6.273166,
+    "fin": 6.712999
+   }
+  ],
+  "fin_voix": 6.712999
+ },
+ {
+  "fichier": "voix/plan3.mp3",
+  "texte": "PC Radar vérifie tout, à ta place.",
+  "mots": [
+   {
+    "mot": "PC",
+    "debut": 0.096291,
+    "fin": 0.385624
+   },
+   {
+    "mot": "Radar",
+    "debut": 0.397208,
+    "fin": 0.674999
+   },
+   {
+    "mot": "vérifie",
+    "debut": 0.686583,
+    "fin": 1.080083
+   },
+   {
+    "mot": "tout",
+    "debut": 1.091666,
+    "fin": 1.334707
+   },
+   {
+    "mot": "à",
+    "debut": 1.589333,
+    "fin": 1.647208
+   },
+   {
+    "mot": "ta",
+    "debut": 1.658791,
+    "fin": 1.774541
+   },
+   {
+    "mot": "place",
+    "debut": 1.786125,
+    "fin": 2.295375
+   }
+  ],
+  "fin_voix": 2.295375
+ },
+ {
+  "fichier": "voix/plan4.mp3",
+  "texte": "Choisis tes pièces : chacune est contrôlée avec les autres, et le total s'affiche au prix du jour.",
+  "mots": [
+   {
+    "mot": "Choisis",
+    "debut": 0.096291,
+    "fin": 0.478249
+   },
+   {
+    "mot": "tes",
+    "debut": 0.489833,
+    "fin": 0.605583
+   },
+   {
+    "mot": "pièces",
+    "debut": 0.617125,
+    "fin": 1.010625
+   },
+   {
+    "mot": "chacune",
+    "debut": 1.207416,
+    "fin": 1.577791
+   },
+   {
+    "mot": "est",
+    "debut": 1.589333,
+    "fin": 1.6356239
+   },
+   {
+    "mot": "contrôlée",
+    "debut": 1.647208,
+    "fin": 2.052291
+   },
+   {
+    "mot": "avec",
+    "debut": 2.063875,
+    "fin": 2.272208
+   },
+   {
+    "mot": "les",
+    "debut": 2.283791,
+    "fin": 2.376374
+   },
+   {
+    "mot": "autres",
+    "debut": 2.387958,
+    "fin": 2.712041
+   },
+   {
+    "mot": "et",
+    "debut": 3.012958,
+    "fin": 3.036124
+   },
+   {
+    "mot": "le",
+    "debut": 3.047666,
+    "fin": 3.140249
+   },
+   {
+    "mot": "total",
+    "debut": 3.151833,
+    "fin": 3.475916
+   },
+   {
+    "mot": "s'affiche",
+    "debut": 3.4875,
+    "fin": 3.869458
+   },
+   {
+    "mot": "au",
+    "debut": 3.881,
+    "fin": 3.938875
+   },
+   {
+    "mot": "prix",
+    "debut": 3.950458,
+    "fin": 4.100916
+   },
+   {
+    "mot": "du",
+    "debut": 4.1125,
+    "fin": 4.216666
+   },
+   {
+    "mot": "jour",
+    "debut": 4.22825,
+    "fin": 4.691208
+   }
+  ],
+  "fin_voix": 4.691208
+ },
+ {
+  "fichier": "voix/plan5.mp3",
+  "texte": "Pas envie de chercher ? Décris ton besoin à l'assistant IA. Il te propose une config complète, adaptée à ton budget.",
+  "mots": [
+   {
+    "mot": "Pas",
+    "debut": 0.096291,
+    "fin": 0.246749
+   },
+   {
+    "mot": "envie",
+    "debut": 0.258333,
+    "fin": 0.431958
+   },
+   {
+    "mot": "de",
+    "debut": 0.4435,
+    "fin": 0.55925
+   },
+   {
+    "mot": "chercher",
+    "debut": 0.570833,
+    "fin": 1.022208
+   },
+   {
+    "mot": "Décris",
+    "debut": 1.828708,
+    "fin": 2.256958
+   },
+   {
+    "mot": "ton",
+    "debut": 2.2685,
+    "fin": 2.418958
+   },
+   {
+    "mot": "besoin",
+    "debut": 2.430541,
+    "fin": 2.812499
+   },
+   {
+    "mot": "à",
+    "debut": 2.824083,
+    "fin": 2.858791
+   },
+   {
+    "mot": "l'assistant",
+    "debut": 2.870375,
+    "fin": 3.32175
+   },
+   {
+    "mot": "IA",
+    "debut": 3.333333,
+    "fin": 3.622666
+   },
+   {
+    "mot": "Il",
+    "debut": 4.421291,
+    "fin": 4.594916
+   },
+   {
+    "mot": "te",
+    "debut": 4.6065,
+    "fin": 4.72225
+   },
+   {
+    "mot": "propose",
+    "debut": 4.733791,
+    "fin": 5.104166
+   },
+   {
+    "mot": "une",
+    "debut": 5.11575,
+    "fin": 5.219916
+   },
+   {
+    "mot": "config",
+    "debut": 5.2315,
+    "fin": 5.567166
+   },
+   {
+    "mot": "complète",
+    "debut": 5.578708,
+    "fin": 6.030083
+   },
+   {
+    "mot": "adaptée",
+    "debut": 6.36575,
+    "fin": 6.747708
+   },
+   {
+    "mot": "à",
+    "debut": 6.75925,
+    "fin": 6.817125
+   },
+   {
+    "mot": "ton",
+    "debut": 6.828708,
+    "fin": 6.979166
+   },
+   {
+    "mot": "budget",
+    "debut": 6.99075,
+    "fin": 7.407416
+   }
+  ],
+  "fin_voix": 7.407416
+ },
+ {
+  "fichier": "voix/plan6.mp3",
+  "texte": "Les prix sont relevés plusieurs fois par jour, sur près de mille composants, avec tout leur historique.",
+  "mots": [
+   {
+    "mot": "Les",
+    "debut": 0.096291,
+    "fin": 0.293041
+   },
+   {
+    "mot": "prix",
+    "debut": 0.304625,
+    "fin": 0.489791
+   },
+   {
+    "mot": "sont",
+    "debut": 0.501375,
+    "fin": 0.628708
+   },
+   {
+    "mot": "relevés",
+    "debut": 0.640291,
+    "fin": 0.918082
+   },
+   {
+    "mot": "plusieurs",
+    "debut": 0.929625,
+    "fin": 1.288416
+   },
+   {
+    "mot": "fois",
+    "debut": 1.3,
+    "fin": 1.462041
+   },
+   {
+    "mot": "par",
+    "debut": 1.473625,
+    "fin": 1.635666
+   },
+   {
+    "mot": "jour",
+    "debut": 1.647208,
+    "fin": 1.971291
+   },
+   {
+    "mot": "sur",
+    "debut": 2.225916,
+    "fin": 2.387957
+   },
+   {
+    "mot": "près",
+    "debut": 2.399541,
+    "fin": 2.549999
+   },
+   {
+    "mot": "de",
+    "debut": 2.561583,
+    "fin": 2.654166
+   },
+   {
+    "mot": "mille",
+    "debut": 2.66575,
+    "fin": 2.793083
+   },
+   {
+    "mot": "composants",
+    "debut": 2.804625,
+    "fin": 3.313875
+   },
+   {
+    "mot": "avec",
+    "debut": 3.614833,
+    "fin": 3.857874
+   },
+   {
+    "mot": "tout",
+    "debut": 3.869458,
+    "fin": 3.996791
+   },
+   {
+    "mot": "leur",
+    "debut": 4.008333,
+    "fin": 4.124083
+   },
+   {
+    "mot": "historique",
+    "debut": 4.135666,
+    "fin": 4.760666
+   }
+  ],
+  "fin_voix": 4.760666
+ },
+ {
+  "fichier": "voix/plan7.mp3",
+  "texte": "Suis un composant : un e-mail te prévient dès que son prix baisse. Et avant d'acheter, découvre tes FPS sur tes jeux.",
+  "mots": [
+   {
+    "mot": "Suis",
+    "debut": 0.096291,
+    "fin": 0.339332
+   },
+   {
+    "mot": "un",
+    "debut": 0.350916,
+    "fin": 0.420374
+   },
+   {
+    "mot": "composant",
+    "debut": 0.431958,
+    "fin": 0.975958
+   },
+   {
+    "mot": "un",
+    "debut": 1.172666,
+    "fin": 1.207374
+   },
+   {
+    "mot": "e-mail",
+    "debut": 1.219,
+    "fin": 1.496791
+   },
+   {
+    "mot": "te",
+    "debut": 1.508333,
+    "fin": 1.635666
+   },
+   {
+    "mot": "prévient",
+    "debut": 1.647208,
+    "fin": 1.948124
+   },
+   {
+    "mot": "dès",
+    "debut": 1.959708,
+    "fin": 2.052291
+   },
+   {
+    "mot": "que",
+    "debut": 2.063875,
+    "fin": 2.20275
+   },
+   {
+    "mot": "son",
+    "debut": 2.214333,
+    "fin": 2.353208
+   },
+   {
+    "mot": "prix",
+    "debut": 2.364833,
+    "fin": 2.538458
+   },
+   {
+    "mot": "baisse",
+    "debut": 2.55,
+    "fin": 3.024541
+   },
+   {
+    "mot": "Et",
+    "debut": 3.831,
+    "fin": 3.981458
+   },
+   {
+    "mot": "avant",
+    "debut": 3.993041,
+    "fin": 4.155082
+   },
+   {
+    "mot": "d'acheter",
+    "debut": 4.166666,
+    "fin": 4.629624
+   },
+   {
+    "mot": "découvre",
+    "debut": 4.872666,
+    "fin": 5.289332
+   },
+   {
+    "mot": "tes",
+    "debut": 5.300916,
+    "fin": 5.439791
+   },
+   {
+    "mot": "FPS",
+    "debut": 5.451375,
+    "fin": 5.810166
+   },
+   {
+    "mot": "sur",
+    "debut": 5.82175,
+    "fin": 5.983791
+   },
+   {
+    "mot": "tes",
+    "debut": 5.995375,
+    "fin": 6.13425
+   },
+   {
+    "mot": "jeux",
+    "debut": 6.145833,
+    "fin": 6.400458
+   }
+  ],
+  "fin_voix": 6.400458
+ },
+ {
+  "fichier": "voix/plan8.mp3",
+  "texte": "PC Radar, c'est gratuit. Rendez-vous sur pcradar point tech.",
+  "mots": [
+   {
+    "mot": "PC",
+    "debut": 0.096291,
+    "fin": 0.397207
+   },
+   {
+    "mot": "Radar",
+    "debut": 0.408791,
+    "fin": 0.802291
+   },
+   {
+    "mot": "c'est",
+    "debut": 1.022208,
+    "fin": 1.137958
+   },
+   {
+    "mot": "gratuit",
+    "debut": 1.149541,
+    "fin": 1.635666
+   },
+   {
+    "mot": "Rendez-vous",
+    "debut": 2.430541,
+    "fin": 2.928207
+   },
+   {
+    "mot": "sur",
+    "debut": 2.939833,
+    "fin": 3.090291
+   },
+   {
+    "mot": "pcradar",
+    "debut": 3.101833,
+    "fin": 3.576374
+   },
+   {
+    "mot": "point",
+    "debut": 3.587958,
+    "fin": 3.773124
+   },
+   {
+    "mot": "tech",
+    "debut": 3.784708,
+    "fin": 4.259249
+   }
+  ],
+  "fin_voix": 4.259249
+ }
+]
