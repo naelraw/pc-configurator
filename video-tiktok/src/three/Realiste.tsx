@@ -44,7 +44,7 @@ export const Effets: React.FC<{ flou?: { cible: [number, number, number]; force?
     ) : (
       <></>
     )}
-    <Bloom intensity={0.85} luminanceThreshold={0.62} luminanceSmoothing={0.2} mipmapBlur />
+    <Bloom intensity={ecran ? 0.18 : 0.85} luminanceThreshold={ecran ? 0.97 : 0.62} luminanceSmoothing={0.2} mipmapBlur />
     {ecran ? <></> : <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />}
     <Vignette offset={0.28} darkness={ecran ? 0.4 : 0.62} />
   </EffectComposer>
@@ -595,7 +595,7 @@ export const SolStudio: React.FC<{ y?: number; anneau?: boolean }> = ({ y = -2.4
   <group position={[0, y, 0]}>
     <mesh rotation={[-Math.PI / 2, 0, 0]}>
       <circleGeometry args={[40, 96]} />
-      <meshStandardMaterial color="#0a0b0d" metalness={0.35} roughness={0.62} envMapIntensity={0.15} />
+      <meshStandardMaterial color="#050607" metalness={0.5} roughness={0.5} envMapIntensity={0.12} />
     </mesh>
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
       <planeGeometry args={[6, 6]} />
