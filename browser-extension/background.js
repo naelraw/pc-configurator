@@ -244,8 +244,9 @@ async function updatePrice(componentId, prix, asin) {
 const RELEVE_ALARME = 'pcr-releve-prix';
 const RELEVE_MAX_PAR_JOUR = 2500;
 const RELEVE_PAUSE_BLOCAGE_MS = 30 * 60 * 1000;
-const RELEVE_INTERVALLE_DEPART = 12, RELEVE_INTERVALLE_MIN = 6, RELEVE_INTERVALLE_MAX = 60;
-const RELEVE_ACCELERER_APRES = 40;
+// 15 s minimum : en dessous, Amazon demande souvent une vérification (mesuré en octobre 2026).
+const RELEVE_INTERVALLE_DEPART = 18, RELEVE_INTERVALLE_MIN = 15, RELEVE_INTERVALLE_MAX = 90;
+const RELEVE_ACCELERER_APRES = 80;
 let releveEnCours = false;
 
 function aujourdhui() {

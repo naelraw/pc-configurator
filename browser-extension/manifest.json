@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "PC Radar - Ajout rapide Amazon",
-  "version": "1.9",
+  "version": "1.10",
   "description": "Gère le catalogue PC Radar depuis Amazon : produits pas encore sur le site mis en évidence, ajout groupé, prix mis à jour automatiquement sur les fiches et les pages de résultats, relevé automatique en arrière-plan.",
   "action": {
     "default_popup": "popup.html",

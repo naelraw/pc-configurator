@@ -36,9 +36,12 @@ SITE = "https://pcradar.tech"
 # Vitesse adaptative : départ à une fiche toutes les 12 s, accélère jusqu'à 6 s tant
 # qu'Amazon ne demande aucune vérification ; à la première vérification, vitesse
 # divisée par deux (jusqu'à 60 s) et pause. Rien à relire : attente de 5 min.
-INTERVALLE_DEPART = 12
-INTERVALLE_MIN, INTERVALLE_MAX = 6, 60
-ACCELERER_APRES = 40          # lectures sans vérification avant de gagner une seconde
+# Mesuré du 11 au 15/10/2026 : en descendant à 6-9 s, Amazon demandait une vérification
+# une douzaine de fois par jour (6 h de pause). 15 s minimum suffit largement (plus de
+# 2 000 fiches par jour possibles pour un catalogue d'environ 1 000).
+INTERVALLE_DEPART = 18
+INTERVALLE_MIN, INTERVALLE_MAX = 15, 90
+ACCELERER_APRES = 80          # lectures sans vérification avant de gagner une seconde
 MAX_PAR_JOUR = 2500
 PAUSE_BLOCAGE_SECONDES = 30 * 60
 DOSSIER = os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "PCRadar")
