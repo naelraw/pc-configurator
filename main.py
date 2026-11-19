@@ -2660,12 +2660,12 @@ def component_page(id_slug: str):
     catalog = get_catalog()
     component = next((c for c in catalog if match and c["id"] == int(match.group(1))), None)
     if not component:
-        # Fiche retirée du catalogue : même modèle encore vendu → redirection,
-        # sinon 410 (« supprimée pour de bon ») pour que Google l'oublie vite.
+        # Fiche retirée du catalogue : même modèle encore vendu → redirection ;
+        # sinon 404 (page « plus au catalogue », voir erreurs.py).
         remplacant = _fiche_equivalente(id_slug, catalog)
         if remplacant:
             return RedirectResponse(component_pages.page_url(remplacant), status_code=301)
-        raise HTTPException(status_code=410, detail="Ce composant n'est plus au catalogue.")
+        raise HTTPException(status_code=404, detail="Composant introuvable.")
     canonical = component_pages.page_url(component)
     if f"/composant/{id_slug}" != canonical:
         return RedirectResponse(canonical, status_code=301)
@@ -2710,10 +2710,12 @@ def comparison_page(slug: str):
     pair = next((p for p in all_pairs if p["slug"] == slug), None)
     if not pair:
         # Duel retiré (un des deux modèles n'est plus en stock) : redirection vers un duel
-        # actuel avec le même modèle, sinon vers la liste des comparatifs.
+        # actuel avec le même modèle ; modèles inconnus → 404.
         cotes = slug.split("-vs-")
         proche = next((p for c in cotes for p in all_pairs if c in (p["a"]["slug"], p["b"]["slug"])), None)
-        return RedirectResponse(f"/comparer/{proche['slug']}" if proche else "/comparer", status_code=302)
+        if not proche:
+            raise HTTPException(status_code=404, detail="Comparatif introuvable.")
+        return RedirectResponse(f"/comparer/{proche['slug']}", status_code=302)
     partner = _best_in_stock(catalog, "CPU" if pair["kind"] == "GPU" else "GPU")
     fps_for = lambda component, other: (
         _run_fps_estimation([component, other], component_pages.FPS_GAMES, "ultra") if other else None
