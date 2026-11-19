@@ -336,7 +336,8 @@ def render_category(categorie, items):
 </main>
 """
     return _page(f"{name} : prix et comparatif ({mois}) — PC Radar",
-                 f"{len(produits)} {name.lower()} avec leur prix du jour, leurs caractéristiques et leur compatibilité.",
+                 f"{name} : {len(produits)} modèles comparés avec leur prix du jour, l'historique des prix, "
+                 f"leurs caractéristiques et leur compatibilité avec le reste de votre PC.",
                  f"https://pcradar.tech{category_url(categorie)}", body)
 
 
@@ -359,5 +360,6 @@ def render_index(catalog):
 </main>
 """
     return _page(f"Catalogue de composants PC ({mois}) — PC Radar",
-                 "Processeurs, cartes graphiques, cartes mères, RAM, SSD, alimentations, boîtiers : prix du jour et compatibilité.",
+                 "Composants PC : processeurs, cartes graphiques, cartes mères, RAM, SSD, alimentations, "
+                 "boîtiers et refroidissement, avec prix du jour et compatibilité.",
                  "https://pcradar.tech/composants", body)

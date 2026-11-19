@@ -798,7 +798,10 @@ def sitemap_xml():
         ("/estimer-fps", "0.8", "weekly"),
         ("/application", "0.5", "monthly"),
         ("/guides", "0.8", "daily"),
-    ] + [(f"/guides/{slug}", "0.8", "daily") for slug in guides.GUIDES]
+    ]
+    donnees_guides = featured_configs()
+    profils_dispo = {c["id"] for c in donnees_guides.get("configs", []) + donnees_guides.get("budgets", [])}
+    pages += [(f"/guides/{slug}", "0.8", "daily") for slug, profil in guides.GUIDES.items() if profil in profils_dispo]
     pages += [("/composants", "0.7", "daily")]
     pages += [(component_pages.category_url(cat), "0.7", "daily") for cat in component_pages.CATEGORY_SLUGS]
     pages += [(component_pages.page_url(c), "0.6", "daily") for c in get_catalog()]
@@ -2710,7 +2713,14 @@ def guide_page(slug: str):
     configs = donnees.get("configs", []) + donnees.get("budgets", [])
     config = next((c for c in configs if c["id"] == profile_id), None)
     if not config:
-        raise HTTPException(status_code=503, detail="Guide momentanément indisponible.")
+        # Aucune config possible à ce budget avec les prix du jour (ex. 700 € quand la
+        # RAM est chère) : redirection temporaire vers le budget au-dessus le plus proche,
+        # plutôt qu'une erreur 503 que Google finit par sortir de l'index.
+        budget = next((c["budget"] for c in featured_builds.BUDGET_PROFILES if c["id"] == profile_id), None)
+        plus_haut = sorted((c for c in donnees.get("budgets", []) if budget and c["budget"] > budget),
+                           key=lambda c: c["budget"])
+        cible = f"/guides/{guides.SLUG_BY_PROFILE[plus_haut[0]['id']]}" if plus_haut else "/guides"
+        return RedirectResponse(cible, status_code=302)
     catalog_by_id = {c["id"]: c for c in get_catalog()}
     return HTMLResponse(guides.render_guide(config, configs, catalog_by_id))
 

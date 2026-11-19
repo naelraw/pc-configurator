@@ -273,7 +273,8 @@ def render_index(all_configs, budgets=()):
 """
     return _page(
         f"Guides d'achat PC gamer ({mois}) — PC Radar",
-        "Quel PC gamer acheter en 1080p, 1440p ou 4K : configurations complètes, compatibles et mises à jour chaque jour.",
+        "Quel PC gamer acheter selon ton budget, en 1080p, 1440p ou 4K : configurations complètes et compatibles, "
+        "FPS estimés et prix des pièces mis à jour chaque jour.",
         "https://pcradar.tech/guides",
         body,
     )

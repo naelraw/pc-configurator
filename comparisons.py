@@ -274,5 +274,6 @@ def render_index(all_pairs):
 </main>
 """
     return _page(f"Comparatifs cartes graphiques et processeurs ({mois}) — PC Radar",
-                 "RTX contre Radeon, Ryzen contre Core : écarts de performance, FPS et rapport performance/prix.",
+                 "Comparatifs RTX contre Radeon et Ryzen contre Core : écart de performance, FPS estimés en jeu, "
+                 "prix du jour et rapport performance/prix pour bien choisir.",
                  "https://pcradar.tech/comparer", body)
