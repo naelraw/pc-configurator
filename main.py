@@ -4172,7 +4172,23 @@ def admin_site_stats(_admin=Depends(require_admin)):
         data["liens"] = _stats_liens(historique, data)
         data.pop("detail", None)
         _STATS_CACHE.update(at=time.time(), data=data)
-    return {**_STATS_CACHE["data"], "assistant": _stats_assistant()}
+    return {**_STATS_CACHE["data"], "assistant": _stats_assistant(), "comptes": _stats_comptes()}
+
+
+def _stats_comptes():
+    """Comptes créés : total, sur 7 jours et aujourd'hui (dates UTC de users.created_at)."""
+    aujourd_hui = datetime.utcnow().date()
+    il_y_a_7_jours = (aujourd_hui - timedelta(days=6)).isoformat()
+    try:
+        total, semaine, jour = get_client().execute(
+            "SELECT COUNT(*), "
+            "COALESCE(SUM(CASE WHEN substr(created_at, 1, 10) >= ? THEN 1 ELSE 0 END), 0), "
+            "COALESCE(SUM(CASE WHEN substr(created_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) FROM users",
+            [il_y_a_7_jours, aujourd_hui.isoformat()],
+        ).rows[0]
+    except Exception:
+        return None
+    return {"total": int(total), "semaine": int(semaine), "jour": int(jour)}
 
 
 STATS_EXCLUDED_IPS = {"127.0.0.1", "10.0.0.79", "88.96.49.31"}

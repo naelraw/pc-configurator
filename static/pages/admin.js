@@ -291,6 +291,8 @@
       kpi('Appareils différents sur 7 jours', statsData ? nombre(statsData.semaine.visiteurs) : '—',
           statsData ? `${nombre(statsData.jours[statsData.jours.length - 1].visiteurs)} aujourd'hui` : '', '', 'stats'),
       kpi('Pages vues sur 7 jours', statsData ? nombre(statsData.semaine.pages_vues) : '—', '', '', 'stats'),
+      kpi('Comptes créés', statsData && statsData.comptes ? nombre(statsData.comptes.total) : '—',
+          statsData && statsData.comptes ? `${nombre(statsData.comptes.semaine)} sur 7 jours, ${nombre(statsData.comptes.jour)} aujourd'hui` : ''),
       kpi('Produits au catalogue', nombre(produits), `${nombre(components.length)} annonces, ${nombre(enStock)} en stock`, '', 'catalog'),
       kpi('Prix suspects', nombre(suspects), aRattacher ? `${aRattacher} annonce${aRattacher > 1 ? 's' : ''} à rattacher` : 'aucune annonce à rattacher',
           suspects ? 'is-alert' : 'is-ok', 'watch'),
