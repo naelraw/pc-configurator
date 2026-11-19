@@ -2660,7 +2660,12 @@ def component_page(id_slug: str):
     catalog = get_catalog()
     component = next((c for c in catalog if match and c["id"] == int(match.group(1))), None)
     if not component:
-        raise HTTPException(status_code=404, detail="Composant introuvable.")
+        # Fiche retirée du catalogue : même modèle encore vendu → redirection,
+        # sinon 410 (« supprimée pour de bon ») pour que Google l'oublie vite.
+        remplacant = _fiche_equivalente(id_slug, catalog)
+        if remplacant:
+            return RedirectResponse(component_pages.page_url(remplacant), status_code=301)
+        raise HTTPException(status_code=410, detail="Ce composant n'est plus au catalogue.")
     canonical = component_pages.page_url(component)
     if f"/composant/{id_slug}" != canonical:
         return RedirectResponse(canonical, status_code=301)
@@ -2668,6 +2673,24 @@ def component_page(id_slug: str):
         component, catalog, _component_fps_block(component, catalog),
         _component_price_stats(component["id"]), _affiliate,
     ))
+
+
+def _fiche_equivalente(id_slug, catalog):
+    """Fiche du catalogue qui reprend le nom d'une fiche supprimée : tous les numéros
+    de modèle (6900, 4060...) identiques et au moins 80 % des mots en commun."""
+    mots = set(re.sub(r"^\d+-?", "", id_slug).split("-")) - {""}
+    numeros = {m for m in mots if re.search(r"\d{3,}", m)}
+    if len(mots) < 2 or not numeros:
+        return None
+    meilleur, score_max = None, 0.0
+    for c in catalog:
+        autres = set(component_pages.slugify(c["nom"]).split("-"))
+        if not numeros <= autres:
+            continue
+        score = len(mots & autres) / len(mots | autres)
+        if score > score_max:
+            meilleur, score_max = c, score
+    return meilleur if score_max >= 0.8 else None
 
 
 def _best_in_stock(catalog, categorie):
@@ -2686,7 +2709,11 @@ def comparison_page(slug: str):
     all_pairs = comparisons.pairs(catalog)
     pair = next((p for p in all_pairs if p["slug"] == slug), None)
     if not pair:
-        raise HTTPException(status_code=404, detail="Comparatif introuvable.")
+        # Duel retiré (un des deux modèles n'est plus en stock) : redirection vers un duel
+        # actuel avec le même modèle, sinon vers la liste des comparatifs.
+        cotes = slug.split("-vs-")
+        proche = next((p for c in cotes for p in all_pairs if c in (p["a"]["slug"], p["b"]["slug"])), None)
+        return RedirectResponse(f"/comparer/{proche['slug']}" if proche else "/comparer", status_code=302)
     partner = _best_in_stock(catalog, "CPU" if pair["kind"] == "GPU" else "GPU")
     fps_for = lambda component, other: (
         _run_fps_estimation([component, other], component_pages.FPS_GAMES, "ultra") if other else None
